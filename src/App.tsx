@@ -16,6 +16,7 @@ import Gallery from './pages/Gallery'
 import Events from './pages/Events'
 import Contact from './pages/Contact'
 import TableManagement from './pages/TableManagement'
+import StaffManagement from './pages/StaffManagement'
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/table-management" element={<TableManagement />} />
+        <Route path="/staff-management" element={<StaffManagement />} />
       </Routes>
     </div>
   )

@@ -132,6 +132,9 @@ export default function OrderManagement() {
             <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
               Table Management
             </Link>
+            <Link to="/staff-management" className="text-gray-500 hover:text-gray-700 pb-2">
+              Staff Management
+            </Link>
             <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
               Analytics
             </Link>
