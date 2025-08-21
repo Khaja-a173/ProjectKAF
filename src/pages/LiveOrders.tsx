@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
-import { Clock, CheckCircle, Truck, MapPin, Phone, TrendingUp, Users, Star, ShoppingBag } from 'lucide-react'
+import { Clock, CheckCircle, Truck, MapPin, Phone, TrendingUp, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3 } from 'lucide-react'
 
 export default function LiveOrders() {
   const [orders, setOrders] = useState([
