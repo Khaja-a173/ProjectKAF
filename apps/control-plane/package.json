@@ -11,9 +11,9 @@
     "test": "jest",
     "clean": "rm -rf .next"
   },
-  "dependencies": {
-    "@projectkaf/ui": "workspace:*",
-    "@projectkaf/utils": "workspace:*",
+    "@projectkaf/db": "*",
+    "@projectkaf/ui": "*",
+    "@projectkaf/utils": "*",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
