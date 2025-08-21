@@ -1,5 +1,5 @@
 import { useLogo } from '../contexts/BrandingContext'
-import { ChefHat, MapPin, Phone, Mail, Clock, Facebook, Instagram, Twitter } from 'lucide-react'
+import { ChefHat, MapPin, Phone, Mail, Facebook, Instagram, Twitter } from 'lucide-react'
 
 export default function Footer() {
   const { logoHeader } = useLogo()

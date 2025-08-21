@@ -886,5 +886,5 @@ export default function KitchenDashboard() {
         </div>
       )}
     </div>
-  )
+  );
 }

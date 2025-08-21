@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useLogo } from '../contexts/BrandingContext'
 import { useSessionManagement } from '../hooks/useSessionManagement'
-import { ChefHat, Menu as MenuIcon, X, ShoppingCart, User } from 'lucide-react'
+import { ChefHat, Menu as MenuIcon, X, ShoppingCart } from 'lucide-react'
 
 function CartBadge() {
   const { carts } = useSessionManagement({
@@ -30,7 +30,7 @@ function CartBadge() {
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const location = useLocation()
-  const { logoHeader, logoHeaderDark } = useLogo()
+  const { logoHeader } = useLogo()
 
   const navigation = [
     { name: 'Home', href: '/' },
