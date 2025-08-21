@@ -728,6 +728,30 @@ export default function TableManagement() {
             <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
               Dashboard
             </Link>
+            <Link to="/menu" className="text-gray-500 hover:text-gray-700 pb-2">
+              Menu Management
+            </Link>
+            <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
+              Orders
+            </Link>
+            <Link to="/table-management" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
+              Table Management
+            </Link>
+            <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
+              Analytics
+            </Link>
+            <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
+              Settings
+            </Link>
+          </div>
+        </nav>
+
+        {/* Sub-navigation for Table Management */}
+        <nav className="mb-8">
+          <div className="flex space-x-8">
+            <Link to="/table-management" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
+              Table Management
+            </Link>
             <button 
               onClick={() => setActiveView('floor')}
               className={`pb-2 font-medium ${activeView === 'floor' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}

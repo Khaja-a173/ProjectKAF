@@ -11,7 +11,8 @@ import {
   Settings,
   Bell,
   Search,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  Grid3X3
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -77,6 +78,9 @@ export default function Dashboard() {
             </Link>
             <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
               Orders
+            </Link>
+            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
+              Table Management
             </Link>
             <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
               Analytics
@@ -172,6 +176,13 @@ export default function Dashboard() {
                 >
                   <BarChart3 className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Analytics</span>
+                </Link>
+                <Link
+                  to="/table-management"
+                  className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                >
+                  <Grid3X3 className="w-5 h-5 text-indigo-600 mr-3" />
+                  <span className="font-medium text-indigo-900">Table Management</span>
                 </Link>
               </div>
             </div>

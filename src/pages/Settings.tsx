@@ -372,6 +372,9 @@ export default function Settings() {
             <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
               Orders
             </Link>
+            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
+              Table Management
+            </Link>
             <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
               Analytics
             </Link>

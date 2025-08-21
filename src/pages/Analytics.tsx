@@ -62,6 +62,9 @@ export default function Analytics() {
             <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
               Orders
             </Link>
+            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
+              Table Management
+            </Link>
             <Link to="/analytics" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
               Analytics
             </Link>
