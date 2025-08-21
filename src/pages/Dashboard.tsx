@@ -212,6 +212,10 @@ export default function Dashboard() {
                   <ChefHat className="w-5 h-5 text-red-600 mr-3" />
                   <span className="font-medium text-red-900">Kitchen Dashboard</span>
                 </Link>
+                <Link to="/admin/kitchen" className="flex items-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+                  <ChefHat className="w-5 h-5 text-orange-600 mr-3" />
+                  <span className="font-medium text-orange-900">Admin Kitchen</span>
+                </Link>
               </div>
             </div>
 

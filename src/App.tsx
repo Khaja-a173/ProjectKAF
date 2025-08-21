@@ -46,6 +46,7 @@ function App() {
         <Route path="/customer-menu" element={<CustomerMenu />} />
         <Route path="/application-customization" element={<ApplicationCustomization />} />
         <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
+        <Route path="/admin/kitchen" element={<KitchenDashboard />} />
       </Routes>
     </div>
   )
