@@ -8,119 +8,9 @@ let globalSessionState: {
   orders: DineInOrder[]
   payments: Payment[]
 } = {
-  sessions: [
-    // Sample active session for testing
-    {
-      id: 'session_demo_123',
-      tenantId: 'tenant_123',
-      locationId: 'location_456',
-      tableId: 'T01',
-      status: 'active',
-      customerName: 'Demo Customer',
-      partySize: 2,
-      startedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      lastActivity: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ],
-  carts: [
-    // Sample cart for demo session
-    {
-      id: 'cart_demo_123',
-      sessionId: 'session_demo_123',
-      tenantId: 'tenant_123',
-      locationId: 'location_456',
-      status: 'active',
-      items: [],
-      subtotal: 0,
-      taxAmount: 0,
-      totalAmount: 0,
-      lastActivity: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ],
-  orders: [
-    // Sample orders for testing
-    {
-      id: 'order_demo_1',
-      orderNumber: '#ORD-001',
-      tenantId: 'tenant_123',
-      locationId: 'location_456',
-      sessionId: 'session_demo_123',
-      tableId: 'T01',
-      status: 'placed',
-      items: [
-        {
-          id: 'orderitem_demo_1',
-          orderId: 'order_demo_1',
-          menuItemId: 'itm_1',
-          name: 'Truffle Arancini',
-          quantity: 2,
-          unitPrice: 16.00,
-          totalPrice: 32.00,
-          status: 'queued',
-          station: 'hot',
-          allergens: ['dairy', 'gluten'],
-          isVegetarian: true,
-          isVegan: false,
-          spicyLevel: 0,
-          preparationTime: 15,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ],
-      subtotal: 32.00,
-      taxAmount: 2.56,
-      tipAmount: 0,
-      totalAmount: 34.56,
-      priority: 'normal',
-      placedAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      id: 'order_demo_2',
-      orderNumber: '#ORD-002',
-      tenantId: 'tenant_123',
-      locationId: 'location_456',
-      sessionId: 'session_demo_123',
-      tableId: 'T01',
-      status: 'preparing',
-      items: [
-        {
-          id: 'orderitem_demo_2',
-          orderId: 'order_demo_2',
-          menuItemId: 'itm_3',
-          name: 'Wagyu Beef Tenderloin',
-          quantity: 1,
-          unitPrice: 65.00,
-          totalPrice: 65.00,
-          status: 'in_progress',
-          station: 'grill',
-          allergens: [],
-          isVegetarian: false,
-          isVegan: false,
-          spicyLevel: 0,
-          preparationTime: 25,
-          startedAt: new Date(Date.now() - 5 * 60 * 1000),
-          assignedChef: 'chef_123',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ],
-      subtotal: 65.00,
-      taxAmount: 5.20,
-      tipAmount: 0,
-      totalAmount: 70.20,
-      priority: 'normal',
-      placedAt: new Date(Date.now() - 15 * 60 * 1000),
-      confirmedAt: new Date(Date.now() - 12 * 60 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ],
+  sessions: [],
+  carts: [],
+  orders: [],
   payments: []
 }
 
@@ -366,31 +256,28 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
 
       updateGlobalSession(prev => ({
         ...prev,
-        carts: prev.carts.map(cart => ({
-          ...cart,
-          items: cart.items.map(item => {
+        carts: prev.carts.map(cart => {
+          const updatedItems = cart.items.map(item => {
             if (item.id === cartItemId) {
-              const updatedItem = { ...item, quantity: newQuantity }
-              return updatedItem
+              return { ...item, quantity: newQuantity }
             }
             return item
-          }),
-          // Recalculate totals
-          subtotal: cart.items.reduce((sum, item) => {
-            const qty = item.id === cartItemId ? newQuantity : item.quantity
-            return sum + (item.price * qty)
-          }, 0),
-          taxAmount: cart.items.reduce((sum, item) => {
-            const qty = item.id === cartItemId ? newQuantity : item.quantity
-            return sum + (item.price * qty)
-          }, 0) * 0.08,
-          totalAmount: cart.items.reduce((sum, item) => {
-            const qty = item.id === cartItemId ? newQuantity : item.quantity
-            return sum + (item.price * qty)
-          }, 0) * 1.08,
-          lastActivity: new Date(),
-          updatedAt: new Date()
-        }))
+          })
+          
+          const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+          const taxAmount = subtotal * 0.08
+          const totalAmount = subtotal + taxAmount
+
+          return {
+            ...cart,
+            items: updatedItems,
+            subtotal,
+            taxAmount,
+            totalAmount,
+            lastActivity: new Date(),
+            updatedAt: new Date()
+          }
+        })
       }))
 
       console.log('✅ Cart quantity updated successfully')
