@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useSessionManagement } from '../hooks/useSessionManagement'
 import { 
   ChefHat, 
   Clock, 
@@ -44,42 +45,6 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 
-interface OrderItem {
-  id: string
-  menuItemId: string
-  name: string
-  quantity: number
-  status: 'queued' | 'in_progress' | 'ready_item' | 'served_item' | 'held' | 'cancelled_item'
-  station: string
-  specialInstructions?: string
-  allergens: string[]
-  isVegetarian: boolean
-  isVegan: boolean
-  spicyLevel: number
-  startedAt?: Date
-  readyAt?: Date
-  assignedChef?: string
-  estimatedTime: number
-}
-
-interface KitchenOrder {
-  id: string
-  orderNumber: string
-  tableNumber?: string
-  customerName?: string
-  orderType: 'dine-in' | 'takeaway' | 'delivery'
-  status: 'placed' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'cancelled'
-  items: OrderItem[]
-  totalAmount: number
-  placedAt: Date
-  confirmedAt?: Date
-  estimatedReadyAt?: Date
-  specialInstructions?: string
-  priority: 'normal' | 'high' | 'urgent'
-  elapsedTime: string
-  station: string[]
-}
-
 interface Station {
   id: string
   name: string
@@ -100,121 +65,23 @@ interface KitchenInsights {
 }
 
 export default function KitchenDashboard() {
+  const { 
+    orders, 
+    startOrderItem, 
+    markItemReady, 
+    markOrderServed,
+    loading 
+  } = useSessionManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+  
   const [selectedStation, setSelectedStation] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'fullscreen'>('kanban')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [autoAdvance, setAutoAdvance] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null)
-
-  // Mock data - in real app this would come from real-time API
-  const [orders, setOrders] = useState<KitchenOrder[]>([
-    {
-      id: 'ord_001',
-      orderNumber: '#1234',
-      tableNumber: 'T05',
-      customerName: 'John Smith',
-      orderType: 'dine-in',
-      status: 'confirmed',
-      items: [
-        {
-          id: 'item_001',
-          menuItemId: 'menu_001',
-          name: 'Grilled Salmon',
-          quantity: 1,
-          status: 'queued',
-          station: 'grill',
-          allergens: ['fish'],
-          isVegetarian: false,
-          isVegan: false,
-          spicyLevel: 0,
-          estimatedTime: 15
-        },
-        {
-          id: 'item_002',
-          menuItemId: 'menu_002',
-          name: 'Caesar Salad',
-          quantity: 2,
-          status: 'queued',
-          station: 'cold',
-          allergens: ['dairy', 'gluten'],
-          isVegetarian: true,
-          isVegan: false,
-          spicyLevel: 0,
-          estimatedTime: 8
-        }
-      ],
-      totalAmount: 57.50,
-      placedAt: new Date(Date.now() - 5 * 60 * 1000),
-      confirmedAt: new Date(Date.now() - 3 * 60 * 1000),
-      priority: 'normal',
-      elapsedTime: '3m',
-      station: ['grill', 'cold']
-    },
-    {
-      id: 'ord_002',
-      orderNumber: '#1235',
-      tableNumber: 'T02',
-      customerName: 'Sarah Johnson',
-      orderType: 'dine-in',
-      status: 'preparing',
-      items: [
-        {
-          id: 'item_003',
-          menuItemId: 'menu_003',
-          name: 'Wagyu Steak',
-          quantity: 1,
-          status: 'in_progress',
-          station: 'grill',
-          allergens: [],
-          isVegetarian: false,
-          isVegan: false,
-          spicyLevel: 0,
-          estimatedTime: 20,
-          startedAt: new Date(Date.now() - 8 * 60 * 1000),
-          assignedChef: 'Chef Mike'
-        }
-      ],
-      totalAmount: 65.00,
-      placedAt: new Date(Date.now() - 15 * 60 * 1000),
-      confirmedAt: new Date(Date.now() - 12 * 60 * 1000),
-      priority: 'high',
-      elapsedTime: '12m',
-      station: ['grill']
-    },
-    {
-      id: 'ord_003',
-      orderNumber: '#1236',
-      tableNumber: 'T08',
-      customerName: 'Mike Wilson',
-      orderType: 'dine-in',
-      status: 'ready',
-      items: [
-        {
-          id: 'item_004',
-          menuItemId: 'menu_004',
-          name: 'Pasta Carbonara',
-          quantity: 1,
-          status: 'ready_item',
-          station: 'hot',
-          allergens: ['dairy', 'gluten'],
-          isVegetarian: true,
-          isVegan: false,
-          spicyLevel: 0,
-          estimatedTime: 12,
-          startedAt: new Date(Date.now() - 18 * 60 * 1000),
-          readyAt: new Date(Date.now() - 2 * 60 * 1000),
-          assignedChef: 'Chef Ana'
-        }
-      ],
-      totalAmount: 22.00,
-      placedAt: new Date(Date.now() - 25 * 60 * 1000),
-      confirmedAt: new Date(Date.now() - 22 * 60 * 1000),
-      priority: 'urgent',
-      elapsedTime: '22m',
-      station: ['hot']
-    }
-  ])
+  const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
   const stations: Station[] = [
     { id: 'all', name: 'All Stations', color: '#6B7280', icon: 'Grid3X3', activeOrders: 0, avgPrepTime: 0 },
@@ -246,44 +113,16 @@ export default function KitchenDashboard() {
     ]
   })
 
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders(prevOrders => 
-        prevOrders.map(order => {
-          // Simulate order progression
-          if (order.status === 'confirmed' && Math.random() > 0.8) {
-            return { 
-              ...order, 
-              status: 'preparing' as const,
-              items: order.items.map(item => ({ ...item, status: 'in_progress' as const, startedAt: new Date() }))
-            }
-          }
-          if (order.status === 'preparing' && Math.random() > 0.9) {
-            return { 
-              ...order, 
-              status: 'ready' as const,
-              items: order.items.map(item => ({ ...item, status: 'ready_item' as const, readyAt: new Date() }))
-            }
-          }
-          return order
-        })
-      )
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [])
-
   const filteredOrders = orders.filter(order => {
-    const matchesStation = selectedStation === 'all' || order.station.includes(selectedStation)
+    const orderStations = [...new Set(order.items.map(item => item.station))]
+    const matchesStation = selectedStation === 'all' || orderStations.includes(selectedStation)
     const matchesSearch = order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.tableNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+                         order.tableId?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStation && matchesSearch
   })
 
   const ordersByStatus = {
-    confirmed: filteredOrders.filter(o => o.status === 'confirmed'),
+    confirmed: filteredOrders.filter(o => o.status === 'confirmed' || o.status === 'placed'),
     preparing: filteredOrders.filter(o => o.status === 'preparing'),
     ready: filteredOrders.filter(o => o.status === 'ready')
   }
@@ -307,7 +146,7 @@ export default function KitchenDashboard() {
     }
   }
 
-  const getDietaryIcons = (item: OrderItem) => {
+  const getDietaryIcons = (item: any) => {
     const icons = []
     if (item.isVegan) icons.push(<Leaf key="vegan" className="w-3 h-3 text-green-600" title="Vegan" />)
     else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-3 h-3 text-green-500" title="Vegetarian" />)
@@ -325,100 +164,64 @@ export default function KitchenDashboard() {
     return icons
   }
 
-  const handleOrderAction = (orderId: string, action: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId) {
-        switch (action) {
-          case 'start':
-            return { 
-              ...order, 
-              status: 'preparing' as const,
-              items: order.items.map(item => ({ 
-                ...item, 
-                status: 'in_progress' as const, 
-                startedAt: new Date() 
-              }))
-            }
-          case 'ready':
-            return { 
-              ...order, 
-              status: 'ready' as const,
-              items: order.items.map(item => ({ 
-                ...item, 
-                status: 'ready_item' as const, 
-                readyAt: new Date() 
-              }))
-            }
-          case 'served':
-            return { 
-              ...order, 
-              status: 'served' as const,
-              items: order.items.map(item => ({ 
-                ...item, 
-                status: 'served_item' as const 
-              }))
-            }
-          case 'hold':
-            return { 
-              ...order,
-              items: order.items.map(item => ({ 
-                ...item, 
-                status: 'held' as const 
-              }))
-            }
-          case 'recall':
-            return { 
-              ...order, 
-              status: 'preparing' as const,
-              items: order.items.map(item => ({ 
-                ...item, 
-                status: 'in_progress' as const 
-              }))
-            }
-          default:
-            return order
-        }
-      }
-      return order
-    }))
-  }
-
-  const handleItemAction = (orderId: string, itemId: string, action: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId) {
-        const updatedItems = order.items.map(item => {
-          if (item.id === itemId) {
-            switch (action) {
-              case 'start':
-                return { ...item, status: 'in_progress' as const, startedAt: new Date() }
-              case 'ready':
-                return { ...item, status: 'ready_item' as const, readyAt: new Date() }
-              case 'hold':
-                return { ...item, status: 'held' as const }
-              case 'recall':
-                return { ...item, status: 'in_progress' as const }
-              default:
-                return item
+  const handleOrderAction = async (orderId: string, action: string) => {
+    try {
+      switch (action) {
+        case 'start':
+          // Start all items in the order
+          const order = orders.find(o => o.id === orderId)
+          if (order) {
+            for (const item of order.items) {
+              if (item.status === 'queued') {
+                await startOrderItem(item.id, 'chef_123')
+              }
             }
           }
-          return item
-        })
-
-        // Update order status based on items
-        let newOrderStatus = order.status
-        if (updatedItems.every(item => item.status === 'ready_item')) {
-          newOrderStatus = 'ready'
-        } else if (updatedItems.some(item => item.status === 'in_progress')) {
-          newOrderStatus = 'preparing'
-        }
-
-        return { ...order, items: updatedItems, status: newOrderStatus }
+          break
+        case 'ready':
+          // Mark all items ready
+          const readyOrder = orders.find(o => o.id === orderId)
+          if (readyOrder) {
+            for (const item of readyOrder.items) {
+              if (item.status === 'in_progress') {
+                await markItemReady(item.id, 'chef_123')
+              }
+            }
+          }
+          break
+        case 'served':
+          await markOrderServed(orderId, 'staff_123')
+          break
       }
-      return order
-    }))
+    } catch (err) {
+      console.error('❌ Kitchen action failed:', err)
+      alert('Action failed. Please try again.')
+    }
   }
 
-  const renderTicketCard = (order: KitchenOrder) => (
+  const handleItemAction = async (orderId: string, itemId: string, action: string) => {
+    try {
+      switch (action) {
+        case 'start':
+          await startOrderItem(itemId, 'chef_123')
+          break
+        case 'ready':
+          await markItemReady(itemId, 'chef_123')
+          break
+        case 'hold':
+          // TODO: Implement hold functionality
+          break
+        case 'recall':
+          // TODO: Implement recall functionality
+          break
+      }
+    } catch (err) {
+      console.error('❌ Item action failed:', err)
+      alert('Action failed. Please try again.')
+    }
+  }
+
+  const renderTicketCard = (order: any) => (
     <div 
       key={order.id} 
       className={`bg-white rounded-xl shadow-lg border-l-4 p-4 hover:shadow-xl transition-all cursor-pointer ${
@@ -432,7 +235,7 @@ export default function KitchenDashboard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
           <span className="font-bold text-gray-900">{order.orderNumber}</span>
-          <span className="text-sm text-gray-600">{order.tableNumber}</span>
+          <span className="text-sm text-gray-600">{order.tableId}</span>
           {order.priority !== 'normal' && (
             <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getPriorityColor(order.priority)}`}>
               {order.priority.toUpperCase()}
@@ -440,14 +243,15 @@ export default function KitchenDashboard() {
           )}
         </div>
         <div className="text-right">
-          <div className="text-sm font-medium text-gray-900">{order.elapsedTime}</div>
-          <div className="text-xs text-gray-500">{order.orderType}</div>
+          <div className="text-sm font-medium text-gray-900">
+            {Math.floor((Date.now() - order.placedAt.getTime()) / (1000 * 60))}m
+          </div>
+          <div className="text-xs text-gray-500">dine-in</div>
         </div>
       </div>
 
       {/* Customer Info */}
       <div className="mb-3">
-        <div className="text-sm font-medium text-gray-700">{order.customerName}</div>
         <div className="text-xs text-gray-500">
           Placed: {format(order.placedAt, 'HH:mm')} • ${order.totalAmount}
         </div>
@@ -588,6 +392,33 @@ export default function KitchenDashboard() {
       </div>
     </div>
   )
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <Link to="/dashboard" className="flex items-center space-x-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg flex items-center justify-center">
+                    <ChefHat className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="text-xl font-semibold text-gray-900">Kitchen Dashboard</h1>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading kitchen dashboard...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -917,16 +748,12 @@ export default function KitchenDashboard() {
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <div className="text-sm text-gray-600">Customer</div>
-                  <div className="font-medium text-gray-900">{selectedOrder.customerName}</div>
-                </div>
-                <div>
                   <div className="text-sm text-gray-600">Table</div>
-                  <div className="font-medium text-gray-900">{selectedOrder.tableNumber}</div>
+                  <div className="font-medium text-gray-900">{selectedOrder.tableId}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">Order Type</div>
-                  <div className="font-medium text-gray-900 capitalize">{selectedOrder.orderType}</div>
+                  <div className="font-medium text-gray-900 capitalize">dine-in</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">Total</div>
