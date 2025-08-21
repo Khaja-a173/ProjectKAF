@@ -11,9 +11,6 @@ export default function Contact() {
     locationId: 'location_456'
   })
 
-  const contactPage = pages.find(p => p.slug === 'contact' && p.status === 'published')
-  const hasCustomContent = contactPage && contactPage.sections.length > 0
-
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -23,6 +20,10 @@ export default function Contact() {
   })
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [openFaq, setOpenFaq] = useState<number | null>(null)
+
+  const contactPage = pages.find(p => p.slug === 'contact' && p.status === 'published')
+  const hasCustomContent = contactPage && contactPage.sections.length > 0
 
   if (loading) {
     return (
@@ -98,8 +99,6 @@ export default function Contact() {
       answer: "You can view our complete menu on our website under the 'Menu' section, or visit us in person. We also offer seasonal specials that change regularly."
     }
   ]
-
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
 
   return (
     <div className="min-h-screen">
