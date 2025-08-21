@@ -15,6 +15,10 @@ export default function CustomerMenu() {
     tenantId: 'tenant_123',
     locationId: 'location_456'
   })
+
+  const categories = [
+
+  const categories = [
     { id: 'all', name: 'All Items' },
     ...sections.map(section => ({ id: section.id, name: section.name }))
   ]
