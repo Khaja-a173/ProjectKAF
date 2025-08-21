@@ -10,6 +10,8 @@ export default function OrderManagement() {
     confirmOrder, 
     cancelOrder, 
     markOrderServed,
+    processPayment,
+    clearTable,
     loading 
   } = useSessionManagement({
     tenantId: 'tenant_123',
@@ -20,6 +22,8 @@ export default function OrderManagement() {
   const [cancelReason, setCancelReason] = useState('')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('card')
 
   const statusCounts = {
     all: orders.length,
@@ -28,7 +32,8 @@ export default function OrderManagement() {
     preparing: orders.filter(o => o.status === 'preparing').length,
     ready: orders.filter(o => o.status === 'ready').length,
     served: orders.filter(o => o.status === 'served').length,
-    paid: orders.filter(o => o.status === 'paid').length
+    paid: orders.filter(o => o.status === 'paid').length,
+    paying: orders.filter(o => o.status === 'paying').length
   }
 
   const filteredOrders = selectedStatus === 'all' 
@@ -88,6 +93,31 @@ export default function OrderManagement() {
       console.log('✅ Order marked as served')
     } catch (err) {
       alert('Failed to mark order as served')
+    }
+  }
+
+  const handleProcessPayment = async () => {
+    if (!selectedOrderId) return
+    
+    try {
+      const order = orders.find(o => o.id === selectedOrderId)
+      if (!order) return
+      
+      await processPayment(selectedOrderId, paymentMethod, order.totalAmount)
+      setShowPaymentModal(false)
+      setSelectedOrderId(null)
+      console.log('✅ Payment processed successfully')
+    } catch (err) {
+      alert('Failed to process payment')
+    }
+  }
+
+  const handleClearTable = async (tableId: string) => {
+    try {
+      await clearTable(tableId, 'manager_123')
+      console.log('✅ Table cleared successfully')
+    } catch (err) {
+      alert('Failed to clear table')
     }
   }
 
@@ -287,6 +317,25 @@ export default function OrderManagement() {
                 )}
                 {order.status === 'served' && (
                   <button
+                    onClick={() => {
+                      setSelectedOrderId(order.id)
+                      setShowPaymentModal(true)
+                    }}
+                    className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Process Payment
+                  </button>
+                )}
+                {order.status === 'paid' && (
+                  <button
+                    onClick={() => handleClearTable(order.tableId)}
+                    className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Clear Table {order.tableId}
+                  </button>
+                )}
+                {order.status === 'served' && (
+                  <button
                     className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
                   >
                     Process Payment
@@ -341,6 +390,61 @@ export default function OrderManagement() {
                   className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                 >
                   Confirm Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Process Payment</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card' | 'digital')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="card">Credit/Debit Card</option>
+                  <option value="cash">Cash</option>
+                  <option value="digital">Digital Wallet</option>
+                </select>
+              </div>
+              
+              <div className="mb-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-900">Total Amount:</span>
+                    <span className="text-xl font-bold text-gray-900">
+                      ${orders.find(o => o.id === selectedOrderId)?.totalAmount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false)
+                    setSelectedOrderId(null)
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleProcessPayment}
+                  className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Process Payment
                 </button>
               </div>
             </div>

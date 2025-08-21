@@ -90,11 +90,13 @@ export default function LiveOrders() {
   }
 
   const ordersByStatus = {
-    placed: orders.filter(o => o.status === 'placed'),
+    placed: orders.filter(o => o.status === 'placed' || o.status === 'confirmed'),
     confirmed: orders.filter(o => o.status === 'confirmed'),
     preparing: orders.filter(o => o.status === 'preparing'),
     ready: orders.filter(o => o.status === 'ready'),
-    served: orders.filter(o => o.status === 'served')
+    served: orders.filter(o => o.status === 'served'),
+    paying: orders.filter(o => o.status === 'paying'),
+    paid: orders.filter(o => o.status === 'paid')
   }
 
   const totalOrders = orders.filter(o => o.status !== 'paid' && o.status !== 'closed').length

@@ -70,6 +70,7 @@ export default function KitchenDashboard() {
     startOrderItem, 
     markItemReady, 
     markOrderServed,
+    confirmOrder,
     loading 
   } = useSessionManagement({
     tenantId: 'tenant_123',
@@ -167,6 +168,9 @@ export default function KitchenDashboard() {
   const handleOrderAction = async (orderId: string, action: string) => {
     try {
       switch (action) {
+        case 'confirm':
+          await confirmOrder(orderId, 'chef_123')
+          break
         case 'start':
           // Start all items in the order
           const order = orders.find(o => o.id === orderId)
@@ -383,12 +387,12 @@ export default function KitchenDashboard() {
                 e.stopPropagation()
                 handleOrderAction(order.id, 'recall')
               }}
-              className="px-3 py-2 text-orange-600 border border-orange-300 rounded-lg text-sm hover:bg-orange-50 transition-colors"
+            {ordersByStatus.confirmed.length + orders.filter(o => o.status === 'placed').length}
             >
               Recall
             </button>
           </>
-        )}
+        {[...orders.filter(o => o.status === 'placed'), ...ordersByStatus.confirmed].map(renderTicketCard)}
       </div>
     </div>
   )

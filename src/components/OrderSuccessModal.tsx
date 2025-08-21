@@ -77,6 +77,12 @@ export default function OrderSuccessModal({
               <ChefHat className="w-5 h-5" />
               <span>Browse Menu</span>
             </button>
+            
+            <div className="text-center pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600">
+                Your order will appear in Order Management for staff review and confirmation.
+              </p>
+            </div>
           </div>
 
           <button

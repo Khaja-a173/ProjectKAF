@@ -8,23 +8,138 @@ let globalSessionState: {
   orders: DineInOrder[]
   payments: Payment[]
 } = {
-  sessions: [],
-  carts: [],
-  orders: [],
+  sessions: [
+    // Sample active session for testing
+    {
+      id: 'session_demo_123',
+      tenantId: 'tenant_123',
+      locationId: 'location_456',
+      tableId: 'T01',
+      status: 'active',
+      customerName: 'Demo Customer',
+      partySize: 2,
+      startedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+      lastActivity: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ],
+  carts: [
+    // Sample cart for demo session
+    {
+      id: 'cart_demo_123',
+      sessionId: 'session_demo_123',
+      tenantId: 'tenant_123',
+      locationId: 'location_456',
+      status: 'active',
+      items: [],
+      subtotal: 0,
+      taxAmount: 0,
+      totalAmount: 0,
+      lastActivity: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ],
+  orders: [
+    // Sample orders for testing
+    {
+      id: 'order_demo_1',
+      orderNumber: '#ORD-001',
+      tenantId: 'tenant_123',
+      locationId: 'location_456',
+      sessionId: 'session_demo_123',
+      tableId: 'T01',
+      status: 'placed',
+      items: [
+        {
+          id: 'orderitem_demo_1',
+          orderId: 'order_demo_1',
+          menuItemId: 'itm_1',
+          name: 'Truffle Arancini',
+          quantity: 2,
+          unitPrice: 16.00,
+          totalPrice: 32.00,
+          status: 'queued',
+          station: 'hot',
+          allergens: ['dairy', 'gluten'],
+          isVegetarian: true,
+          isVegan: false,
+          spicyLevel: 0,
+          preparationTime: 15,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ],
+      subtotal: 32.00,
+      taxAmount: 2.56,
+      tipAmount: 0,
+      totalAmount: 34.56,
+      priority: 'normal',
+      placedAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'order_demo_2',
+      orderNumber: '#ORD-002',
+      tenantId: 'tenant_123',
+      locationId: 'location_456',
+      sessionId: 'session_demo_123',
+      tableId: 'T01',
+      status: 'preparing',
+      items: [
+        {
+          id: 'orderitem_demo_2',
+          orderId: 'order_demo_2',
+          menuItemId: 'itm_3',
+          name: 'Wagyu Beef Tenderloin',
+          quantity: 1,
+          unitPrice: 65.00,
+          totalPrice: 65.00,
+          status: 'in_progress',
+          station: 'grill',
+          allergens: [],
+          isVegetarian: false,
+          isVegan: false,
+          spicyLevel: 0,
+          preparationTime: 25,
+          startedAt: new Date(Date.now() - 5 * 60 * 1000),
+          assignedChef: 'chef_123',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ],
+      subtotal: 65.00,
+      taxAmount: 5.20,
+      tipAmount: 0,
+      totalAmount: 70.20,
+      priority: 'normal',
+      placedAt: new Date(Date.now() - 15 * 60 * 1000),
+      confirmedAt: new Date(Date.now() - 12 * 60 * 1000),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ],
   payments: []
 }
 
 const sessionSubscribers: Set<(state: typeof globalSessionState) => void> = new Set()
 
 const notifySessionSubscribers = () => {
-  console.log('🔄 Notifying session subscribers')
+  console.log('🔄 Notifying session subscribers of changes')
   sessionSubscribers.forEach(callback => callback({ ...globalSessionState }))
 }
 
 const updateGlobalSession = (updater: (prev: typeof globalSessionState) => typeof globalSessionState) => {
   const prevState = { ...globalSessionState }
   globalSessionState = updater(globalSessionState)
-  console.log('📝 Session state updated')
+  console.log('📝 Session state updated:', {
+    sessions: globalSessionState.sessions.length,
+    carts: globalSessionState.carts.length,
+    orders: globalSessionState.orders.length,
+    payments: globalSessionState.payments.length
+  })
   notifySessionSubscribers()
 }
 
@@ -52,7 +167,10 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
   // Subscribe to global session changes
   useEffect(() => {
     const updateState = (newState: typeof globalSessionState) => {
-      console.log('🔄 Received session update')
+      console.log('🔄 Received session update:', {
+        sessions: newState.sessions.length,
+        orders: newState.orders.length
+      })
       setSessions(newState.sessions)
       setCarts(newState.carts)
       setOrders(newState.orders)
@@ -153,9 +271,15 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
       }
 
       // Mock menu item data (in real app, fetch from menu)
-      const mockMenuItem = {
-        id: menuItemId,
-        name: 'Sample Item',
+      const mockMenuItems: Record<string, any> = {
+        'itm_1': { name: 'Truffle Arancini', price: 16.00, allergens: ['dairy', 'gluten'], isVegetarian: true, isVegan: false, spicyLevel: 0 },
+        'itm_2': { name: 'Pan-Seared Scallops', price: 24.00, allergens: ['shellfish'], isVegetarian: false, isVegan: false, spicyLevel: 0 },
+        'itm_3': { name: 'Wagyu Beef Tenderloin', price: 65.00, allergens: [], isVegetarian: false, isVegan: false, spicyLevel: 0 },
+        'itm_4': { name: 'Grilled Atlantic Salmon', price: 32.00, allergens: ['fish'], isVegetarian: false, isVegan: false, spicyLevel: 0 }
+      }
+
+      const menuItem = mockMenuItems[menuItemId] || {
+        name: 'Unknown Item',
         price: 15.99,
         allergens: [],
         isVegetarian: false,
@@ -183,15 +307,15 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
           id: `cartitem_${Date.now()}`,
           cartId: cart.id,
           menuItemId,
-          name: mockMenuItem.name,
-          price: mockMenuItem.price,
+          name: menuItem.name,
+          price: menuItem.price,
           quantity,
           customizations,
           specialInstructions,
-          allergens: mockMenuItem.allergens,
-          isVegetarian: mockMenuItem.isVegetarian,
-          isVegan: mockMenuItem.isVegan,
-          spicyLevel: mockMenuItem.spicyLevel,
+          allergens: menuItem.allergens,
+          isVegetarian: menuItem.isVegetarian,
+          isVegan: menuItem.isVegan,
+          spicyLevel: menuItem.spicyLevel,
           addedAt: new Date()
         }
         updatedItems = [...cart.items, newItem]
@@ -231,6 +355,82 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     }
   }, [])
 
+  const updateCartQuantity = useCallback(async (cartItemId: string, newQuantity: number) => {
+    try {
+      console.log('🔄 Updating cart item quantity:', cartItemId, newQuantity)
+      
+      if (newQuantity <= 0) {
+        // Remove item if quantity is 0 or less
+        return removeFromCart(cartItemId)
+      }
+
+      updateGlobalSession(prev => ({
+        ...prev,
+        carts: prev.carts.map(cart => ({
+          ...cart,
+          items: cart.items.map(item => {
+            if (item.id === cartItemId) {
+              const updatedItem = { ...item, quantity: newQuantity }
+              return updatedItem
+            }
+            return item
+          }),
+          // Recalculate totals
+          subtotal: cart.items.reduce((sum, item) => {
+            const qty = item.id === cartItemId ? newQuantity : item.quantity
+            return sum + (item.price * qty)
+          }, 0),
+          taxAmount: cart.items.reduce((sum, item) => {
+            const qty = item.id === cartItemId ? newQuantity : item.quantity
+            return sum + (item.price * qty)
+          }, 0) * 0.08,
+          totalAmount: cart.items.reduce((sum, item) => {
+            const qty = item.id === cartItemId ? newQuantity : item.quantity
+            return sum + (item.price * qty)
+          }, 0) * 1.08,
+          lastActivity: new Date(),
+          updatedAt: new Date()
+        }))
+      }))
+
+      console.log('✅ Cart quantity updated successfully')
+    } catch (err) {
+      console.error('❌ Failed to update cart quantity:', err)
+      throw err
+    }
+  }, [])
+
+  const removeFromCart = useCallback(async (cartItemId: string) => {
+    try {
+      console.log('🗑️ Removing item from cart:', cartItemId)
+      
+      updateGlobalSession(prev => ({
+        ...prev,
+        carts: prev.carts.map(cart => {
+          const updatedItems = cart.items.filter(item => item.id !== cartItemId)
+          const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+          const taxAmount = subtotal * 0.08
+          const totalAmount = subtotal + taxAmount
+
+          return {
+            ...cart,
+            items: updatedItems,
+            subtotal,
+            taxAmount,
+            totalAmount,
+            lastActivity: new Date(),
+            updatedAt: new Date()
+          }
+        })
+      }))
+
+      console.log('✅ Item removed from cart successfully')
+    } catch (err) {
+      console.error('❌ Failed to remove from cart:', err)
+      throw err
+    }
+  }, [])
+
   const placeOrder = useCallback(async (sessionId: string, specialInstructions?: string) => {
     try {
       console.log('📝 Placing order for session:', sessionId)
@@ -243,8 +443,10 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
       if (cart.status === 'locked') throw new Error('Order already being processed')
 
       const orderNumber = `#ORD-${Date.now()}`
+      const orderId = `order_${Date.now()}`
+      
       const newOrder: DineInOrder = {
-        id: `order_${Date.now()}`,
+        id: orderId,
         orderNumber,
         tenantId,
         locationId,
@@ -253,14 +455,14 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
         status: 'placed',
         items: cart.items.map(cartItem => ({
           id: `orderitem_${Date.now()}_${cartItem.id}`,
-          orderId: `order_${Date.now()}`,
+          orderId: orderId,
           menuItemId: cartItem.menuItemId,
           name: cartItem.name,
           quantity: cartItem.quantity,
           unitPrice: cartItem.price,
           totalPrice: cartItem.price * cartItem.quantity,
           status: 'queued',
-          station: 'grill', // Mock station assignment
+          station: 'hot', // Mock station assignment
           customizations: cartItem.customizations,
           specialInstructions: cartItem.specialInstructions,
           allergens: cartItem.allergens,
@@ -770,6 +972,11 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     return orders.filter(o => o.sessionId === sessionId)
   }, [orders])
 
+  const getOrdersByTable = useCallback((tableId: string) => {
+    const tableSessions = sessions.filter(s => s.tableId === tableId)
+    return orders.filter(o => tableSessions.some(s => s.id === o.sessionId))
+  }, [sessions, orders])
+
   return {
     sessions,
     carts,
@@ -779,6 +986,8 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     error,
     createTableSession,
     addToCart,
+    updateCartQuantity,
+    removeFromCart,
     placeOrder,
     confirmOrder,
     cancelOrder,
@@ -789,6 +998,7 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     clearTable,
     getSessionByTable,
     getCartBySession,
-    getOrdersBySession
+    getOrdersBySession,
+    getOrdersByTable
   }
 }

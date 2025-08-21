@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
-import SessionCart from '../components/SessionCart'
+import SessionCartComponent from '../components/SessionCart'
 import OrderSuccessModal from '../components/OrderSuccessModal'
 import TableSessionBadge from '../components/TableSessionBadge'
 import { useSessionManagement } from '../hooks/useSessionManagement'
@@ -19,6 +19,8 @@ export default function Menu() {
     carts, 
     orders,
     addToCart, 
+    updateCartQuantity,
+    removeFromCart,
     placeOrder,
     getSessionByTable,
     getCartBySession 
@@ -74,20 +76,24 @@ export default function Menu() {
     }
   }
 
-  const handleUpdateCartQuantity = (itemId: string, newQuantity: number) => {
-    if (!currentCart) return
-    
-    // Update cart item quantity
-    console.log('🔄 Updating cart quantity:', itemId, newQuantity)
-    // Implementation would call API to update quantity
+  const handleUpdateCartQuantity = async (itemId: string, newQuantity: number) => {
+    try {
+      await updateCartQuantity(itemId, newQuantity)
+      console.log('✅ Cart quantity updated:', itemId, newQuantity)
+    } catch (err) {
+      console.error('❌ Failed to update cart quantity:', err)
+      alert('Failed to update quantity')
+    }
   }
 
-  const handleRemoveFromCart = (itemId: string) => {
-    if (!currentCart) return
-    
-    // Remove item from cart
-    console.log('🗑️ Removing from cart:', itemId)
-    // Implementation would call API to remove item
+  const handleRemoveFromCart = async (itemId: string) => {
+    try {
+      await removeFromCart(itemId)
+      console.log('✅ Item removed from cart:', itemId)
+    } catch (err) {
+      console.error('❌ Failed to remove from cart:', err)
+      alert('Failed to remove item')
+    }
   }
 
   const handlePlaceOrder = async () => {
@@ -286,7 +292,7 @@ export default function Menu() {
 
           {/* Cart Sidebar */}
           <div className="lg:w-96">
-            <SessionCart
+            <SessionCartComponent
               cart={currentCart}
               onUpdateQuantity={handleUpdateCartQuantity}
               onRemoveItem={handleRemoveFromCart}

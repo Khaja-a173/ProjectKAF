@@ -31,7 +31,7 @@ export default function TableSessionBadge({ session, className = '' }: TableSess
     <div className={`inline-flex items-center space-x-3 px-4 py-2 border rounded-xl ${getStatusColor(session.status)} ${className}`}>
       <div className="flex items-center space-x-2">
         <MapPin className="w-4 h-4" />
-        <span className="font-semibold">{session.tableId}</span>
+        <span className="font-semibold">Table {session.tableId}</span>
       </div>
       
       <div className="flex items-center space-x-2">
