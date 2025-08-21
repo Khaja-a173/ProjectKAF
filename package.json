@@ -8,16 +8,21 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
+    "build": "turbo run build --filter=web",
+    "dev": "cd apps/web && npm run dev",
+    "dev:turbo": "turbo run dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:api": "cd apps/api && npm run dev",
+    "dev:control": "cd apps/control-plane && npm run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "db:generate": "turbo run db:generate",
-    "db:push": "turbo run db:push",
-    "db:migrate": "turbo run db:migrate",
+    "db:generate": "cd packages/db && npm run db:generate",
+    "db:push": "cd packages/db && npm run db:push",
+    "db:migrate": "cd packages/db && npm run db:migrate",
     "docker:staging": "docker-compose -f docker-compose.staging.yml up -d",
-    "docker:prod": "docker-compose -f docker-compose.prod.yml up -d"
+    "docker:prod": "docker-compose -f docker-compose.prod.yml up -d",
+    "install:all": "npm install && cd apps/web && npm install && cd ../api && npm install && cd ../control-plane && npm install && cd ../../packages/db && npm install && cd ../ui && npm install && cd ../utils && npm install"
   },
   "devDependencies": {
     "turbo": "^1.10.12",
