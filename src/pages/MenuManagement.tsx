@@ -352,52 +352,6 @@ export default function MenuManagement() {
               onCreateSection={handleCreateSection}
               onEditSection={handleEditSection}
               onArchiveSection={archiveSection}
-              onReorderSections={reorderSections}
-            />
-          </div>
-
-          {/* Main Content - Items Grid */}
-          <div className="lg:col-span-3">
-            <div className="space-y-6">
-              <MenuFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                availableTags={availableTags}
-                availableAllergens={availableAllergens}
-              />
-              
-              <ItemGrid
-                section={selectedSection ? sections.find(s => s.id === selectedSection) || null : null}
-                items={filteredItems}
-                onEditItem={handleEditItem}
-                onToggleAvailability={toggleItemAvailability}
-                onArchiveItem={archiveSection}
-                onReorderItems={reorderItems}
-              />
-            </div>
-          </div>
-        </div>
-
-            <div className="space-y-6">
-              <MenuFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                availableTags={availableTags}
-                availableAllergens={availableAllergens}
-              />
-              
-              <ItemGrid
-                section={selectedSection ? sections.find(s => s.id === selectedSection) || null : null}
-                items={filteredItems}
-                onEditItem={handleEditItem}
-                onToggleAvailability={toggleItemAvailability}
-                onArchiveItem={archiveSection}
-                onReorderItems={reorderItems}
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Modals */}
         <SectionEditor
           section={editingSection}
