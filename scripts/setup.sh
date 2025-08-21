@@ -40,8 +40,9 @@ check_prerequisites() {
     fi
     
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$NODE_VERSION" -lt 18 ]; then
-        log_error "Node.js version 18+ is required. Current version: $(node -v)"
+    if [ "$NODE_VERSION" -lt 18 ] || [ "$NODE_VERSION" -ge 20 ]; then
+        log_error "Node.js version 18.x is required for compatibility. Current version: $(node -v)"
+        log_error "Please install Node.js 18.x using: nvm install 18 && nvm use 18"
         exit 1
     fi
     
