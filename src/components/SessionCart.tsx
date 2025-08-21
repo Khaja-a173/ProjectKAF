@@ -129,3 +129,98 @@ export default function SessionCartComponent({
                       {onEditItem && (
                         <button
                           onClick={() => onEditItem(item)}
+                          disabled={disabled || cart.status === 'locked'}
+                          className="p-1 text-gray-400 hover:text-orange-500 disabled:opacity-50"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onRemoveItem(item.id)}
+                        disabled={disabled || cart.status === 'locked'}
+                        className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-lg font-semibold text-gray-900">Total</span>
+                <span className="text-lg font-bold text-orange-600">
+                  ${cart.total.toFixed(2)}
+                </span>
+              </div>
+              
+              <button
+                onClick={handlePlaceOrder}
+                disabled={disabled || cart.status === 'locked' || cart.items.length === 0}
+                className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {cart.status === 'locked' ? (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    <span>Processing Order...</span>
+                  </>
+                ) : (
+                  <span>Place Order</span>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {showOrderReview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Review Your Order</h3>
+              <button
+                onClick={() => setShowOrderReview(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-2 mb-4">
+              {cart.items.map((item) => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span>{item.quantity}x {item.name}</span>
+                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="border-t pt-2 mb-4">
+              <div className="flex justify-between font-semibold">
+                <span>Total</span>
+                <span>${cart.total.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowOrderReview(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPlaceOrder}
+                className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+              >
+                Confirm Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
