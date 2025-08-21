@@ -152,7 +152,7 @@ export default function SessionCartComponent({
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold text-gray-900">Total</span>
                 <span className="text-lg font-bold text-orange-600">
-                  ${cart.total.toFixed(2)}
+                  ${(cart.totalAmount || 0).toFixed(2)}
                 </span>
               </div>
               
