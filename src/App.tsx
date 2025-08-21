@@ -18,6 +18,7 @@ import Contact from './pages/Contact'
 import TableManagement from './pages/TableManagement'
 import StaffManagement from './pages/StaffManagement'
 import CustomerMenu from './pages/CustomerMenu'
+import ApplicationCustomization from './pages/ApplicationCustomization'
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
         <Route path="/staff-management" element={<StaffManagement />} />
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/customer-menu" element={<CustomerMenu />} />
+        <Route path="/application-customization" element={<ApplicationCustomization />} />
       </Routes>
     </div>
   )

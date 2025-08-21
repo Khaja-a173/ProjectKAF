@@ -171,6 +171,13 @@ export default function Dashboard() {
                   <span className="font-medium text-green-900">Admin Menu Management</span>
                 </Link>
                 <Link
+                  to="/application-customization"
+                  className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                >
+                  <Settings className="w-5 h-5 text-purple-600 mr-3" />
+                  <span className="font-medium text-purple-900">Application Customization</span>
+                </Link>
+                <Link
                   to="/orders"
                   className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                 >

@@ -1,10 +1,46 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useCustomization } from '../hooks/useCustomization'
+import DynamicPageRenderer from '../components/DynamicPageRenderer'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { Star, Clock, MapPin, Phone, ChefHat, Award, Users, Heart, Calendar, ShoppingCart } from 'lucide-react'
 
 export default function Home() {
+  const { pages, theme, loading } = useCustomization({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+
+  const homePage = pages.find(p => p.slug === 'home' && p.status === 'published')
+
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading page...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  // If customized page exists, render it dynamically
+  if (homePage && homePage.sections.length > 0) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <DynamicPageRenderer page={homePage} theme={theme} />
+        <Footer />
+      </div>
+    )
+  }
+
+  // Fallback to original static content
   const features = [
     {
       icon: ChefHat,
