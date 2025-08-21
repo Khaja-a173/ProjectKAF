@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Page, PageSection, Theme, Asset, SectionSchema, CustomizationFilters, PageVersion } from '../types/customization'
+import { Page, PageSection, Theme, Asset, SectionSchema, PageVersion, DEFAULT_THEME } from '../types/customization'
 
 // Global state for customization data (simulating real-time sync)
 let globalCustomizationState: {
@@ -10,66 +10,7 @@ let globalCustomizationState: {
 } = {
   // Start with empty pages - only show custom content when tenant actively customizes
   pages: [],
-  theme: {
-    id: 'theme_default',
-    tenantId: 'tenant_123',
-    colors: {
-      primary: '#EA580C',
-      secondary: '#DC2626',
-      accent: '#F59E0B',
-      background: '#FFFFFF',
-      surface: '#F9FAFB',
-      text: '#111827',
-      textSecondary: '#6B7280',
-      success: '#10B981',
-      warning: '#F59E0B',
-      error: '#EF4444'
-    },
-    typography: {
-      fontFamily: 'Inter, system-ui, sans-serif',
-      headingFont: 'Inter, system-ui, sans-serif',
-      fontSize: {
-        xs: '0.75rem',
-        sm: '0.875rem',
-        base: '1rem',
-        lg: '1.125rem',
-        xl: '1.25rem',
-        '2xl': '1.5rem',
-        '3xl': '1.875rem',
-        '4xl': '2.25rem'
-      },
-      fontWeight: {
-        normal: 400,
-        medium: 500,
-        semibold: 600,
-        bold: 700
-      },
-      lineHeight: {
-        tight: 1.2,
-        normal: 1.5,
-        relaxed: 1.75
-      }
-    },
-    spacing: {
-      unit: 8,
-      scale: [0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96]
-    },
-    borderRadius: {
-      sm: '0.375rem',
-      md: '0.5rem',
-      lg: '0.75rem',
-      xl: '1rem',
-      full: '9999px'
-    },
-    shadows: {
-      sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-      xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
-    },
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
+  theme: { ...DEFAULT_THEME, tenantId: 'tenant_123' },
   assets: [],
   versions: []
 }

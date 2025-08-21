@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { Search, Star, Clock, Leaf, Flame, ShoppingCart, Plus, Minus } from 'lucide-react'
-import { MenuSection, MenuItem } from '../types/menu'
+import { MenuItem } from '../types/menu'
 import { useMenuManagement } from '../hooks/useMenuManagement'
 
 export default function CustomerMenu() {
@@ -64,8 +64,8 @@ export default function CustomerMenu() {
   }
 
   const getDietaryIcon = (item: MenuItem) => {
-    if (item.isVegan) return <Leaf className="w-4 h-4 text-green-600" title="Vegan" />
-    if (item.isVegetarian) return <Leaf className="w-4 h-4 text-green-500" title="Vegetarian" />
+    if (item.isVegan) return <Leaf className="w-4 h-4 text-green-600" aria-label="Vegan" />
+    if (item.isVegetarian) return <Leaf className="w-4 h-4 text-green-500" aria-label="Vegetarian" />
     return null
   }
 

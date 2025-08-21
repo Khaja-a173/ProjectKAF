@@ -391,7 +391,7 @@ export default function MenuManagement() {
           {/* Main Content - Items Grid */}
           <div className="lg:col-span-3">
             <ItemGrid
-              section={selectedSectionData}
+              section={selectedSectionData ?? null}
               items={displayItems}
               onEditItem={handleEditItem}
               onToggleAvailability={toggleItemAvailability}

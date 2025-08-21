@@ -6,13 +6,12 @@ import SessionCartComponent from '../components/SessionCart'
 import OrderSuccessModal from '../components/OrderSuccessModal'
 import TableSessionBadge from '../components/TableSessionBadge'
 import { useSessionManagement } from '../hooks/useSessionManagement'
-import { Search, Filter, Star, Clock, Leaf, Flame } from 'lucide-react'
+import { Search, Star, Clock, Leaf, Flame } from 'lucide-react'
 import { useMenuManagement } from '../hooks/useMenuManagement'
 
 export default function Menu() {
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('table')
-  const sessionId = searchParams.get('session')
   
   const { 
     sessions, 
@@ -259,7 +258,7 @@ export default function Menu() {
                   </div>
                   <div className="flex items-center space-x-2">
                     {getDietaryIcon(item)}
-                    {getSpiceLevel(item.spiceLevel)}
+                    {getSpiceLevel(item.spicyLevel)}
                   </div>
                 </div>
                 

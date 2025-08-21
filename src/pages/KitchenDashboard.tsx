@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { format } from 'date-fns'
 import { useSessionManagement } from '../hooks/useSessionManagement'
+import { OrderItem } from '../types/session'
 import { 
   ChefHat, 
   Clock, 
@@ -43,7 +45,6 @@ import {
   Coffee, 
   Utensils 
 } from 'lucide-react'
-// Removed format import - using native toLocaleTimeString instead
 
 interface Station {
   id: string
@@ -149,12 +150,12 @@ export default function KitchenDashboard() {
 
   const getDietaryIcons = (item: any) => {
     const icons = []
-    if (item.isVegan) icons.push(<Leaf key="vegan" className="w-3 h-3 text-green-600" title="Vegan" />)
-    else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-3 h-3 text-green-500" title="Vegetarian" />)
+    if (item.isVegan) icons.push(<Leaf key="vegan" className="w-3 h-3 text-green-600" aria-label="Vegan" />)
+    else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-3 h-3 text-green-500" aria-label="Vegetarian" />)
     
     if (item.spicyLevel > 0) {
       icons.push(
-        <div key="spicy" className="flex" title={`Spicy Level: ${item.spicyLevel}`}>
+        <div key="spicy" className="flex" aria-label={`Spicy Level: ${item.spicyLevel}`}>
           {[...Array(item.spicyLevel)].map((_, i) => (
             <Flame key={i} className="w-3 h-3 text-red-500" />
           ))}
@@ -204,6 +205,7 @@ export default function KitchenDashboard() {
   }
 
   const handleItemAction = async (orderId: string, itemId: string, action: string) => {
+  const handleItemAction = async (_orderId: string, itemId: string, action: string) => {
     try {
       switch (action) {
         case 'start':
@@ -263,7 +265,7 @@ export default function KitchenDashboard() {
 
       {/* Items List */}
       <div className="space-y-2 mb-4">
-        {order.items.map(item => (
+        {order.items.map((item: OrderItem) => (
           <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium text-gray-900">

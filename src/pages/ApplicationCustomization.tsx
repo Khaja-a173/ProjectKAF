@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import BrandingEditor from '../components/BrandingEditor'
 import { useCustomization, sectionRegistry } from '../hooks/useCustomization'
+import { DEFAULT_THEME } from '../types/customization'
 import { 
   ChefHat, 
   Bell, 
@@ -40,7 +41,7 @@ import {
   Zap,
   BarChart3
 } from 'lucide-react'
-import { Page, PageSection, SectionType } from '../types/customization'
+import { Page, PageSection, SectionType, Theme } from '../types/customization'
 
 export default function ApplicationCustomization() {
   const {
@@ -63,11 +64,10 @@ export default function ApplicationCustomization() {
     locationId: 'location_456'
   })
 
-  const [activeView, setActiveView] = useState<'overview' | 'editor' | 'theme' | 'assets'>('overview')
+  const [activeView, setActiveView] = useState<'overview' | 'editor' | 'theme' | 'assets' | 'branding'>('overview')
   const [selectedPage, setSelectedPage] = useState<Page | null>(null)
   const [selectedSection, setSelectedSection] = useState<PageSection | null>(null)
   const [showSectionPicker, setShowSectionPicker] = useState(false)
-  const [showAssetPicker, setShowAssetPicker] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
 
   const pageTemplates = [
@@ -410,7 +410,7 @@ export default function ApplicationCustomization() {
               </div>
               
               <div className="bg-white min-h-96 p-4">
-                {selectedPage.sections.filter(s => s.visible).map(section => (
+                {selectedPage.sections.filter(s => s.visible).map((section) => (
                   <div
                     key={section.id}
                     onClick={() => setSelectedSection(section)}

@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
+import { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { useSessionManagement } from '../hooks/useSessionManagement'
 import { useSearchParams } from 'react-router-dom'
 import { useCustomization } from '../hooks/useCustomization'
 import DynamicPageRenderer from '../components/DynamicPageRenderer'
-import { Clock, CheckCircle, Truck, MapPin, Phone, TrendingUp, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3 } from 'lucide-react'
+import { Clock, CheckCircle, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3, TrendingUp } from 'lucide-react'
 
 export default function LiveOrders() {
   const [searchParams] = useSearchParams()
