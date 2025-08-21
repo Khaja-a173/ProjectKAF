@@ -9,6 +9,7 @@ export default function Header() {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'Menu', href: '/menu' },
+    { name: 'Live Orders', href: '/live-orders' },
     { name: 'Book Table', href: '/book-table' },
     { name: 'Reserve', href: '/reserve' },
     { name: 'Take Away', href: '/take-away' },
