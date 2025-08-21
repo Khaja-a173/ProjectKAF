@@ -704,10 +704,9 @@ export default function ApplicationCustomization() {
                       onChange={(e) =>
                         updateTheme({
                           colors: {
-                            ...DEFAULT_COLORS,
-                            ...(theme?.colors ?? {}),
+                            ...(theme?.colors ?? DEFAULT_THEME.colors),
                             [key]: e.target.value,
-                          } as typeof DEFAULT_COLORS,
+                          },
                         })
                       }
                       className="w-8 h-8 rounded border border-gray-300"
@@ -718,10 +717,9 @@ export default function ApplicationCustomization() {
                       onChange={(e) =>
                         updateTheme({
                           colors: {
-                            ...DEFAULT_COLORS,
-                            ...(theme?.colors ?? {}),
+                            ...(theme?.colors ?? DEFAULT_THEME.colors),
                             [key]: e.target.value,
-                          } as typeof DEFAULT_COLORS,
+                          },
                         })
                       }
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
@@ -745,7 +743,7 @@ export default function ApplicationCustomization() {
                   onChange={(e) =>
                     updateTheme({
                       typography: {
-                        ...(theme?.typography ?? {}),
+                        ...(theme?.typography ?? DEFAULT_THEME.typography),
                         fontFamily: e.target.value,
                       },
                     })
