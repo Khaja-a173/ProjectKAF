@@ -344,6 +344,92 @@ export default function AccessControlDashboard({
     </div>
   )
 
+  const renderUsersTab = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">User Management</h3>
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Roles</option>
+              {roles.map(role => (
+                <option key={role.key} value={role.key}>{role.displayName}</option>
+              ))}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="invited">Invited</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {filteredUsers.map(user => (
+            <div key={user.id} className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-medium text-blue-600">
+                      {user.firstName[0]}{user.lastName[0]}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-900">{user.firstName} {user.lastName}</h4>
+                    <p className="text-sm text-gray-500">{user.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
+                    {getStatusIcon(user.status)}
+                    <span className="ml-1">{user.status}</span>
+                  </span>
+                  <button
+                    onClick={() => setSelectedUser(user.id)}
+                    className="text-blue-600 hover:text-blue-900"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-4 flex flex-wrap gap-2">
+                {user.roles.map(role => (
+                  <span 
+                    key={role.key}
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: role.color }}
+                  >
+                    {role.displayName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
   const renderDashboardsTab = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm p-6">

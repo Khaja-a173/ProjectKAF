@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { TableSession, SessionCart, CartItem, DineInOrder, OrderItem, Payment, RealtimeEvent } from '../types/session'
+import { TableSession, SessionCart, CartItem, DineInOrder, Payment, RealtimeEvent } from '../types/session'
 
 // Global state for session management (simulating real-time sync)
 let globalSessionState: {
@@ -32,25 +32,6 @@ const EMPTY_CART = {
 }
 
 // Safe storage utility
-const safeStore = {
-  get(key: string) {
-    try {
-      if (typeof window === 'undefined') return null
-      const raw = window.localStorage.getItem(key)
-      return raw ? JSON.parse(raw) : null
-    } catch { 
-      return null 
-    }
-  },
-  set(key: string, value: unknown) {
-    try {
-      if (typeof window === 'undefined') return
-      window.localStorage.setItem(key, JSON.stringify(value))
-    } catch { 
-      /* swallow */ 
-    }
-  }
-}
 
 const sessionSubscribers: Set<(state: typeof globalSessionState) => void> = new Set()
 
@@ -937,7 +918,6 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     orders,
     payments,
     loading,
-    error,
     createTableSession,
     addToCart,
     updateCartQuantity,

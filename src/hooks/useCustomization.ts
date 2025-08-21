@@ -597,7 +597,6 @@ export function useCustomization({ tenantId, locationId }: UseCustomizationProps
     assets,
     versions,
     loading,
-    error,
     sectionRegistry,
     createPage,
     updatePage,

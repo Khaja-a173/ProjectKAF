@@ -474,7 +474,6 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
   return {
     sections,
     loading,
-    error,
     filters,
     setFilters,
     availableTags,

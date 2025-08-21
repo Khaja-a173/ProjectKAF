@@ -14,9 +14,6 @@ export default function Menu() {
   const tableId = searchParams.get('table')
   
   const { 
-    sessions, 
-    carts, 
-    orders,
     addToCart, 
     updateCartQuantity,
     removeFromCart,

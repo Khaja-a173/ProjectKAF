@@ -18,7 +18,6 @@ interface AccessManagementActions {
 }
 
 export function useAccessManagement(tenantId: string, currentUserId: string): AccessManagementActions {
-
   const createAuditLog = (
     action: AccessAuditLog['action'],
     targetUserId: string,
@@ -34,8 +33,8 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     actorId: currentUserId,
     actorEmail: 'admin@restaurant.com', // Would come from current user context
     reason,
-    before: details.before || null,
-    after: details.after || null,
+    before: details.before ?? null,
+    after: details.after ?? null,
     ipAddress: '192.168.1.100', // Would come from request
     userAgent: navigator.userAgent,
     createdAt: new Date(),

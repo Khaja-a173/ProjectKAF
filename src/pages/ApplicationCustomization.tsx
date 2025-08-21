@@ -43,6 +43,45 @@ import {
 } from 'lucide-react'
 import { Page, PageSection, SectionType, Theme } from '../types/customization'
 
+const DEFAULT_COLORS = {
+  primary: '#2563eb',
+  secondary: '#64748b', 
+  accent: '#22c55e',
+  background: '#ffffff',
+  surface: '#f8fafc',
+  text: '#0f172a',
+  textSecondary: '#475569',
+  success: '#16a34a',
+  warning: '#f59e0b',
+  error: '#ef4444'
+}
+
+const DEFAULT_TYPOGRAPHY = {
+  fontFamily: 'Inter, system-ui, sans-serif',
+  headingFont: undefined as string | undefined,
+  fontSize: {
+    xs: '0.75rem',
+    sm: '0.875rem', 
+    base: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    '2xl': '1.5rem',
+    '3xl': '1.875rem',
+    '4xl': '2.25rem'
+  },
+  fontWeight: {
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700
+  },
+  lineHeight: {
+    tight: 1.2,
+    normal: 1.5,
+    relaxed: 1.75
+  }
+}
+
 export default function ApplicationCustomization() {
   const {
     pages,
@@ -438,7 +477,7 @@ export default function ApplicationCustomization() {
                     
                     {section.type === 'achievements_counters' && (
                       <div className="grid grid-cols-2 gap-4">
-                        {section.props.items?.slice(0, 4).map((item: any, idx: number) => (
+                        {section.props.items?.slice(0, 4).map((item: any, idx) => (
                           <div key={idx} className="text-center">
                             <div className="text-2xl font-bold text-blue-600">{item.value}{item.suffix}</div>
                             <div className="text-sm text-gray-600">{item.label}</div>
@@ -449,7 +488,7 @@ export default function ApplicationCustomization() {
                     
                     {section.type === 'image_gallery' && (
                       <div className="grid grid-cols-3 gap-2">
-                        {section.props.items?.slice(0, 6).map((item: any, idx: number) => (
+                        {section.props.items?.slice(0, 6).map((item: any, idx) => (
                           <div key={idx} className="aspect-square bg-gray-200 rounded-lg overflow-hidden">
                             {item.asset?.url && (
                               <img src={item.asset.url} alt="" className="w-full h-full object-cover" />
@@ -483,7 +522,7 @@ export default function ApplicationCustomization() {
                     
                     {section.type === 'faq_accordion' && (
                       <div className="space-y-2">
-                        {section.props.items?.slice(0, 3).map((item: any, idx: number) => (
+                        {section.props.items?.slice(0, 3).map((item: any, idx) => (
                           <div key={idx} className="border border-gray-200 rounded p-2">
                             <div className="font-medium text-sm">{item.question}</div>
                             <div className="text-xs text-gray-600 mt-1">{item.answer?.substring(0, 50)}...</div>
@@ -550,19 +589,9 @@ export default function ApplicationCustomization() {
                       value={value}
                       onChange={(e) => updateTheme({
                         colors: { 
-                          primary: '#2563eb',
-                          secondary: '#64748b', 
-                          accent: '#22c55e',
-                          background: '#ffffff',
-                          surface: '#f8fafc',
-                          text: '#0f172a',
-                          textSecondary: '#475569',
-                          success: '#16a34a',
-                          warning: '#f59e0b',
-                          error: '#ef4444',
-                          ...theme?.colors, 
+                          ...(theme?.colors ?? DEFAULT_COLORS), 
                           [key]: e.target.value 
-                        }
+                        } as typeof DEFAULT_COLORS
                       })}
                       className="w-8 h-8 rounded border border-gray-300"
                     />
@@ -571,19 +600,9 @@ export default function ApplicationCustomization() {
                       value={value}
                       onChange={(e) => updateTheme({
                         colors: { 
-                          primary: '#2563eb',
-                          secondary: '#64748b', 
-                          accent: '#22c55e',
-                          background: '#ffffff',
-                          surface: '#f8fafc',
-                          text: '#0f172a',
-                          textSecondary: '#475569',
-                          success: '#16a34a',
-                          warning: '#f59e0b',
-                          error: '#ef4444',
-                          ...theme?.colors, 
+                          ...(theme?.colors ?? DEFAULT_COLORS), 
                           [key]: e.target.value 
-                        }
+                        } as typeof DEFAULT_COLORS
                       })}
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
                     />
@@ -603,31 +622,9 @@ export default function ApplicationCustomization() {
                   value={theme?.typography.fontFamily}
                   onChange={(e) => updateTheme({
                     typography: { 
-                      fontFamily: 'Inter, system-ui, sans-serif',
-                      fontSize: {
-                        xs: '0.75rem',
-                        sm: '0.875rem', 
-                        base: '1rem',
-                        lg: '1.125rem',
-                        xl: '1.25rem',
-                        '2xl': '1.5rem',
-                        '3xl': '1.875rem',
-                        '4xl': '2.25rem'
-                      },
-                      fontWeight: {
-                        normal: 400,
-                        medium: 500,
-                        semibold: 600,
-                        bold: 700
-                      },
-                      lineHeight: {
-                        tight: 1.2,
-                        normal: 1.5,
-                        relaxed: 1.75
-                      },
-                      ...theme?.typography, 
+                      ...(theme?.typography ?? DEFAULT_TYPOGRAPHY), 
                       fontFamily: e.target.value 
-                    }
+                    } as typeof DEFAULT_TYPOGRAPHY
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
@@ -850,7 +847,7 @@ export default function ApplicationCustomization() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.values(sectionRegistry)
                       .filter(schema => schema.category === categoryKey)
-                      .map(schema => (
+                      .map((schema) => (
                         <button
                           key={schema.type}
                           onClick={() => handleAddSection(schema.type)}
