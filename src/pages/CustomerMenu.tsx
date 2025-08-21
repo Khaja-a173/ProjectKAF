@@ -9,14 +9,142 @@ export default function CustomerMenu() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [cart, setCart] = useState<Array<MenuItem & { quantity: number }>>([])
+  const { sections, loading, error, tenantId, locationId } = useMenuManagement()
 
-  // Use the same menu management hook for real-time sync
-  const { sections, loading } = useMenuManagement({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
-
-  const categories = [
+  useEffect(() => {
+    try {
+      // Initialize with mock data if global state is empty
+      if (globalMenuState.length === 0) {
+        const mockSections: MenuSection[] = [
+          {
+            id: 'sec_1',
+            tenantId,
+            locationId,
+            name: 'Appetizers',
+            description: 'Start your meal with our delicious appetizers',
+            sortIndex: 100,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            items: [
+              {
+                id: 'itm_1',
+                sectionId: 'sec_1',
+                tenantId,
+                locationId,
+                name: 'Truffle Arancini',
+                description: 'Crispy risotto balls with black truffle, parmesan, and herb aioli',
+                price: 16.00,
+                currency: 'USD',
+                cost: 6.50,
+                imageUrl: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
+                isAvailable: true,
+                sortIndex: 10,
+                tags: ['signature', 'popular'],
+                allergens: ['dairy', 'gluten'],
+                isVegetarian: true,
+                isVegan: false,
+                spicyLevel: 0,
+                preparationTime: 15,
+                calories: 280,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              },
+              {
+                id: 'itm_2',
+                sectionId: 'sec_1',
+                tenantId,
+                locationId,
+                name: 'Pan-Seared Scallops',
+                description: 'Fresh diver scallops with cauliflower purée and pancetta crisps',
+                price: 24.00,
+                currency: 'USD',
+                cost: 12.00,
+                imageUrl: 'https://images.pexels.com/photos/842571/pexels-photo-842571.jpeg?auto=compress&cs=tinysrgb&w=400',
+                isAvailable: true,
+                sortIndex: 20,
+                tags: ['premium', 'seafood'],
+                allergens: ['shellfish'],
+                isVegetarian: false,
+                isVegan: false,
+                spicyLevel: 0,
+                preparationTime: 12,
+                calories: 180,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
+            ]
+          },
+          {
+            id: 'sec_2',
+            tenantId,
+            locationId,
+            name: 'Main Courses',
+            description: 'Our signature main dishes',
+            sortIndex: 200,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            items: [
+              {
+                id: 'itm_3',
+                sectionId: 'sec_2',
+                tenantId,
+                locationId,
+                name: 'Wagyu Beef Tenderloin',
+                description: 'Premium wagyu beef with roasted bone marrow and seasonal vegetables',
+                price: 65.00,
+                currency: 'USD',
+                cost: 28.00,
+                imageUrl: 'https://images.pexels.com/photos/361184/asparagus-steak-veal-steak-veal-361184.jpeg?auto=compress&cs=tinysrgb&w=400',
+                isAvailable: true,
+                sortIndex: 10,
+                tags: ['premium', 'signature'],
+                allergens: [],
+                isVegetarian: false,
+                isVegan: false,
+                spicyLevel: 0,
+                preparationTime: 25,
+                calories: 420,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              },
+              {
+                id: 'itm_4',
+                sectionId: 'sec_2',
+                tenantId,
+                locationId,
+                name: 'Grilled Atlantic Salmon',
+                description: 'Fresh salmon with herb crust, quinoa pilaf, and lemon butter sauce',
+                price: 32.00,
+                currency: 'USD',
+                cost: 14.00,
+                imageUrl: 'https://images.pexels.com/photos/842571/pexels-photo-842571.jpeg?auto=compress&cs=tinysrgb&w=400',
+                isAvailable: false,
+                sortIndex: 20,
+                tags: ['healthy', 'seafood'],
+                allergens: ['fish'],
+                isVegetarian: false,
+                isVegan: false,
+                spicyLevel: 0,
+                preparationTime: 20,
+                calories: 350,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
+            ]
+          }
+        ]
+        
+        globalMenuState = mockSections
+      }
+    } catch (err) {
+      setError('Failed to load menu')
+      console.error('Menu fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [tenantId, locationId])
 
   const categories = [
     { id: 'all', name: 'All Items' },
