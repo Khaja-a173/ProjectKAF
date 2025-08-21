@@ -1,7 +1,8 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
-import { Star, Clock, MapPin, Phone, ChefHat, Award, Users, Heart } from 'lucide-react'
+import { Star, Clock, MapPin, Phone, ChefHat, Award, Users, Heart, Calendar, ShoppingCart } from 'lucide-react'
 
 export default function Home() {
   const features = [
@@ -64,18 +65,40 @@ export default function Home() {
         
         <div className="relative z-20 text-center text-white max-w-4xl mx-auto px-4">
           <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-in">
-            Bella Vista
+            Experience Premium Indo-Arabian Dining
           </h1>
           <p className="text-xl md:text-2xl mb-8 text-gray-200 animate-slide-up">
-            Where Culinary Art Meets Exceptional Dining Experience
+            Book a table, browse our authentic menu, or order takeaway from KAF Restro - where tradition meets taste.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up">
-            <button className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105">
-              Reserve a Table
-            </button>
-            <button className="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300">
-              View Menu
-            </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up max-w-4xl mx-auto">
+            <Link
+              to="/book-table"
+              className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-4 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2"
+            >
+              <Calendar className="w-5 h-5" />
+              <span>Book Table</span>
+            </Link>
+            <Link
+              to="/reserve"
+              className="bg-gray-800/80 backdrop-blur-sm text-white px-6 py-4 rounded-xl text-lg font-semibold hover:bg-gray-700/80 transition-all duration-300 flex items-center justify-center space-x-2"
+            >
+              <Clock className="w-5 h-5" />
+              <span>Reserve</span>
+            </Link>
+            <Link
+              to="/menu"
+              className="bg-gray-800/80 backdrop-blur-sm text-white px-6 py-4 rounded-xl text-lg font-semibold hover:bg-gray-700/80 transition-all duration-300 flex items-center justify-center space-x-2"
+            >
+              <ChefHat className="w-5 h-5" />
+              <span>View Menu</span>
+            </Link>
+            <Link
+              to="/take-away"
+              className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-6 py-4 rounded-xl text-lg font-semibold hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              <span>Take Away</span>
+            </Link>
           </div>
         </div>
       </section>

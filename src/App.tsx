@@ -3,10 +3,9 @@ import { Routes, Route } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import Home from './pages/Home'
 import Menu from './pages/Menu'
-import LiveOrders from './pages/LiveOrders'
-import Gallery from './pages/Gallery'
-import Events from './pages/Events'
-import Pages from './pages/Pages'
+import BookTable from './pages/BookTable'
+import Reserve from './pages/Reserve'
+import TakeAway from './pages/TakeAway'
 import Dashboard from './pages/Dashboard'
 import MenuManagement from './pages/MenuManagement'
 import OrderManagement from './pages/OrderManagement'
@@ -20,10 +19,9 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Home />} />
         <Route path="/menu" element={<Menu />} />
-        <Route path="/live-orders" element={<LiveOrders />} />
-        <Route path="/gallery" element={<Gallery />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/pages" element={<Pages />} />
+        <Route path="/book-table" element={<BookTable />} />
+        <Route path="/reserve" element={<Reserve />} />
+        <Route path="/take-away" element={<TakeAway />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/orders" element={<OrderManagement />} />
