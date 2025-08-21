@@ -236,7 +236,7 @@ export default function OrderManagement() {
                   {order.items.map((item, index) => (
                     <div key={index} className="flex justify-between text-sm">
                       <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                      <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-medium">${(item.unitPrice * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -251,7 +251,7 @@ export default function OrderManagement() {
 
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="font-semibold text-gray-900">Total: ${order.total.toFixed(2)}</span>
+                    <span className="font-semibold text-gray-900">Total: ${order.totalAmount.toFixed(2)}</span>
                     <button className="p-1 text-gray-400 hover:text-blue-600">
                       <Eye className="w-4 h-4" />
                     </button>
