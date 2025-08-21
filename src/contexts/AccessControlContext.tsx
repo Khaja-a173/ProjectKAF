@@ -272,6 +272,4 @@ export function useCapability(capability: string, locationId?: string) {
 
 // Hook for dashboard access
 export function useDashboardAccess(dashboardKey: string) {
-  const { canAccessDashboard } = useAccessControl()
-  return canAccessDashboard(dashboardKey)
 }
