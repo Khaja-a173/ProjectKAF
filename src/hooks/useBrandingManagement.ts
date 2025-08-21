@@ -38,7 +38,7 @@ interface AssetUploadResult {
   }
 }
 
-export function useBrandingManagement(tenantId: string, locationId?: string) {
+export function useBrandingManagement(_tenantId: string, _locationId?: string) {
   const [draft, setDraft] = useState<BrandingDraft>({
     assets: {},
     colors: {}
@@ -199,7 +199,7 @@ export function useBrandingManagement(tenantId: string, locationId?: string) {
       }
 
       // Update global branding state
-      updateGlobalBranding(prev => ({
+      updateGlobalBranding(() => ({
         version: newVersion.version,
         assets: { ...draft.assets },
         colors: draft.colors,
@@ -235,7 +235,7 @@ export function useBrandingManagement(tenantId: string, locationId?: string) {
       }
 
       // Update global branding state
-      updateGlobalBranding(prev => ({
+      updateGlobalBranding(() => ({
         version: Date.now(), // New version number
         assets: { ...version.assets },
         updatedAt: new Date()

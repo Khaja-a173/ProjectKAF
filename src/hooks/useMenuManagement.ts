@@ -131,10 +131,8 @@ const notifySubscribers = () => {
 }
 
 const updateGlobalMenu = (updater: (prev: MenuSection[]) => MenuSection[]) => {
-  const prevState = [...globalMenuState]
   globalMenuState = updater(globalMenuState)
   console.log('📝 Menu state updated:', { 
-    before: prevState.length, 
     after: globalMenuState.length,
     totalItems: globalMenuState.reduce((sum, s) => sum + (s.items?.length || 0), 0)
   })
@@ -149,7 +147,6 @@ interface UseMenuManagementProps {
 export function useMenuManagement({ tenantId, locationId }: UseMenuManagementProps) {
   const [sections, setSections] = useState<MenuSection[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<MenuFilters>({
     search: '',
     section: 'all',

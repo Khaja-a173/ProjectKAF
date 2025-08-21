@@ -23,7 +23,6 @@ const notifySubscribers = () => {
 }
 
 const updateGlobalCustomization = (updater: (prev: typeof globalCustomizationState) => typeof globalCustomizationState) => {
-  const prevState = { ...globalCustomizationState }
   globalCustomizationState = updater(globalCustomizationState)
   console.log('📝 Customization state updated')
   notifySubscribers()
@@ -273,7 +272,6 @@ export function useCustomization({ tenantId, locationId }: UseCustomizationProps
   const [assets, setAssets] = useState<Asset[]>([])
   const [versions, setVersions] = useState<PageVersion[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Subscribe to global customization changes
   useEffect(() => {

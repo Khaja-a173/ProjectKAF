@@ -244,7 +244,7 @@ export default function CustomerMenu() {
                           </button>
                         </div>
                       </div>
-                    ))}
+                    {getSpiceLevel(item.spicyLevel)}
                   </div>
                 </div>
               )

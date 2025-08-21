@@ -84,24 +84,6 @@ interface Location {
   isActive: boolean
 }
 
-interface Assignment {
-  staffId: string
-  roleId: string
-  locationIds: string[]
-  effectiveDate: Date
-  expiryDate?: Date
-}
-
-interface Shift {
-  id: string
-  staffId: string
-  locationId: string
-  startTime: Date
-  endTime?: Date
-  status: 'scheduled' | 'active' | 'completed' | 'missed'
-  notes?: string
-}
-
 export default function StaffManagement() {
   const [activeView, setActiveView] = useState<'directory' | 'assignments' | 'shifts' | 'policies' | 'security' | 'analytics'>('directory')
   const [selectedRole, setSelectedRole] = useState<string>('all')

@@ -60,7 +60,6 @@ const notifySessionSubscribers = () => {
 }
 
 const updateGlobalSession = (updater: (prev: typeof globalSessionState) => typeof globalSessionState) => {
-  const prevState = { ...globalSessionState }
   globalSessionState = updater(globalSessionState)
   console.log('📝 Session state updated:', {
     sessions: globalSessionState.sessions.length,
@@ -100,7 +99,6 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
   const [orders, setOrders] = useState<DineInOrder[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Subscribe to global session changes
   useEffect(() => {

@@ -5,7 +5,7 @@ import { useSessionManagement } from '../hooks/useSessionManagement'
 import { useSearchParams } from 'react-router-dom'
 import { useCustomization } from '../hooks/useCustomization'
 import DynamicPageRenderer from '../components/DynamicPageRenderer'
-import { Clock, CheckCircle, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3, TrendingUp } from 'lucide-react'
+import { Clock, CheckCircle, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3, TrendingUp, MapPin } from 'lucide-react'
 
 export default function LiveOrders() {
   const [searchParams] = useSearchParams()

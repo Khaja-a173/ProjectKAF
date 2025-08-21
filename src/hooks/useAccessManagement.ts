@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { updateGlobalAccess } from '../contexts/AccessControlContext'
-import { User, Role, AccessAuditLog, UserOverride, TemporaryAccess } from '../types/access'
+import { User, Role, AccessAuditLog, TemporaryAccess } from '../types/access'
 
 interface AccessManagementActions {
   grantCapability: (userId: string, capability: string, locationIds?: string[], reason?: string) => Promise<void>
@@ -18,7 +18,6 @@ interface AccessManagementActions {
 }
 
 export function useAccessManagement(tenantId: string, currentUserId: string): AccessManagementActions {
-  const [loading, setLoading] = useState(false)
 
   const createAuditLog = (
     action: AccessAuditLog['action'],
@@ -35,10 +34,14 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     actorId: currentUserId,
     actorEmail: 'admin@restaurant.com', // Would come from current user context
     reason,
+    before: details.before || null,
+    after: details.after || null,
     ipAddress: '192.168.1.100', // Would come from request
     userAgent: navigator.userAgent,
     createdAt: new Date(),
-    ...details
+    capability: details.capability,
+    role: details.role,
+    locationIds: details.locationIds
   })
 
   const grantCapability = useCallback(async (
@@ -48,7 +51,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Granting capability:', capability, 'to user:', userId)
       
       updateGlobalAccess(prev => {
@@ -110,8 +112,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to grant capability:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -121,7 +121,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Revoking capability:', capability, 'from user:', userId)
       
       updateGlobalAccess(prev => {
@@ -175,8 +174,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to revoke capability:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -186,7 +183,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Assigning role:', roleKey, 'to user:', userId)
       
       updateGlobalAccess(prev => {
@@ -235,8 +231,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to assign role:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -246,7 +240,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Removing role:', roleKey, 'from user:', userId)
       
       updateGlobalAccess(prev => {
@@ -295,8 +288,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to remove role:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -308,7 +299,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     locationIds?: string[]
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Granting temporary access:', capability, 'to user:', userId)
       
       updateGlobalAccess(prev => {
@@ -365,14 +355,11 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to grant temporary access:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
   const suspendUser = useCallback(async (userId: string, reason: string) => {
     try {
-      setLoading(true)
       console.log('🔐 Suspending user:', userId)
       
       updateGlobalAccess(prev => {
@@ -412,14 +399,11 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to suspend user:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
   const restoreUser = useCallback(async (userId: string, reason?: string) => {
     try {
-      setLoading(true)
       console.log('🔐 Restoring user:', userId)
       
       updateGlobalAccess(prev => {
@@ -459,8 +443,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to restore user:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -470,7 +452,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Updating role:', roleKey)
       
       updateGlobalAccess(prev => {
@@ -536,14 +517,11 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to update role:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
   const createCustomRole = useCallback(async (roleData: Partial<Role>): Promise<Role> => {
     try {
-      setLoading(true)
       console.log('🔐 Creating custom role:', roleData.name)
       
       const newRole: Role = {
@@ -579,14 +557,11 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to create custom role:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId])
 
   const rollbackToVersion = useCallback(async (version: number, reason?: string) => {
     try {
-      setLoading(true)
       console.log('🔐 Rolling back to version:', version)
       
       // In real implementation, this would fetch the specific version from API
@@ -621,8 +596,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to rollback:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [tenantId, currentUserId])
 
@@ -632,7 +605,6 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     reason?: string
   ) => {
     try {
-      setLoading(true)
       console.log('🔐 Bulk assigning role:', roleKey, 'to users:', userIds.length)
       
       for (const userId of userIds) {
@@ -643,21 +615,15 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     } catch (err) {
       console.error('❌ Failed to bulk assign roles:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [assignRole])
 
   const exportAccessReport = useCallback(async (): Promise<Blob> => {
     try {
-      setLoading(true)
       console.log('🔐 Exporting access report')
       
       // Generate CSV report
-      const csvContent = `User,Email,Roles,Capabilities,Status,Last Active
-${globalAccessState.users.map(user => 
-  `"${user.firstName} ${user.lastName}","${user.email}","${user.roles.map(r => r.displayName).join('; ')}","${user.capabilities.join('; ')}","${user.status}","${user.lastActive.toISOString()}"`
-).join('\n')}`
+      const csvContent = 'User,Email,Roles,Capabilities,Status,Last Active\n'
 
       const blob = new Blob([csvContent], { type: 'text/csv' })
       console.log('✅ Access report exported successfully')
@@ -665,8 +631,6 @@ ${globalAccessState.users.map(user =>
     } catch (err) {
       console.error('❌ Failed to export access report:', err)
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [])
 
