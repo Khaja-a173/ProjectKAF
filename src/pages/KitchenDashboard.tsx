@@ -589,12 +589,12 @@ export default function KitchenDashboard() {
                     </div>
                   </div>
                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.confirmed.length}
+                    {ordersByStatus.confirmed.length + orders.filter(o => o.status === 'placed').length}
                   </span>
                 </div>
               </div>
               <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {ordersByStatus.confirmed.map(renderTicketCard)}
+                {[...orders.filter(o => o.status === 'placed'), ...ordersByStatus.confirmed].map(renderTicketCard)}
               </div>
             </div>
 
@@ -798,7 +798,7 @@ export default function KitchenDashboard() {
                       <div className="flex items-center justify-between">
                         <div className="text-sm text-gray-500">
                           Station: {stations.find(s => s.id === item.station)?.name} • 
-                          Est: {item.estimatedTime}m
+                          Est: {item.preparationTime}m
                           {item.assignedChef && ` • ${item.assignedChef}`}
                         </div>
                         <div className="flex space-x-2">
