@@ -23,7 +23,7 @@ export default function Contact() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
   const contactPage = pages.find(p => p.slug === 'contact' && p.status === 'published')
-  const hasCustomContent = contactPage && contactPage.sections.length > 0
+  const hasCustomContent = contactPage && contactPage.sections.length > 0 && contactPage.sections.some(s => s.visible)
 
   if (loading) {
     return (

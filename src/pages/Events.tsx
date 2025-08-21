@@ -12,7 +12,7 @@ export default function Events() {
   })
 
   const eventsPage = pages.find(p => p.slug === 'events' && p.status === 'published')
-  const hasCustomContent = eventsPage && eventsPage.sections.length > 0
+  const hasCustomContent = eventsPage && eventsPage.sections.length > 0 && eventsPage.sections.some(s => s.visible)
 
   const [selectedCategory, setSelectedCategory] = useState('all')
 
