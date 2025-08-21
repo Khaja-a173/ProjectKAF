@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, BarChart3, Shield, Star, Check } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, BarChart3, Shield } from 'lucide-react';
 
-export default function SignInPage() {
+export default function HomePage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -12,17 +12,11 @@ export default function SignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    try {
-      // Mock authentication for demo
-      setTimeout(() => {
-        alert('Successfully signed in! This is a demo application.');
-        setLoading(false);
-      }, 1500);
-    } catch (error) {
-      console.error('Sign in error:', error);
+    
+    setTimeout(() => {
+      alert('Welcome to RestaurantOS! This is a demo application.');
       setLoading(false);
-    }
+    }, 1500);
   };
 
   const handleDemoLogin = (role: string) => {
