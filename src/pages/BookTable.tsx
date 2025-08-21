@@ -1,9 +1,13 @@
 import React, { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
-import { Calendar, Clock, Users, Phone, Mail, User, MapPin, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, Users, Phone, Mail, User, MapPin, CheckCircle, QrCode, Camera, Grid3X3 } from 'lucide-react'
 
 export default function BookTable() {
+  const [activeSection, setActiveSection] = useState('qr-scanner')
+  const [selectedTable, setSelectedTable] = useState('')
+  const [tableNumber, setTableNumber] = useState('')
+  const [isScanning, setIsScanning] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,11 +30,34 @@ export default function BookTable() {
     'Family Gathering', 'Celebration', 'Other'
   ]
 
+  const availableTables = [
+    { id: 'T02', seats: 4, location: 'Window View', status: 'available' },
+    { id: 'T06', seats: 4, location: 'Main Hall', status: 'available' },
+    { id: 'T07', seats: 2, location: 'Main Hall', status: 'available' },
+    { id: 'T09', seats: 4, location: 'Garden View', status: 'available' },
+    { id: 'T10', seats: 6, location: 'Garden View', status: 'available' },
+    { id: 'T14', seats: 2, location: 'Counter Seating', status: 'available' },
+    { id: 'T15', seats: 4, location: 'Main Hall', status: 'available' },
+  ]
+
+  const handleStartScanning = () => {
+    setIsScanning(true)
+    // Simulate QR scanning
+    setTimeout(() => {
+      setIsScanning(false)
+      setTableNumber('T07')
+      setActiveSection('table-layout')
+    }, 2000)
+  }
+
+  const handleTableSelect = (tableId: string) => {
+    setSelectedTable(tableId)
+    setTableNumber(tableId)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitted(true)
-    // Here you would typically send the data to your backend
-    console.log('Booking submitted:', formData)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -56,6 +83,7 @@ export default function BookTable() {
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="text-sm text-gray-600 space-y-1">
+                <p><strong>Table:</strong> {selectedTable || tableNumber}</p>
                 <p><strong>Date:</strong> {formData.date}</p>
                 <p><strong>Time:</strong> {formData.time}</p>
                 <p><strong>Guests:</strong> {formData.guests}</p>
@@ -93,7 +121,121 @@ export default function BookTable() {
         </div>
       </section>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Section 1: QR Scanner & Table Layout */}
+        <div className="mb-12">
+          {/* QR Scanner Section */}
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Connect to Table</h2>
+              <p className="text-gray-600">Scan QR code on your table or enter table number to start ordering</p>
+            </div>
+
+            <div className="max-w-md mx-auto">
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <QrCode className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Scan QR Code</h3>
+                <p className="text-gray-600 mb-6">Point your camera at the QR code on your table</p>
+                
+                <button
+                  onClick={handleStartScanning}
+                  disabled={isScanning}
+                  className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition-colors flex items-center space-x-2 mx-auto"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>{isScanning ? 'Scanning...' : 'Start Scanning'}</span>
+                </button>
+              </div>
+
+              <div className="text-center text-gray-500 mb-6">OR</div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Grid3X3 className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Enter Table Number</h3>
+                <p className="text-gray-600 mb-4">Type your table number if you can't scan the QR code</p>
+                
+                <input
+                  type="text"
+                  placeholder="e.g. T01, T02, T15"
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center mb-4"
+                />
+                
+                <button
+                  onClick={() => setActiveSection('table-layout')}
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Check Availability & View Menu
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Layout Section */}
+          {activeSection === 'table-layout' && (
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="text-center mb-8">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Available Tables</h3>
+                <p className="text-gray-600">Click on any available table to select it</p>
+                <p className="text-sm text-gray-500">(Showing 7 available tables - Updated automatically)</p>
+              </div>
+
+              {/* Horizontal Table Layout */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+                {availableTables.map((table) => (
+                  <div
+                    key={table.id}
+                    onClick={() => handleTableSelect(table.id)}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
+                      selectedTable === table.id
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-gray-200 hover:border-orange-300 bg-white'
+                    }`}
+                  >
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-gray-900 mb-1">{table.id}</div>
+                      <div className="text-sm text-gray-600 mb-1">{table.seats} seats</div>
+                      <div className="text-xs text-gray-500">{table.location}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-center mb-6">
+                <button className="text-blue-600 hover:text-blue-700 font-medium">
+                  Hide Available Tables
+                </button>
+              </div>
+
+              {/* Need Help Section */}
+              <div className="bg-blue-50 rounded-xl p-6 text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Phone className="w-6 h-6 text-blue-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">Need Help?</h4>
+                <p className="text-gray-600 mb-4">
+                  Can't find your table or having trouble? View all available tables or ask our staff for assistance.
+                </p>
+                <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                  View Available Tables
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  For special table arrangements, please contact our staff directly.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Booking Form (Existing) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Booking Form */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -237,6 +379,15 @@ export default function BookTable() {
                   </select>
                 </div>
               </div>
+
+              {selectedTable && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-green-800 font-medium">Selected Table: {selectedTable}</p>
+                  <p className="text-green-600 text-sm">
+                    {availableTables.find(t => t.id === selectedTable)?.seats} seats • {availableTables.find(t => t.id === selectedTable)?.location}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
