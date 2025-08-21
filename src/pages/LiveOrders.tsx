@@ -1,33 +1,55 @@
-import { useState } from 'react'
-import Header from '../components/Header'
-import Footer from '../components/Footer'
-import { useSessionManagement } from '../hooks/useSessionManagement'
-import { useSearchParams } from 'react-router-dom'
-import { useCustomization } from '../hooks/useCustomization'
-import DynamicPageRenderer from '../components/DynamicPageRenderer'
-import { Clock, CheckCircle, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3, TrendingUp, MapPin } from 'lucide-react'
+import { useState } from "react";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import { useSessionManagement } from "../hooks/useSessionManagement";
+import { useSearchParams } from "react-router-dom";
+import { useCustomization } from "../hooks/useCustomization";
+import DynamicPageRenderer from "../components/DynamicPageRenderer";
+import {
+  Clock,
+  CheckCircle,
+  Users,
+  Star,
+  ShoppingBag,
+  DollarSign,
+  ChefHat,
+  BarChart3,
+  TrendingUp,
+  MapPin,
+} from "lucide-react";
 
 export default function LiveOrders() {
-  const [searchParams] = useSearchParams()
-  const trackingOrderId = searchParams.get('order')
-  
+  const [searchParams] = useSearchParams();
+  const trackingOrderId = searchParams.get("order");
+
   const { orders, loading: sessionLoading } = useSessionManagement({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
-  
-  const { pages, theme, loading: customizationLoading } = useCustomization({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
+    tenantId: "tenant_123",
+    locationId: "location_456",
+  });
+
+  const {
+    pages,
+    theme,
+    loading: customizationLoading,
+  } = useCustomization({
+    tenantId: "tenant_123",
+    locationId: "location_456",
+  });
 
   // Focus on tracking order if provided
-  const trackingOrder = trackingOrderId ? orders.find(o => o.id === trackingOrderId) : null
+  const trackingOrder = trackingOrderId
+    ? orders.find((o) => o.id === trackingOrderId)
+    : null;
 
-  const liveOrdersPage = pages.find(p => p.slug === 'live-orders' && p.status === 'published')
-  const hasCustomContent = liveOrdersPage && 
-    liveOrdersPage.sections.length > 0 && 
-    liveOrdersPage.sections.some(s => s.visible && s.props && Object.keys(s.props).length > 0)
+  const liveOrdersPage = pages.find(
+    (p) => p.slug === "live-orders" && p.status === "published",
+  );
+  const hasCustomContent =
+    liveOrdersPage &&
+    liveOrdersPage.sections.length > 0 &&
+    liveOrdersPage.sections.some(
+      (s) => s.visible && s.props && Object.keys(s.props).length > 0,
+    );
 
   if (customizationLoading || sessionLoading) {
     return (
@@ -41,7 +63,7 @@ export default function LiveOrders() {
         </div>
         <Footer />
       </div>
-    )
+    );
   }
 
   // If tenant has customized the live orders page, render it dynamically
@@ -52,80 +74,108 @@ export default function LiveOrders() {
         <DynamicPageRenderer page={liveOrdersPage} theme={theme} />
         <Footer />
       </div>
-    )
+    );
   }
 
   // Original beautiful live orders design (unchanged)
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'placed': return 'bg-yellow-500'
-      case 'confirmed': return 'bg-blue-500'
-      case 'preparing': return 'bg-orange-500'
-      case 'ready': return 'bg-green-500'
-      case 'served': return 'bg-gray-500'
-      default: return 'bg-gray-500'
+      case "placed":
+        return "bg-yellow-500";
+      case "confirmed":
+        return "bg-blue-500";
+      case "preparing":
+        return "bg-orange-500";
+      case "ready":
+        return "bg-green-500";
+      case "served":
+        return "bg-gray-500";
+      default:
+        return "bg-gray-500";
     }
-  }
+  };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'placed': return 'Order Placed'
-      case 'confirmed': return 'Order Confirmed'
-      case 'preparing': return 'Preparing'
-      case 'ready': return 'Ready'
-      case 'served': return 'Served'
-      default: return status
+      case "placed":
+        return "Order Placed";
+      case "confirmed":
+        return "Order Confirmed";
+      case "preparing":
+        return "Preparing";
+      case "ready":
+        return "Ready";
+      case "served":
+        return "Served";
+      default:
+        return status;
     }
-  }
+  };
 
   const getStatusDescription = (status: string) => {
     switch (status) {
-      case 'placed': return 'Waiting for confirmation'
-      case 'confirmed': return 'Confirmed and sent to kitchen'
-      case 'preparing': return 'Chef is working on your meal'
-      case 'ready': return 'Order ready for service'
-      case 'served': return 'Order has been served'
-      default: return ''
+      case "placed":
+        return "Waiting for confirmation";
+      case "confirmed":
+        return "Confirmed and sent to kitchen";
+      case "preparing":
+        return "Chef is working on your meal";
+      case "ready":
+        return "Order ready for service";
+      case "served":
+        return "Order has been served";
+      default:
+        return "";
     }
-  }
+  };
 
   const ordersByStatus = {
-    placed: orders.filter(o => o.status === 'placed' || o.status === 'confirmed'),
-    confirmed: orders.filter(o => o.status === 'confirmed'),
-    preparing: orders.filter(o => o.status === 'preparing'),
-    ready: orders.filter(o => o.status === 'ready'),
-    served: orders.filter(o => o.status === 'served'),
-    paying: orders.filter(o => o.status === 'paying'),
-    paid: orders.filter(o => o.status === 'paid')
-  }
+    placed: orders.filter(
+      (o) => o.status === "placed" || o.status === "confirmed",
+    ),
+    confirmed: orders.filter((o) => o.status === "confirmed"),
+    preparing: orders.filter((o) => o.status === "preparing"),
+    ready: orders.filter((o) => o.status === "ready"),
+    served: orders.filter((o) => o.status === "served"),
+    paying: orders.filter((o) => o.status === "paying"),
+    paid: orders.filter((o) => o.status === "paid"),
+  };
 
-  const totalOrders = orders.filter(o => o.status !== 'paid' && o.status !== 'closed').length
-  const activeOrders = orders.filter(o => ['placed', 'confirmed', 'preparing', 'ready'].includes(o.status)).length
+  const totalOrders = orders.filter(
+    (o) => o.status !== "paid" && o.status !== "closed",
+  ).length;
+  const activeOrders = orders.filter((o) =>
+    ["placed", "confirmed", "preparing", "ready"].includes(o.status),
+  ).length;
 
   const mostSoldItems = [
-    { name: 'Butter Chicken', orders: 15, trend: '+10%' },
-    { name: 'Chicken Biryani', orders: 12, trend: '+8%' },
-    { name: 'Garlic Naan', orders: 18, trend: '+15%' },
-    { name: 'Paneer Tikka', orders: 9, trend: '+6%' }
-  ]
+    { name: "Butter Chicken", orders: 15, trend: "+10%" },
+    { name: "Chicken Biryani", orders: 12, trend: "+8%" },
+    { name: "Garlic Naan", orders: 18, trend: "+15%" },
+    { name: "Paneer Tikka", orders: 9, trend: "+6%" },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       {/* Section 1: Hero Section */}
       <section className="relative h-80 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/60"></div>
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: 'url(https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1920)'
+            backgroundImage:
+              "url(https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1920)",
           }}
         ></div>
         <div className="relative z-10 text-center text-white max-w-4xl mx-auto px-4">
           <h1 className="text-5xl font-bold mb-4">Live Orders</h1>
           <p className="text-xl mb-2">Track your orders live here</p>
-          <p className="text-lg opacity-90">Track your dine-in and takeaway orders in real-time with live kitchen updates</p>
+          <p className="text-lg opacity-90">
+            Track your dine-in and takeaway orders in real-time with live
+            kitchen updates
+          </p>
         </div>
       </section>
 
@@ -135,13 +185,18 @@ export default function LiveOrders() {
           <div className="mb-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-blue-900">Tracking Your Order</h2>
+                <h2 className="text-xl font-bold text-blue-900">
+                  Tracking Your Order
+                </h2>
                 <p className="text-blue-700">
-                  {trackingOrder.orderNumber} • Table {trackingOrder.tableId} • ${trackingOrder.totalAmount.toFixed(2)}
+                  {trackingOrder.orderNumber} • Table {trackingOrder.tableId} •
+                  ${trackingOrder.totalAmount.toFixed(2)}
                 </p>
               </div>
               <div className="text-right">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white ${getStatusColor(trackingOrder.status)}`}>
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white ${getStatusColor(trackingOrder.status)}`}
+                >
                   {getStatusText(trackingOrder.status)}
                 </span>
                 <p className="text-sm text-blue-600 mt-1">
@@ -163,8 +218,12 @@ export default function LiveOrders() {
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Order Placed</h3>
-                    <p className="text-sm text-gray-600">Waiting for confirmation</p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Order Placed
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Waiting for confirmation
+                    </p>
                   </div>
                 </div>
                 <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -177,16 +236,27 @@ export default function LiveOrders() {
                   <div key={order.id} className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <div className="font-semibold text-gray-900">{order.tableId}</div>
-                        <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="font-semibold text-gray-900">
+                          {order.tableId}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {order.orderNumber}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.placedAt.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">x{item.quantity}</span>
+                          <span className="text-orange-600 font-medium">
+                            x{item.quantity}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -203,7 +273,9 @@ export default function LiveOrders() {
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Confirmed</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Confirmed
+                    </h3>
                     <p className="text-sm text-gray-600">Sent to kitchen</p>
                   </div>
                 </div>
@@ -217,16 +289,27 @@ export default function LiveOrders() {
                   <div key={order.id} className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <div className="font-semibold text-gray-900">{order.tableId}</div>
-                        <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="font-semibold text-gray-900">
+                          {order.tableId}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {order.orderNumber}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.placedAt.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">x{item.quantity}</span>
+                          <span className="text-orange-600 font-medium">
+                            x{item.quantity}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -243,8 +326,12 @@ export default function LiveOrders() {
                     <Clock className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Preparing</h3>
-                    <p className="text-sm text-gray-600">Chef is working on your meal</p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Preparing
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Chef is working on your meal
+                    </p>
                   </div>
                 </div>
                 <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -257,16 +344,27 @@ export default function LiveOrders() {
                   <div key={order.id} className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <div className="font-semibold text-gray-900">{order.tableId}</div>
-                        <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="font-semibold text-gray-900">
+                          {order.tableId}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {order.orderNumber}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.placedAt.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">x{item.quantity}</span>
+                          <span className="text-orange-600 font-medium">
+                            x{item.quantity}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -283,7 +381,9 @@ export default function LiveOrders() {
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Ready</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Ready
+                    </h3>
                     <p className="text-sm text-gray-600">Ready for service</p>
                   </div>
                 </div>
@@ -294,8 +394,11 @@ export default function LiveOrders() {
 
               <div className="space-y-4">
                 {ordersByStatus.ready.map((order) => (
-                  <div key={order.id} className="bg-gray-50 rounded-xl p-4 relative">
-                    {order.priority === 'urgent' && (
+                  <div
+                    key={order.id}
+                    className="bg-gray-50 rounded-xl p-4 relative"
+                  >
+                    {order.priority === "urgent" && (
                       <div className="absolute top-2 right-2">
                         <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
                           URGENT
@@ -304,16 +407,27 @@ export default function LiveOrders() {
                     )}
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <div className="font-semibold text-gray-900">{order.tableId}</div>
-                        <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="font-semibold text-gray-900">
+                          {order.tableId}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {order.orderNumber}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.placedAt.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">x{item.quantity}</span>
+                          <span className="text-orange-600 font-medium">
+                            x{item.quantity}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -330,7 +444,9 @@ export default function LiveOrders() {
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Served</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Served
+                    </h3>
                     <p className="text-sm text-gray-600">Awaiting payment</p>
                   </div>
                 </div>
@@ -344,16 +460,29 @@ export default function LiveOrders() {
                   <div key={order.id} className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <div className="font-semibold text-gray-900">{order.tableId}</div>
-                        <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{(order.servedAt || order.placedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="font-semibold text-gray-900">
+                          {order.tableId}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {order.orderNumber}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {(
+                            order.servedAt || order.placedAt
+                          ).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">x{item.quantity}</span>
+                          <span className="text-orange-600 font-medium">
+                            x{item.quantity}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -405,14 +534,20 @@ export default function LiveOrders() {
 
               {/* Average Prep Time */}
               <div>
-                <h3 className="text-gray-400 text-sm mb-2">Average Prep Time</h3>
+                <h3 className="text-gray-400 text-sm mb-2">
+                  Average Prep Time
+                </h3>
                 <div className="text-4xl font-bold">12m 30s</div>
               </div>
 
               {/* Longest Pending Order */}
               <div>
-                <h3 className="text-gray-400 text-sm mb-2">Longest Pending Order</h3>
-                <div className="text-2xl font-bold">#O-117 <span className="text-lg">18m</span></div>
+                <h3 className="text-gray-400 text-sm mb-2">
+                  Longest Pending Order
+                </h3>
+                <div className="text-2xl font-bold">
+                  #O-117 <span className="text-lg">18m</span>
+                </div>
               </div>
 
               {/* Top 5 Dishes */}
@@ -459,10 +594,15 @@ export default function LiveOrders() {
 
               {/* Orders Service Type - Donut Chart */}
               <div>
-                <h3 className="text-gray-400 text-sm mb-4">Orders' Service Type</h3>
+                <h3 className="text-gray-400 text-sm mb-4">
+                  Orders' Service Type
+                </h3>
                 <div className="flex items-center space-x-4">
                   <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                    <svg
+                      className="w-20 h-20 transform -rotate-90"
+                      viewBox="0 0 36 36"
+                    >
                       <path
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         fill="none"
@@ -522,10 +662,15 @@ export default function LiveOrders() {
 
               {/* Cancelled Order Reasons */}
               <div>
-                <h3 className="text-gray-400 text-sm mb-4">Cancelled Order Reasons</h3>
+                <h3 className="text-gray-400 text-sm mb-4">
+                  Cancelled Order Reasons
+                </h3>
                 <div className="flex items-center space-x-4">
                   <div className="relative w-16 h-16">
-                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                    <svg
+                      className="w-16 h-16 transform -rotate-90"
+                      viewBox="0 0 36 36"
+                    >
                       <path
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         fill="none"
@@ -570,24 +715,34 @@ export default function LiveOrders() {
         </div>
         {/* Section 3: Summary and Statistics */}
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Live Order Summary</h2>
-          
+          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">
+            Live Order Summary
+          </h2>
+
           {/* Order Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
             <div className="text-center">
-              <div className="text-3xl font-bold text-yellow-600 mb-2">{ordersByStatus.placed.length}</div>
+              <div className="text-3xl font-bold text-yellow-600 mb-2">
+                {ordersByStatus.placed.length}
+              </div>
               <div className="text-sm text-gray-600">Placed</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">{ordersByStatus.confirmed.length}</div>
+              <div className="text-3xl font-bold text-blue-600 mb-2">
+                {ordersByStatus.confirmed.length}
+              </div>
               <div className="text-sm text-gray-600">Confirmed</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">{ordersByStatus.preparing.length}</div>
+              <div className="text-3xl font-bold text-orange-600 mb-2">
+                {ordersByStatus.preparing.length}
+              </div>
               <div className="text-sm text-gray-600">Preparing</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">{ordersByStatus.ready.length}</div>
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                {ordersByStatus.ready.length}
+              </div>
               <div className="text-sm text-gray-600">Ready</div>
             </div>
           </div>
@@ -597,7 +752,9 @@ export default function LiveOrders() {
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
               <div className="flex items-center space-x-2 mb-6">
                 <DollarSign className="w-5 h-5 text-green-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Analytics</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Revenue Analytics
+                </h3>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -606,12 +763,16 @@ export default function LiveOrders() {
                       <DollarSign className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Today's Revenue</div>
+                      <div className="font-medium text-gray-900">
+                        Today's Revenue
+                      </div>
                       <div className="text-sm text-gray-500">Live tracking</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-green-600">$2,847</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      $2,847
+                    </div>
                     <div className="text-sm text-green-500">+12.5%</div>
                   </div>
                 </div>
@@ -621,12 +782,18 @@ export default function LiveOrders() {
                       <TrendingUp className="w-4 h-4 text-blue-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Avg Order Value</div>
-                      <div className="text-sm text-gray-500">Per transaction</div>
+                      <div className="font-medium text-gray-900">
+                        Avg Order Value
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Per transaction
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">$18.25</div>
+                    <div className="text-xl font-bold text-gray-900">
+                      $18.25
+                    </div>
                     <div className="text-sm text-red-500">-2.1%</div>
                   </div>
                 </div>
@@ -636,7 +803,9 @@ export default function LiveOrders() {
                       <Clock className="w-4 h-4 text-purple-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Peak Hour Revenue</div>
+                      <div className="font-medium text-gray-900">
+                        Peak Hour Revenue
+                      </div>
                       <div className="text-sm text-gray-500">7-8 PM</div>
                     </div>
                   </div>
@@ -652,7 +821,9 @@ export default function LiveOrders() {
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
               <div className="flex items-center space-x-2 mb-6">
                 <ChefHat className="w-5 h-5 text-blue-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Kitchen Performance</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Kitchen Performance
+                </h3>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -661,12 +832,16 @@ export default function LiveOrders() {
                       <Clock className="w-4 h-4 text-blue-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Avg Prep Time</div>
+                      <div className="font-medium text-gray-900">
+                        Avg Prep Time
+                      </div>
                       <div className="text-sm text-gray-500">All orders</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">12m 30s</div>
+                    <div className="text-xl font-bold text-gray-900">
+                      12m 30s
+                    </div>
                     <div className="text-sm text-green-500">-1.2m</div>
                   </div>
                 </div>
@@ -676,7 +851,9 @@ export default function LiveOrders() {
                       <CheckCircle className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Order Accuracy</div>
+                      <div className="font-medium text-gray-900">
+                        Order Accuracy
+                      </div>
                       <div className="text-sm text-gray-500">Success rate</div>
                     </div>
                   </div>
@@ -691,7 +868,9 @@ export default function LiveOrders() {
                       <Users className="w-4 h-4 text-orange-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">Kitchen Efficiency</div>
+                      <div className="font-medium text-gray-900">
+                        Kitchen Efficiency
+                      </div>
                       <div className="text-sm text-gray-500">Orders/hour</div>
                     </div>
                   </div>
@@ -709,22 +888,35 @@ export default function LiveOrders() {
             <div className="bg-gray-50 rounded-xl p-6">
               <div className="flex items-center space-x-2 mb-6">
                 <TrendingUp className="w-5 h-5 text-green-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Most Sold Items</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Most Sold Items
+                </h3>
               </div>
               <div className="space-y-4">
                 {mostSoldItems.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium text-green-600">#{index + 1}</span>
+                        <span className="text-sm font-medium text-green-600">
+                          #{index + 1}
+                        </span>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{item.name}</div>
-                        <div className="text-sm text-gray-500">{item.orders} orders today</div>
+                        <div className="font-medium text-gray-900">
+                          {item.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {item.orders} orders today
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium text-green-600">{item.trend}</div>
+                      <div className="text-sm font-medium text-green-600">
+                        {item.trend}
+                      </div>
                       <div className="text-xs text-gray-500">Trend</div>
                     </div>
                   </div>
@@ -736,7 +928,9 @@ export default function LiveOrders() {
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
               <div className="flex items-center space-x-2 mb-6">
                 <Users className="w-5 h-5 text-purple-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Customer Insights</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Customer Insights
+                </h3>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -773,11 +967,15 @@ export default function LiveOrders() {
 
           {/* Premium Analytics Dashboard */}
           <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-8 text-white mb-8">
-            <h2 className="text-2xl font-bold mb-8 text-center">Real-Time Business Intelligence</h2>
-            
+            <h2 className="text-2xl font-bold mb-8 text-center">
+              Real-Time Business Intelligence
+            </h2>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-400 mb-2">$2,847</div>
+                <div className="text-3xl font-bold text-green-400 mb-2">
+                  $2,847
+                </div>
                 <div className="text-sm text-gray-300">Today's Revenue</div>
                 <div className="text-xs text-green-400">↗ +12.5%</div>
               </div>
@@ -787,12 +985,16 @@ export default function LiveOrders() {
                 <div className="text-xs text-blue-400">↗ +8.2%</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-purple-400 mb-2">24/32</div>
+                <div className="text-3xl font-bold text-purple-400 mb-2">
+                  24/32
+                </div>
                 <div className="text-sm text-gray-300">Table Occupancy</div>
                 <div className="text-xs text-purple-400">75% Full</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-orange-400 mb-2">18m</div>
+                <div className="text-3xl font-bold text-orange-400 mb-2">
+                  18m
+                </div>
                 <div className="text-sm text-gray-300">Avg Service Time</div>
                 <div className="text-xs text-green-400">↘ -2.1m</div>
               </div>
@@ -800,7 +1002,9 @@ export default function LiveOrders() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Peak Hours Analysis</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  Peak Hours Analysis
+                </h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-300">Lunch Rush (12-2 PM)</span>
@@ -818,7 +1022,9 @@ export default function LiveOrders() {
               </div>
 
               <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Staff Performance</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  Staff Performance
+                </h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-300">Active Staff</span>
@@ -860,52 +1066,78 @@ export default function LiveOrders() {
             <div className="bg-blue-50 rounded-xl p-6 text-center">
               <div className="flex items-center justify-center space-x-2 mb-4">
                 <MapPin className="w-6 h-6 text-blue-600" />
-                <h3 className="text-lg font-semibold text-blue-900">Active Orders</h3>
+                <h3 className="text-lg font-semibold text-blue-900">
+                  Active Orders
+                </h3>
               </div>
-              <div className="text-4xl font-bold text-blue-600 mb-2">{activeOrders}</div>
+              <div className="text-4xl font-bold text-blue-600 mb-2">
+                {activeOrders}
+              </div>
               <div className="text-sm text-blue-700">Active Orders</div>
             </div>
 
             <div className="bg-purple-50 rounded-xl p-6 text-center">
               <div className="flex items-center justify-center space-x-2 mb-4">
                 <ShoppingBag className="w-6 h-6 text-purple-600" />
-                <h3 className="text-lg font-semibold text-purple-900">Total Orders</h3>
+                <h3 className="text-lg font-semibold text-purple-900">
+                  Total Orders
+                </h3>
               </div>
-              <div className="text-4xl font-bold text-purple-600 mb-2">{totalOrders}</div>
+              <div className="text-4xl font-bold text-purple-600 mb-2">
+                {totalOrders}
+              </div>
               <div className="text-sm text-purple-700">Today</div>
             </div>
           </div>
 
           {/* Predictive Analytics */}
           <div className="mt-8 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">AI-Powered Predictions</h2>
-            
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+              AI-Powered Predictions
+            </h2>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <TrendingUp className="w-8 h-8 text-indigo-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Next Hour Forecast</h3>
-                <p className="text-3xl font-bold text-indigo-600 mb-1">28 Orders</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Next Hour Forecast
+                </h3>
+                <p className="text-3xl font-bold text-indigo-600 mb-1">
+                  28 Orders
+                </p>
                 <p className="text-sm text-gray-600">Expected revenue: $512</p>
               </div>
-              
+
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Optimal Staffing</h3>
-                <p className="text-3xl font-bold text-green-600 mb-1">+2 Staff</p>
-                <p className="text-sm text-gray-600">Recommended for dinner rush</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Optimal Staffing
+                </h3>
+                <p className="text-3xl font-bold text-green-600 mb-1">
+                  +2 Staff
+                </p>
+                <p className="text-sm text-gray-600">
+                  Recommended for dinner rush
+                </p>
               </div>
-              
+
               <div className="text-center">
                 <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <BarChart3 className="w-8 h-8 text-orange-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Inventory Alert</h3>
-                <p className="text-3xl font-bold text-orange-600 mb-1">3 Items</p>
-                <p className="text-sm text-gray-600">Running low, restock needed</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Inventory Alert
+                </h3>
+                <p className="text-3xl font-bold text-orange-600 mb-1">
+                  3 Items
+                </p>
+                <p className="text-sm text-gray-600">
+                  Running low, restock needed
+                </p>
               </div>
             </div>
           </div>
@@ -914,5 +1146,5 @@ export default function LiveOrders() {
 
       <Footer />
     </div>
-  )
+  );
 }

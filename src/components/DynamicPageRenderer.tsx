@@ -1,20 +1,40 @@
-import { Page, PageSection } from '../types/customization'
-import { Play, Award, Users, Star, ChefHat, Phone, MapPin, Clock, Mail, HelpCircle } from 'lucide-react'
+import { Page, PageSection } from "../types/customization";
+import {
+  Play,
+  Award,
+  Users,
+  Star,
+  ChefHat,
+  Phone,
+  MapPin,
+  Clock,
+  Mail,
+  HelpCircle,
+} from "lucide-react";
 
 interface DynamicPageRendererProps {
-  page: Page
-  theme?: any
+  page: Page;
+  theme?: any;
 }
 
-export default function DynamicPageRenderer({ page, theme }: DynamicPageRendererProps) {
+export default function DynamicPageRenderer({
+  page,
+  theme,
+}: DynamicPageRendererProps) {
   const renderSection = (section: PageSection) => {
-    if (!section.visible) return null
+    if (!section.visible) return null;
 
     switch (section.type) {
-      case 'hero_video':
+      case "hero_video":
         return (
-          <section key={section.id} className="relative h-screen flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-black/40 z-10" style={{ opacity: section.props.overlayOpacity || 0.5 }}></div>
+          <section
+            key={section.id}
+            className="relative h-screen flex items-center justify-center overflow-hidden"
+          >
+            <div
+              className="absolute inset-0 bg-black/40 z-10"
+              style={{ opacity: section.props.overlayOpacity || 0.5 }}
+            ></div>
             {section.props.videoUrl ? (
               <video
                 autoPlay
@@ -25,14 +45,15 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
                 src={section.props.videoUrl}
               />
             ) : (
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center"
                 style={{
-                  backgroundImage: 'url(https://images.pexels.com/photos/1581384/pexels-photo-1581384.jpeg?auto=compress&cs=tinysrgb&w=1920)'
+                  backgroundImage:
+                    "url(https://images.pexels.com/photos/1581384/pexels-photo-1581384.jpeg?auto=compress&cs=tinysrgb&w=1920)",
                 }}
               />
             )}
-            
+
             <div className="relative z-20 text-center text-white max-w-4xl mx-auto px-4">
               <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-in">
                 {section.props.headline}
@@ -50,22 +71,25 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
               )}
             </div>
           </section>
-        )
+        );
 
-      case 'achievements_counters':
+      case "achievements_counters":
         return (
-          <section key={section.id} className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white relative overflow-hidden">
+          <section
+            key={section.id}
+            className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white relative overflow-hidden"
+          >
             <div className="absolute inset-0 opacity-10">
               <div className="absolute inset-0 bg-pattern"></div>
             </div>
-            
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
               <div className="text-center mb-12">
                 <h2 className="text-5xl font-bold mb-6 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
                   {section.title}
                 </h2>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                 {section.props.items?.map((achievement: any, index: number) => (
                   <div key={index} className="text-center group">
@@ -73,24 +97,29 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
                       <Award className="w-10 h-10 text-white" />
                     </div>
                     <div className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mb-2">
-                      {achievement.value}{achievement.suffix}
+                      {achievement.value}
+                      {achievement.suffix}
                     </div>
-                    <div className="text-gray-300 font-medium">{achievement.label}</div>
+                    <div className="text-gray-300 font-medium">
+                      {achievement.label}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           </section>
-        )
+        );
 
-      case 'image_gallery':
+      case "image_gallery":
         return (
           <section key={section.id} className="py-20 bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                  {section.title}
+                </h2>
               </div>
-              
+
               <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
                 {section.props.items?.map((item: any, index: number) => (
                   <div
@@ -103,13 +132,18 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
                       className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-110"
                       loading="lazy"
                     />
-                    
+
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500">
                       <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-500">
-                        <h3 className="text-xl font-bold mb-2">{item.caption}</h3>
+                        <h3 className="text-xl font-bold mb-2">
+                          {item.caption}
+                        </h3>
                         <div className="flex flex-wrap gap-2">
                           {item.tags?.map((tag: string, tagIndex: number) => (
-                            <span key={tagIndex} className="px-2 py-1 bg-white/20 rounded-full text-xs">
+                            <span
+                              key={tagIndex}
+                              className="px-2 py-1 bg-white/20 rounded-full text-xs"
+                            >
                               #{tag}
                             </span>
                           ))}
@@ -121,14 +155,21 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
               </div>
             </div>
           </section>
-        )
+        );
 
-      case 'cta_banner':
+      case "cta_banner":
         return (
-          <section key={section.id} className="py-20 bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+          <section
+            key={section.id}
+            className="py-20 bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
+          >
             <div className="max-w-4xl mx-auto text-center px-4">
-              <h2 className="text-4xl font-bold mb-4">{section.props.headline}</h2>
-              <p className="text-xl text-purple-100 mb-8">{section.props.subtext}</p>
+              <h2 className="text-4xl font-bold mb-4">
+                {section.props.headline}
+              </h2>
+              <p className="text-xl text-purple-100 mb-8">
+                {section.props.subtext}
+              </p>
               {section.props.cta && (
                 <a
                   href={section.props.cta.href}
@@ -139,16 +180,18 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
               )}
             </div>
           </section>
-        )
+        );
 
-      case 'contact_block':
+      case "contact_block":
         return (
           <section key={section.id} className="py-20 bg-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                  {section.title}
+                </h2>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
                 <div>
                   <MapPin className="w-8 h-8 text-orange-500 mx-auto mb-4" />
@@ -168,30 +211,40 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
               </div>
             </div>
           </section>
-        )
+        );
 
-      case 'rich_text':
+      case "rich_text":
         return (
           <section key={section.id} className="py-12">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="prose prose-lg max-w-none" dangerouslySetInnerHTML={{ __html: section.props.content }} />
+              <div
+                className="prose prose-lg max-w-none"
+                dangerouslySetInnerHTML={{ __html: section.props.content }}
+              />
             </div>
           </section>
-        )
+        );
 
-      case 'faq_accordion':
+      case "faq_accordion":
         return (
           <section key={section.id} className="py-20 bg-gray-50">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                  {section.title}
+                </h2>
               </div>
-              
+
               <div className="space-y-4">
                 {section.props.items?.map((item: any, index: number) => (
-                  <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div
+                    key={index}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                  >
                     <div className="p-6">
-                      <h3 className="font-semibold text-gray-900 mb-2">{item.question}</h3>
+                      <h3 className="font-semibold text-gray-900 mb-2">
+                        {item.question}
+                      </h3>
                       <p className="text-gray-600">{item.answer}</p>
                     </div>
                   </div>
@@ -199,20 +252,25 @@ export default function DynamicPageRenderer({ page, theme }: DynamicPageRenderer
               </div>
             </div>
           </section>
-        )
+        );
 
       default:
         return (
-          <div key={section.id} className="p-8 bg-gray-100 border border-gray-300 rounded-lg">
-            <p className="text-gray-600">Section type "{section.type}" not implemented in preview</p>
+          <div
+            key={section.id}
+            className="p-8 bg-gray-100 border border-gray-300 rounded-lg"
+          >
+            <p className="text-gray-600">
+              Section type "{section.type}" not implemented in preview
+            </p>
           </div>
-        )
+        );
     }
-  }
+  };
 
   return (
     <div className="min-h-screen">
-      {page.sections.filter(s => s.visible).map(renderSection)}
+      {page.sections.filter((s) => s.visible).map(renderSection)}
     </div>
-  )
+  );
 }

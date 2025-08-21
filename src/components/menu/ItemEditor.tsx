@@ -1,24 +1,39 @@
-import { useState, useEffect } from 'react'
-import { MenuItem, MenuSection, ImageUpload } from '../../types/menu'
-import { X, Upload, Link as LinkIcon, Save, Plus, Minus, Image as ImageIcon, DollarSign } from 'lucide-react'
+import { useState, useEffect } from "react";
+import { MenuItem, MenuSection, ImageUpload } from "../../types/menu";
+import {
+  X,
+  Upload,
+  Link as LinkIcon,
+  Save,
+  Plus,
+  Minus,
+  Image as ImageIcon,
+  DollarSign,
+} from "lucide-react";
 
 interface ItemEditorProps {
-  item: MenuItem | null
-  sections: MenuSection[]
-  isOpen: boolean
-  onClose: () => void
-  onSave: (item: Partial<MenuItem>) => void
+  item: MenuItem | null;
+  sections: MenuSection[];
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (item: Partial<MenuItem>) => void;
 }
 
-export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: ItemEditorProps) {
+export default function ItemEditor({
+  item,
+  sections,
+  isOpen,
+  onClose,
+  onSave,
+}: ItemEditorProps) {
   const [formData, setFormData] = useState<Partial<MenuItem>>({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     price: 0,
     cost: 0,
-    currency: 'USD',
-    sectionId: '',
-    imageUrl: '',
+    currency: "USD",
+    sectionId: "",
+    imageUrl: "",
     isAvailable: true,
     tags: [],
     allergens: [],
@@ -26,26 +41,26 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
     isVegan: false,
     spicyLevel: 0,
     preparationTime: 0,
-    calories: 0
-  })
-  
-  const [imageMode, setImageMode] = useState<'url' | 'upload'>('url')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [newTag, setNewTag] = useState('')
-  const [newAllergen, setNewAllergen] = useState('')
+    calories: 0,
+  });
+
+  const [imageMode, setImageMode] = useState<"url" | "upload">("url");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [newTag, setNewTag] = useState("");
+  const [newAllergen, setNewAllergen] = useState("");
 
   useEffect(() => {
     if (item) {
-      setFormData(item)
+      setFormData(item);
     } else {
       setFormData({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         price: 0,
         cost: 0,
-        currency: 'USD',
-        sectionId: sections[0]?.id || '',
-        imageUrl: '',
+        currency: "USD",
+        sectionId: sections[0]?.id || "",
+        imageUrl: "",
         isAvailable: true,
         tags: [],
         allergens: [],
@@ -53,62 +68,65 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
         isVegan: false,
         spicyLevel: 0,
         preparationTime: 0,
-        calories: 0
-      })
+        calories: 0,
+      });
     }
-  }, [item, sections])
+  }, [item, sections]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave(formData)
-    onClose()
-  }
+    e.preventDefault();
+    onSave(formData);
+    onClose();
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file)
+      setImageFile(file);
       // In real implementation, upload to Cloudinary here
-      const mockUrl = URL.createObjectURL(file)
-      setFormData(prev => ({ ...prev, imageUrl: mockUrl }))
+      const mockUrl = URL.createObjectURL(file);
+      setFormData((prev) => ({ ...prev, imageUrl: mockUrl }));
     }
-  }
+  };
 
   const addTag = () => {
     if (newTag.trim() && !formData.tags?.includes(newTag.trim())) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        tags: [...(prev.tags || []), newTag.trim()]
-      }))
-      setNewTag('')
+        tags: [...(prev.tags || []), newTag.trim()],
+      }));
+      setNewTag("");
     }
-  }
+  };
 
   const removeTag = (tag: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      tags: prev.tags?.filter(t => t !== tag) || []
-    }))
-  }
+      tags: prev.tags?.filter((t) => t !== tag) || [],
+    }));
+  };
 
   const addAllergen = () => {
-    if (newAllergen.trim() && !formData.allergens?.includes(newAllergen.trim())) {
-      setFormData(prev => ({
+    if (
+      newAllergen.trim() &&
+      !formData.allergens?.includes(newAllergen.trim())
+    ) {
+      setFormData((prev) => ({
         ...prev,
-        allergens: [...(prev.allergens || []), newAllergen.trim()]
-      }))
-      setNewAllergen('')
+        allergens: [...(prev.allergens || []), newAllergen.trim()],
+      }));
+      setNewAllergen("");
     }
-  }
+  };
 
   const removeAllergen = (allergen: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      allergens: prev.allergens?.filter(a => a !== allergen) || []
-    }))
-  }
+      allergens: prev.allergens?.filter((a) => a !== allergen) || [],
+    }));
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -116,7 +134,7 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">
-              {item ? 'Edit Menu Item' : 'Add New Menu Item'}
+              {item ? "Edit Menu Item" : "Add New Menu Item"}
             </h3>
             <button
               onClick={onClose}
@@ -137,7 +155,9 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter item name"
                 required
@@ -150,14 +170,23 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               </label>
               <select
                 value={formData.sectionId}
-                onChange={(e) => setFormData(prev => ({ ...prev, sectionId: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    sectionId: e.target.value,
+                  }))
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
                 <option value="">Select section</option>
-                {sections.filter(s => s.isActive).map(section => (
-                  <option key={section.id} value={section.id}>{section.name}</option>
-                ))}
+                {sections
+                  .filter((s) => s.isActive)
+                  .map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
@@ -168,7 +197,12 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Describe the item..."
@@ -188,7 +222,12 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                   step="0.01"
                   min="0"
                   value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      price: parseFloat(e.target.value) || 0,
+                    }))
+                  }
                   className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00"
                   required
@@ -207,7 +246,12 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                   step="0.01"
                   min="0"
                   value={formData.cost}
-                  onChange={(e) => setFormData(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      cost: parseFloat(e.target.value) || 0,
+                    }))
+                  }
                   className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00"
                 />
@@ -220,7 +264,9 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               </label>
               <select
                 value={formData.currency}
-                onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, currency: e.target.value }))
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="USD">USD ($)</option>
@@ -240,11 +286,11 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               <div className="flex space-x-4">
                 <button
                   type="button"
-                  onClick={() => setImageMode('url')}
+                  onClick={() => setImageMode("url")}
                   className={`px-4 py-2 rounded-lg border ${
-                    imageMode === 'url' 
-                      ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                      : 'border-gray-300 text-gray-700'
+                    imageMode === "url"
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-gray-300 text-gray-700"
                   }`}
                 >
                   <LinkIcon className="w-4 h-4 inline mr-2" />
@@ -252,11 +298,11 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 </button>
                 <button
                   type="button"
-                  onClick={() => setImageMode('upload')}
+                  onClick={() => setImageMode("upload")}
                   className={`px-4 py-2 rounded-lg border ${
-                    imageMode === 'upload' 
-                      ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                      : 'border-gray-300 text-gray-700'
+                    imageMode === "upload"
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-gray-300 text-gray-700"
                   }`}
                 >
                   <Upload className="w-4 h-4 inline mr-2" />
@@ -264,11 +310,16 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 </button>
               </div>
 
-              {imageMode === 'url' ? (
+              {imageMode === "url" ? (
                 <input
                   type="url"
                   value={formData.imageUrl}
-                  onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      imageUrl: e.target.value,
+                    }))
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://example.com/image.jpg"
                 />
@@ -283,7 +334,9 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                   />
                   <label htmlFor="image-upload" className="cursor-pointer">
                     <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">Click to upload image</p>
+                    <p className="text-sm text-gray-600">
+                      Click to upload image
+                    </p>
                     <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
                   </label>
                 </div>
@@ -312,11 +365,13 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                   <input
                     type="checkbox"
                     checked={formData.isVegetarian}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      isVegetarian: e.target.checked,
-                      isVegan: e.target.checked ? false : prev.isVegan
-                    }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isVegetarian: e.target.checked,
+                        isVegan: e.target.checked ? false : prev.isVegan,
+                      }))
+                    }
                     className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
                   <span className="ml-2 text-sm text-gray-700">Vegetarian</span>
@@ -325,11 +380,15 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                   <input
                     type="checkbox"
                     checked={formData.isVegan}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      isVegan: e.target.checked,
-                      isVegetarian: e.target.checked ? true : prev.isVegetarian
-                    }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isVegan: e.target.checked,
+                        isVegetarian: e.target.checked
+                          ? true
+                          : prev.isVegetarian,
+                      }))
+                    }
                     className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
                   <span className="ml-2 text-sm text-gray-700">Vegan</span>
@@ -342,18 +401,20 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 Spicy Level
               </label>
               <div className="flex items-center space-x-2">
-                {[0, 1, 2, 3].map(level => (
+                {[0, 1, 2, 3].map((level) => (
                   <button
                     key={level}
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, spicyLevel: level }))}
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, spicyLevel: level }))
+                    }
                     className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
                       (formData.spicyLevel || 0) >= level && level > 0
-                        ? 'border-red-500 bg-red-500 text-white'
-                        : 'border-gray-300 text-gray-400'
+                        ? "border-red-500 bg-red-500 text-white"
+                        : "border-gray-300 text-gray-400"
                     }`}
                   >
-                    {level === 0 ? '0' : '🌶️'}
+                    {level === 0 ? "0" : "🌶️"}
                   </button>
                 ))}
               </div>
@@ -370,7 +431,12 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 type="number"
                 min="0"
                 value={formData.preparationTime}
-                onChange={(e) => setFormData(prev => ({ ...prev, preparationTime: parseInt(e.target.value) || 0 }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    preparationTime: parseInt(e.target.value) || 0,
+                  }))
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="15"
               />
@@ -384,7 +450,12 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 type="number"
                 min="0"
                 value={formData.calories}
-                onChange={(e) => setFormData(prev => ({ ...prev, calories: parseInt(e.target.value) || 0 }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    calories: parseInt(e.target.value) || 0,
+                  }))
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="250"
               />
@@ -397,8 +468,11 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               Tags
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {formData.tags?.map(tag => (
-                <span key={tag} className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              {formData.tags?.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                >
                   {tag}
                   <button
                     type="button"
@@ -415,7 +489,9 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 type="text"
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                onKeyPress={(e) =>
+                  e.key === "Enter" && (e.preventDefault(), addTag())
+                }
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Add tag..."
               />
@@ -435,8 +511,11 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               Allergens
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {formData.allergens?.map(allergen => (
-                <span key={allergen} className="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+              {formData.allergens?.map((allergen) => (
+                <span
+                  key={allergen}
+                  className="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm"
+                >
                   {allergen}
                   <button
                     type="button"
@@ -453,7 +532,9 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
                 type="text"
                 value={newAllergen}
                 onChange={(e) => setNewAllergen(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAllergen())}
+                onKeyPress={(e) =>
+                  e.key === "Enter" && (e.preventDefault(), addAllergen())
+                }
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Add allergen..."
               />
@@ -470,14 +551,23 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
           {/* Availability */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">Available for ordering</h4>
-              <p className="text-sm text-gray-600">Customers can see and order this item</p>
+              <h4 className="font-medium text-gray-900">
+                Available for ordering
+              </h4>
+              <p className="text-sm text-gray-600">
+                Customers can see and order this item
+              </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.isAvailable}
-                onChange={(e) => setFormData(prev => ({ ...prev, isAvailable: e.target.checked }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    isAvailable: e.target.checked,
+                  }))
+                }
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
@@ -498,11 +588,11 @@ export default function ItemEditor({ item, sections, isOpen, onClose, onSave }: 
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
             >
               <Save className="w-4 h-4" />
-              <span>{item ? 'Update Item' : 'Create Item'}</span>
+              <span>{item ? "Update Item" : "Create Item"}</span>
             </button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }

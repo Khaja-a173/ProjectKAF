@@ -1,38 +1,48 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useLogo } from '../contexts/BrandingContext'
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, BarChart3, Shield } from 'lucide-react'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLogo } from "../contexts/BrandingContext";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  ArrowRight,
+  Building2,
+  Users,
+  BarChart3,
+  Shield,
+} from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
-  const { logoHeader } = useLogo()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { logoHeader } = useLogo();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
+    e.preventDefault();
+    setLoading(true);
+
     setTimeout(() => {
-      navigate('/dashboard')
-      setLoading(false)
-    }, 1500)
-  }
+      navigate("/dashboard");
+      setLoading(false);
+    }, 1500);
+  };
 
   const handleDemoLogin = (role: string) => {
-    if (role === 'admin') {
-      setEmail('admin@restaurant.com')
-      setPassword('admin123')
-    } else if (role === 'manager') {
-      setEmail('manager@restaurant.com')
-      setPassword('manager123')
-    } else if (role === 'staff') {
-      setEmail('staff@restaurant.com')
-      setPassword('staff123')
+    if (role === "admin") {
+      setEmail("admin@restaurant.com");
+      setPassword("admin123");
+    } else if (role === "manager") {
+      setEmail("manager@restaurant.com");
+      setPassword("manager123");
+    } else if (role === "staff") {
+      setEmail("staff@restaurant.com");
+      setPassword("staff123");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex">
@@ -43,9 +53,9 @@ export default function LoginPage() {
           <div className="mb-8">
             {logoHeader ? (
               <div className="mb-6">
-                <img 
-                  src={logoHeader} 
-                  alt="Restaurant Logo" 
+                <img
+                  src={logoHeader}
+                  alt="Restaurant Logo"
                   className="h-16 w-auto object-contain filter brightness-0 invert"
                 />
               </div>
@@ -66,8 +76,12 @@ export default function LoginPage() {
                 <Users className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Multi-Tenant Architecture</h3>
-                <p className="text-blue-100">Manage multiple restaurant locations</p>
+                <h3 className="text-lg font-semibold">
+                  Multi-Tenant Architecture
+                </h3>
+                <p className="text-blue-100">
+                  Manage multiple restaurant locations
+                </p>
               </div>
             </div>
 
@@ -87,17 +101,24 @@ export default function LoginPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Enterprise Security</h3>
-                <p className="text-blue-100">Bank-level security and compliance</p>
+                <p className="text-blue-100">
+                  Bank-level security and compliance
+                </p>
               </div>
             </div>
           </div>
 
           <div className="mt-12 p-6 bg-white/10 backdrop-blur-sm rounded-2xl">
-            <p className="text-sm text-blue-100 mb-2">Trusted by 10,000+ restaurants worldwide</p>
+            <p className="text-sm text-blue-100 mb-2">
+              Trusted by 10,000+ restaurants worldwide
+            </p>
             <div className="flex items-center space-x-4">
               <div className="flex -space-x-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full border-2 border-white"></div>
+                  <div
+                    key={i}
+                    className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full border-2 border-white"
+                  ></div>
                 ))}
               </div>
               <span className="text-sm font-medium">+10,000 more</span>
@@ -116,9 +137,9 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             {logoHeader ? (
               <div className="lg:hidden mb-4">
-                <img 
-                  src={logoHeader} 
-                  alt="Restaurant Logo" 
+                <img
+                  src={logoHeader}
+                  alt="Restaurant Logo"
                   className="h-16 w-auto object-contain mx-auto"
                 />
               </div>
@@ -127,34 +148,46 @@ export default function LoginPage() {
                 <Building2 className="w-8 h-8 text-white" />
               </div>
             )}
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back</h2>
-            <p className="text-gray-600">Sign in to your RestaurantOS account</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Welcome back
+            </h2>
+            <p className="text-gray-600">
+              Sign in to your RestaurantOS account
+            </p>
           </div>
 
           {/* Demo Credentials */}
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3">🎯 Demo Credentials</h3>
+            <h3 className="text-sm font-semibold text-blue-900 mb-3">
+              🎯 Demo Credentials
+            </h3>
             <div className="space-y-2">
               <button
-                onClick={() => handleDemoLogin('admin')}
+                onClick={() => handleDemoLogin("admin")}
                 className="w-full text-left p-2 bg-white rounded-lg hover:bg-blue-50 transition-colors text-sm"
               >
                 <div className="font-medium text-blue-900">Admin Account</div>
-                <div className="text-blue-600">admin@restaurant.com / admin123</div>
+                <div className="text-blue-600">
+                  admin@restaurant.com / admin123
+                </div>
               </button>
               <button
-                onClick={() => handleDemoLogin('manager')}
+                onClick={() => handleDemoLogin("manager")}
                 className="w-full text-left p-2 bg-white rounded-lg hover:bg-blue-50 transition-colors text-sm"
               >
                 <div className="font-medium text-blue-900">Manager Account</div>
-                <div className="text-blue-600">manager@restaurant.com / manager123</div>
+                <div className="text-blue-600">
+                  manager@restaurant.com / manager123
+                </div>
               </button>
               <button
-                onClick={() => handleDemoLogin('staff')}
+                onClick={() => handleDemoLogin("staff")}
                 className="w-full text-left p-2 bg-white rounded-lg hover:bg-blue-50 transition-colors text-sm"
               >
                 <div className="font-medium text-blue-900">Staff Account</div>
-                <div className="text-blue-600">staff@restaurant.com / staff123</div>
+                <div className="text-blue-600">
+                  staff@restaurant.com / staff123
+                </div>
               </button>
             </div>
           </div>
@@ -185,7 +218,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-offset-2 transition-colors"
@@ -197,7 +230,11 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -208,7 +245,9 @@ export default function LoginPage() {
                     type="checkbox"
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                  <span className="ml-2 text-sm text-gray-600">
+                    Remember me
+                  </span>
                 </label>
                 <a
                   href="#"
@@ -236,8 +275,11 @@ export default function LoginPage() {
 
             <div className="mt-8 pt-6 border-t border-gray-200">
               <p className="text-center text-sm text-gray-600">
-                Don't have an account?{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-500 font-semibold">
+                Don't have an account?{" "}
+                <a
+                  href="#"
+                  className="text-blue-600 hover:text-blue-500 font-semibold"
+                >
                   Start free trial
                 </a>
               </p>
@@ -246,11 +288,11 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <p className="text-xs text-gray-500">
-              By signing in, you agree to our{' '}
+              By signing in, you agree to our{" "}
               <a href="#" className="text-blue-600 hover:text-blue-500">
                 Terms of Service
-              </a>{' '}
-              and{' '}
+              </a>{" "}
+              and{" "}
               <a href="#" className="text-blue-600 hover:text-blue-500">
                 Privacy Policy
               </a>
@@ -259,5 +301,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

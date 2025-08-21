@@ -1,8 +1,16 @@
-import { useLogo } from '../contexts/BrandingContext'
-import { ChefHat, MapPin, Phone, Mail, Facebook, Instagram, Twitter } from 'lucide-react'
+import { useLogo } from "../contexts/BrandingContext";
+import {
+  ChefHat,
+  MapPin,
+  Phone,
+  Mail,
+  Facebook,
+  Instagram,
+  Twitter,
+} from "lucide-react";
 
 export default function Footer() {
-  const { logoHeader } = useLogo()
+  const { logoHeader } = useLogo();
 
   return (
     <footer className="bg-gray-900 text-white">
@@ -12,9 +20,9 @@ export default function Footer() {
           <div>
             <div className="flex items-center space-x-3 mb-4">
               {logoHeader ? (
-                <img 
-                  src={logoHeader} 
-                  alt="Restaurant Logo" 
+                <img
+                  src={logoHeader}
+                  alt="Restaurant Logo"
                   className="h-10 w-auto object-contain"
                 />
               ) : (
@@ -28,16 +36,26 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-gray-300 mb-4">
-              Experience culinary excellence with our carefully crafted dishes made from the finest ingredients.
+              Experience culinary excellence with our carefully crafted dishes
+              made from the finest ingredients.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-orange-500 transition-colors">
+              <a
+                href="#"
+                className="text-gray-400 hover:text-orange-500 transition-colors"
+              >
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-orange-500 transition-colors">
+              <a
+                href="#"
+                className="text-gray-400 hover:text-orange-500 transition-colors"
+              >
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-orange-500 transition-colors">
+              <a
+                href="#"
+                className="text-gray-400 hover:text-orange-500 transition-colors"
+              >
                 <Twitter className="w-5 h-5" />
               </a>
             </div>
@@ -49,7 +67,9 @@ export default function Footer() {
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <MapPin className="w-5 h-5 text-orange-500" />
-                <span className="text-gray-300">123 Gourmet Street, Culinary District, CD 12345</span>
+                <span className="text-gray-300">
+                  123 Gourmet Street, Culinary District, CD 12345
+                </span>
               </div>
               <div className="flex items-center space-x-3">
                 <Phone className="w-5 h-5 text-orange-500" />
@@ -84,7 +104,9 @@ export default function Footer() {
           {/* Newsletter */}
           <div>
             <h4 className="text-lg font-semibold mb-4">Stay Updated</h4>
-            <p className="text-gray-300 mb-4">Subscribe to our newsletter for special offers and events.</p>
+            <p className="text-gray-300 mb-4">
+              Subscribe to our newsletter for special offers and events.
+            </p>
             <div className="space-y-2">
               <input
                 type="email"
@@ -100,10 +122,11 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 mt-8 pt-8 text-center">
           <p className="text-gray-400">
-            © 2024 Bella Vista Restaurant. All rights reserved. | Privacy Policy | Terms of Service
+            © 2024 Bella Vista Restaurant. All rights reserved. | Privacy
+            Policy | Terms of Service
           </p>
         </div>
       </div>
     </footer>
-  )
+  );
 }

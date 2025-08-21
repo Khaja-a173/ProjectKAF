@@ -1,115 +1,148 @@
-import { useState } from 'react'
-import Header from '../components/Header'
-import Footer from '../components/Footer'
-import { useSessionManagement } from '../hooks/useSessionManagement'
-import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, Users, Phone, Mail, User, MapPin, CheckCircle, QrCode, Camera, Grid3X3 } from 'lucide-react'
+import { useState } from "react";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import { useSessionManagement } from "../hooks/useSessionManagement";
+import { useNavigate } from "react-router-dom";
+import {
+  Calendar,
+  Clock,
+  Users,
+  Phone,
+  Mail,
+  User,
+  MapPin,
+  CheckCircle,
+  QrCode,
+  Camera,
+  Grid3X3,
+} from "lucide-react";
 
 export default function BookTable() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const { createTableSession, getSessionByTable } = useSessionManagement({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
-  
-  const [activeSection, setActiveSection] = useState('qr-scanner')
-  const [selectedTable, setSelectedTable] = useState('')
-  const [tableNumber, setTableNumber] = useState('')
-  const [isScanning, setIsScanning] = useState(false)
-  const [isCreatingSession, setIsCreatingSession] = useState(false)
+    tenantId: "tenant_123",
+    locationId: "location_456",
+  });
+
+  const [activeSection, setActiveSection] = useState("qr-scanner");
+  const [selectedTable, setSelectedTable] = useState("");
+  const [tableNumber, setTableNumber] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    date: '',
-    time: '',
-    guests: '2',
-    occasion: '',
-    specialRequests: ''
-  })
-  const [isSubmitted, setIsSubmitted] = useState(false)
+    name: "",
+    email: "",
+    phone: "",
+    date: "",
+    time: "",
+    guests: "2",
+    occasion: "",
+    specialRequests: "",
+  });
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const timeSlots = [
-    '5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM',
-    '8:00 PM', '8:30 PM', '9:00 PM', '9:30 PM', '10:00 PM'
-  ]
+    "5:00 PM",
+    "5:30 PM",
+    "6:00 PM",
+    "6:30 PM",
+    "7:00 PM",
+    "7:30 PM",
+    "8:00 PM",
+    "8:30 PM",
+    "9:00 PM",
+    "9:30 PM",
+    "10:00 PM",
+  ];
 
   const occasions = [
-    'Birthday', 'Anniversary', 'Date Night', 'Business Meeting', 
-    'Family Gathering', 'Celebration', 'Other'
-  ]
+    "Birthday",
+    "Anniversary",
+    "Date Night",
+    "Business Meeting",
+    "Family Gathering",
+    "Celebration",
+    "Other",
+  ];
 
   const availableTables = [
-    { id: 'T02', seats: 4, location: 'Window View', status: 'available' },
-    { id: 'T06', seats: 4, location: 'Main Hall', status: 'available' },
-    { id: 'T07', seats: 2, location: 'Main Hall', status: 'available' },
-    { id: 'T09', seats: 4, location: 'Garden View', status: 'available' },
-    { id: 'T10', seats: 6, location: 'Garden View', status: 'available' },
-    { id: 'T14', seats: 2, location: 'Counter Seating', status: 'available' },
-    { id: 'T15', seats: 4, location: 'Main Hall', status: 'available' },
-  ]
+    { id: "T02", seats: 4, location: "Window View", status: "available" },
+    { id: "T06", seats: 4, location: "Main Hall", status: "available" },
+    { id: "T07", seats: 2, location: "Main Hall", status: "available" },
+    { id: "T09", seats: 4, location: "Garden View", status: "available" },
+    { id: "T10", seats: 6, location: "Garden View", status: "available" },
+    { id: "T14", seats: 2, location: "Counter Seating", status: "available" },
+    { id: "T15", seats: 4, location: "Main Hall", status: "available" },
+  ];
 
   const handleStartScanning = () => {
-    setIsScanning(true)
+    setIsScanning(true);
     // Simulate QR scanning
     setTimeout(() => {
-      setIsScanning(false)
-      setTableNumber('T07')
-      setActiveSection('table-layout')
-    }, 2000)
-  }
+      setIsScanning(false);
+      setTableNumber("T07");
+      setActiveSection("table-layout");
+    }, 2000);
+  };
 
   const handleTableSelect = (tableId: string) => {
-    setSelectedTable(tableId)
-    setTableNumber(tableId)
-    handleCreateSession(tableId)
-  }
+    setSelectedTable(tableId);
+    setTableNumber(tableId);
+    handleCreateSession(tableId);
+  };
 
   const handleCreateSession = async (tableId: string) => {
     try {
-      setIsCreatingSession(true)
-      
+      setIsCreatingSession(true);
+
       // Check for existing session first
-      const existingSession = getSessionByTable(tableId)
+      const existingSession = getSessionByTable(tableId);
       if (existingSession) {
-        console.log('♻️ Using existing session for table:', tableId)
-        navigate(`/menu?table=${tableId}&session=${existingSession.id}`)
-        return
+        console.log("♻️ Using existing session for table:", tableId);
+        navigate(`/menu?table=${tableId}&session=${existingSession.id}`);
+        return;
       }
 
       // Create new session
       const session = await createTableSession(tableId, {
-        customerName: formData.name || 'Guest',
+        customerName: formData.name || "Guest",
         customerEmail: formData.email,
         customerPhone: formData.phone,
-        partySize: parseInt(formData.guests) || 2
-      })
-      
-      console.log('✅ Session created, navigating to menu')
-      navigate(`/menu?table=${tableId}&session=${session.id}`)
+        partySize: parseInt(formData.guests) || 2,
+      });
+
+      console.log("✅ Session created, navigating to menu");
+      navigate(`/menu?table=${tableId}&session=${session.id}`);
     } catch (err) {
-      console.error('❌ Failed to create session:', err)
-      alert('Failed to create table session: ' + (err instanceof Error ? err.message : 'Please try again.'))
+      console.error("❌ Failed to create session:", err);
+      alert(
+        "Failed to create table session: " +
+          (err instanceof Error ? err.message : "Please try again."),
+      );
     } finally {
-      setIsCreatingSession(false)
+      setIsCreatingSession(false);
     }
-  }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (selectedTable) {
-      handleCreateSession(selectedTable)
+      handleCreateSession(selectedTable);
     } else {
-      alert('Please select a table first')
+      alert("Please select a table first");
     }
-  }
+  };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+      [e.target.name]: e.target.value,
+    });
+  };
 
   if (isSubmitted) {
     return (
@@ -120,17 +153,27 @@ export default function BookTable() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Booking Confirmed!
+            </h2>
             <p className="text-gray-600 mb-6">
-              Thank you for your reservation. We've sent a confirmation email to {formData.email}.
-              We look forward to serving you!
+              Thank you for your reservation. We've sent a confirmation email to{" "}
+              {formData.email}. We look forward to serving you!
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Table:</strong> {selectedTable || tableNumber}</p>
-                <p><strong>Date:</strong> {formData.date}</p>
-                <p><strong>Time:</strong> {formData.time}</p>
-                <p><strong>Guests:</strong> {formData.guests}</p>
+                <p>
+                  <strong>Table:</strong> {selectedTable || tableNumber}
+                </p>
+                <p>
+                  <strong>Date:</strong> {formData.date}
+                </p>
+                <p>
+                  <strong>Time:</strong> {formData.time}
+                </p>
+                <p>
+                  <strong>Guests:</strong> {formData.guests}
+                </p>
               </div>
             </div>
             <button
@@ -143,20 +186,21 @@ export default function BookTable() {
         </div>
         <Footer />
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen">
       <Header />
-      
+
       {/* Hero Section */}
       <section className="relative h-64 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50"></div>
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: 'url(https://images.pexels.com/photos/1581384/pexels-photo-1581384.jpeg?auto=compress&cs=tinysrgb&w=1920)'
+            backgroundImage:
+              "url(https://images.pexels.com/photos/1581384/pexels-photo-1581384.jpeg?auto=compress&cs=tinysrgb&w=1920)",
           }}
         ></div>
         <div className="relative z-10 text-center text-white">
@@ -171,8 +215,13 @@ export default function BookTable() {
           {/* QR Scanner Section */}
           <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Connect to Table</h2>
-              <p className="text-gray-600">Scan QR code on your table or enter table number to start ordering</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Connect to Table
+              </h2>
+              <p className="text-gray-600">
+                Scan QR code on your table or enter table number to start
+                ordering
+              </p>
             </div>
 
             <div className="max-w-md mx-auto">
@@ -180,16 +229,20 @@ export default function BookTable() {
                 <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <QrCode className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Scan QR Code</h3>
-                <p className="text-gray-600 mb-6">Point your camera at the QR code on your table</p>
-                
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Scan QR Code
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Point your camera at the QR code on your table
+                </p>
+
                 <button
                   onClick={handleStartScanning}
                   disabled={isScanning}
                   className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition-colors flex items-center space-x-2 mx-auto"
                 >
                   <Camera className="w-5 h-5" />
-                  <span>{isScanning ? 'Scanning...' : 'Start Scanning'}</span>
+                  <span>{isScanning ? "Scanning..." : "Start Scanning"}</span>
                 </button>
               </div>
 
@@ -199,9 +252,13 @@ export default function BookTable() {
                 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Grid3X3 className="w-8 h-8 text-blue-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Enter Table Number</h3>
-                <p className="text-gray-600 mb-4">Type your table number if you can't scan the QR code</p>
-                
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Enter Table Number
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Type your table number if you can't scan the QR code
+                </p>
+
                 <input
                   type="text"
                   placeholder="e.g. T01, T02, T15"
@@ -209,9 +266,9 @@ export default function BookTable() {
                   onChange={(e) => setTableNumber(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center mb-4"
                 />
-                
+
                 <button
-                  onClick={() => setActiveSection('table-layout')}
+                  onClick={() => setActiveSection("table-layout")}
                   className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
                 >
                   Check Availability & View Menu
@@ -221,15 +278,21 @@ export default function BookTable() {
           </div>
 
           {/* Table Layout Section */}
-          {activeSection === 'table-layout' && (
+          {activeSection === "table-layout" && (
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="text-center mb-8">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Available Tables</h3>
-                <p className="text-gray-600">Click on any available table to select it</p>
-                <p className="text-sm text-gray-500">(Showing 7 available tables - Updated automatically)</p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  Available Tables
+                </h3>
+                <p className="text-gray-600">
+                  Click on any available table to select it
+                </p>
+                <p className="text-sm text-gray-500">
+                  (Showing 7 available tables - Updated automatically)
+                </p>
               </div>
 
               {/* Horizontal Table Layout */}
@@ -240,14 +303,20 @@ export default function BookTable() {
                     onClick={() => handleTableSelect(table.id)}
                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
                       selectedTable === table.id
-                        ? 'border-orange-500 bg-orange-50'
-                        : 'border-gray-200 hover:border-orange-300 bg-white'
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-200 hover:border-orange-300 bg-white"
                     }`}
                   >
                     <div className="text-center">
-                      <div className="text-lg font-bold text-gray-900 mb-1">{table.id}</div>
-                      <div className="text-sm text-gray-600 mb-1">{table.seats} seats</div>
-                      <div className="text-xs text-gray-500">{table.location}</div>
+                      <div className="text-lg font-bold text-gray-900 mb-1">
+                        {table.id}
+                      </div>
+                      <div className="text-sm text-gray-600 mb-1">
+                        {table.seats} seats
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {table.location}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -264,15 +333,19 @@ export default function BookTable() {
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Phone className="w-6 h-6 text-blue-600" />
                 </div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">Need Help?</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                  Need Help?
+                </h4>
                 <p className="text-gray-600 mb-4">
-                  Can't find your table or having trouble? View all available tables or ask our staff for assistance.
+                  Can't find your table or having trouble? View all available
+                  tables or ask our staff for assistance.
                 </p>
                 <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                   View Available Tables
                 </button>
                 <p className="text-xs text-gray-500 mt-2">
-                  For special table arrangements, please contact our staff directly.
+                  For special table arrangements, please contact our staff
+                  directly.
                 </p>
               </div>
             </div>
@@ -283,8 +356,10 @@ export default function BookTable() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Booking Form */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Make a Reservation</h2>
-            
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Make a Reservation
+            </h2>
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Personal Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -305,7 +380,7 @@ export default function BookTable() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
@@ -357,12 +432,12 @@ export default function BookTable() {
                       value={formData.date}
                       onChange={handleInputChange}
                       required
-                      min={new Date().toISOString().split('T')[0]}
+                      min={new Date().toISOString().split("T")[0]}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Time *
@@ -378,7 +453,9 @@ export default function BookTable() {
                     >
                       <option value="">Select time</option>
                       {timeSlots.map((time) => (
-                        <option key={time} value={time}>{time}</option>
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -399,13 +476,15 @@ export default function BookTable() {
                       required
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     >
-                      {[1,2,3,4,5,6,7,8,9,10].map((num) => (
-                        <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <option key={num} value={num}>
+                          {num} {num === 1 ? "Guest" : "Guests"}
+                        </option>
                       ))}
                     </select>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Occasion
@@ -418,7 +497,9 @@ export default function BookTable() {
                   >
                     <option value="">Select occasion</option>
                     {occasions.map((occasion) => (
-                      <option key={occasion} value={occasion}>{occasion}</option>
+                      <option key={occasion} value={occasion}>
+                        {occasion}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -426,9 +507,16 @@ export default function BookTable() {
 
               {selectedTable && (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <p className="text-green-800 font-medium">Selected Table: {selectedTable}</p>
+                  <p className="text-green-800 font-medium">
+                    Selected Table: {selectedTable}
+                  </p>
                   <p className="text-green-600 text-sm">
-                    {availableTables.find(t => t.id === selectedTable)?.seats} seats • {availableTables.find(t => t.id === selectedTable)?.location}
+                    {availableTables.find((t) => t.id === selectedTable)?.seats}{" "}
+                    seats •{" "}
+                    {
+                      availableTables.find((t) => t.id === selectedTable)
+                        ?.location
+                    }
                   </p>
                 </div>
               )}
@@ -452,7 +540,9 @@ export default function BookTable() {
                 disabled={isCreatingSession}
                 className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-red-700 transition-colors"
               >
-                {isCreatingSession ? 'Creating Session...' : 'Start Dining Experience'}
+                {isCreatingSession
+                  ? "Creating Session..."
+                  : "Start Dining Experience"}
               </button>
             </form>
           </div>
@@ -460,17 +550,21 @@ export default function BookTable() {
           {/* Restaurant Information */}
           <div className="space-y-8">
             <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Restaurant Information</h3>
-              
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Restaurant Information
+              </h3>
+
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
                   <MapPin className="w-5 h-5 text-orange-500 mt-1" />
                   <div>
                     <p className="font-medium text-gray-900">Address</p>
-                    <p className="text-gray-600">123 Gourmet Street, Culinary District, CD 12345</p>
+                    <p className="text-gray-600">
+                      123 Gourmet Street, Culinary District, CD 12345
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3">
                   <Phone className="w-5 h-5 text-orange-500 mt-1" />
                   <div>
@@ -478,7 +572,7 @@ export default function BookTable() {
                     <p className="text-gray-600">+1 (555) 123-4567</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3">
                   <Clock className="w-5 h-5 text-orange-500 mt-1" />
                   <div>
@@ -496,10 +590,16 @@ export default function BookTable() {
             <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl p-8 text-white">
               <h3 className="text-xl font-bold mb-4">Reservation Policy</h3>
               <ul className="space-y-2 text-sm">
-                <li>• Reservations are held for 15 minutes past the reserved time</li>
-                <li>• Cancellations must be made at least 2 hours in advance</li>
+                <li>
+                  • Reservations are held for 15 minutes past the reserved time
+                </li>
+                <li>
+                  • Cancellations must be made at least 2 hours in advance
+                </li>
                 <li>• Large parties (8+) may require a deposit</li>
-                <li>• We accommodate dietary restrictions with advance notice</li>
+                <li>
+                  • We accommodate dietary restrictions with advance notice
+                </li>
                 <li>• Smart casual dress code preferred</li>
               </ul>
             </div>
@@ -509,5 +609,5 @@ export default function BookTable() {
 
       <Footer />
     </div>
-  )
+  );
 }

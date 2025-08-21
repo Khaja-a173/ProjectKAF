@@ -1,24 +1,24 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useMenuManagement } from '../hooks/useMenuManagement'
-import SectionList from '../components/menu/SectionList'
-import ItemGrid from '../components/menu/ItemGrid'
-import ItemEditor from '../components/menu/ItemEditor'
-import SectionEditor from '../components/menu/SectionEditor'
-import BulkUploader from '../components/menu/BulkUploader'
-import MenuFilters from '../components/menu/MenuFilters'
-import { 
-  ChefHat, 
-  Plus, 
-  Upload, 
-  Download, 
-  Bell, 
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useMenuManagement } from "../hooks/useMenuManagement";
+import SectionList from "../components/menu/SectionList";
+import ItemGrid from "../components/menu/ItemGrid";
+import ItemEditor from "../components/menu/ItemEditor";
+import SectionEditor from "../components/menu/SectionEditor";
+import BulkUploader from "../components/menu/BulkUploader";
+import MenuFilters from "../components/menu/MenuFilters";
+import {
+  ChefHat,
+  Plus,
+  Upload,
+  Download,
+  Bell,
   RefreshCw,
   BarChart3,
   Eye,
-  Zap
-} from 'lucide-react'
-import { MenuSection, MenuItem } from '../types/menu'
+  Zap,
+} from "lucide-react";
+import { MenuSection, MenuItem } from "../types/menu";
 
 export default function MenuManagement() {
   // Use the menu management hook
@@ -40,124 +40,145 @@ export default function MenuManagement() {
     archiveItem,
     reorderItems,
     moveItem,
-    bulkUpload
+    bulkUpload,
   } = useMenuManagement({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
+    tenantId: "tenant_123",
+    locationId: "location_456",
+  });
 
-  const [selectedSection, setSelectedSection] = useState<string | null>(null)
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
-  const [editingSection, setEditingSection] = useState<MenuSection | null>(null)
-  const [showItemEditor, setShowItemEditor] = useState(false)
-  const [showSectionEditor, setShowSectionEditor] = useState(false)
-  const [showBulkUploader, setShowBulkUploader] = useState(false)
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [editingSection, setEditingSection] = useState<MenuSection | null>(
+    null,
+  );
+  const [showItemEditor, setShowItemEditor] = useState(false);
+  const [showSectionEditor, setShowSectionEditor] = useState(false);
+  const [showBulkUploader, setShowBulkUploader] = useState(false);
 
   // Get items for selected section or all items
-  const displayItems = selectedSection 
-    ? sections.find(s => s.id === selectedSection)?.items || []
-    : sections.flatMap(s => s.items || [])
+  const displayItems = selectedSection
+    ? sections.find((s) => s.id === selectedSection)?.items || []
+    : sections.flatMap((s) => s.items || []);
 
-  const selectedSectionData = selectedSection 
-    ? sections.find(s => s.id === selectedSection) 
-    : null
+  const selectedSectionData = selectedSection
+    ? sections.find((s) => s.id === selectedSection)
+    : null;
 
   const stats = {
-    totalItems: sections.reduce((total, section) => total + (section.items?.length || 0), 0),
-    availableItems: sections.reduce((total, section) => 
-      total + (section.items?.filter(item => item.isAvailable).length || 0), 0),
-    totalSections: sections.filter(s => s.isActive).length,
-    avgPrice: sections.reduce((total, section) => {
-      const sectionTotal = section.items?.reduce((sum, item) => sum + item.price, 0) || 0
-      return total + sectionTotal
-    }, 0) / Math.max(1, sections.reduce((total, section) => total + (section.items?.length || 0), 0))
-  }
+    totalItems: sections.reduce(
+      (total, section) => total + (section.items?.length || 0),
+      0,
+    ),
+    availableItems: sections.reduce(
+      (total, section) =>
+        total + (section.items?.filter((item) => item.isAvailable).length || 0),
+      0,
+    ),
+    totalSections: sections.filter((s) => s.isActive).length,
+    avgPrice:
+      sections.reduce((total, section) => {
+        const sectionTotal =
+          section.items?.reduce((sum, item) => sum + item.price, 0) || 0;
+        return total + sectionTotal;
+      }, 0) /
+      Math.max(
+        1,
+        sections.reduce(
+          (total, section) => total + (section.items?.length || 0),
+          0,
+        ),
+      ),
+  };
 
   const handleCreateSection = () => {
-    setEditingSection(null)
-    setShowSectionEditor(true)
-  }
+    setEditingSection(null);
+    setShowSectionEditor(true);
+  };
 
   const handleEditSection = (section: MenuSection) => {
-    setEditingSection(section)
-    setShowSectionEditor(true)
-  }
+    setEditingSection(section);
+    setShowSectionEditor(true);
+  };
 
   const handleCreateItem = () => {
-    setEditingItem(null)
-    setShowItemEditor(true)
-  }
+    setEditingItem(null);
+    setShowItemEditor(true);
+  };
 
   const handleEditItem = (item: MenuItem) => {
-    setEditingItem(item)
-    setShowItemEditor(true)
-  }
+    setEditingItem(item);
+    setShowItemEditor(true);
+  };
 
   const handleSaveSection = async (sectionData: Partial<MenuSection>) => {
     try {
       if (editingSection) {
-        await updateSection(editingSection.id, sectionData)
+        await updateSection(editingSection.id, sectionData);
       } else {
-        const newSection = await createSection(sectionData)
-        setSelectedSection(newSection.id)
+        const newSection = await createSection(sectionData);
+        setSelectedSection(newSection.id);
       }
-      setShowSectionEditor(false)
+      setShowSectionEditor(false);
     } catch (err) {
-      console.error('Failed to save section:', err)
-      alert('Failed to save section. Please try again.')
+      console.error("Failed to save section:", err);
+      alert("Failed to save section. Please try again.");
     }
-  }
+  };
 
   const handleSaveItem = async (itemData: Partial<MenuItem>) => {
     try {
       if (editingItem) {
-        await updateItem(editingItem.id, itemData)
+        await updateItem(editingItem.id, itemData);
       } else {
         // If no section selected, use the first section or prompt user
         if (!itemData.sectionId && selectedSection) {
-          itemData.sectionId = selectedSection
+          itemData.sectionId = selectedSection;
         } else if (!itemData.sectionId && sections.length > 0) {
-          itemData.sectionId = sections[0].id
+          itemData.sectionId = sections[0].id;
         }
-        
+
         if (!itemData.sectionId) {
-          alert('Please select a section first or create a section.')
-          return
+          alert("Please select a section first or create a section.");
+          return;
         }
-        
-        await createItem(itemData)
+
+        await createItem(itemData);
       }
-      setShowItemEditor(false)
+      setShowItemEditor(false);
     } catch (err) {
-      console.error('Failed to save item:', err)
-      alert('Failed to save item. Please try again.')
+      console.error("Failed to save item:", err);
+      alert("Failed to save item. Please try again.");
     }
-  }
+  };
 
   const handleArchiveItem = async (itemId: string) => {
-    if (confirm('Are you sure you want to remove this item?')) {
+    if (confirm("Are you sure you want to remove this item?")) {
       try {
-        await archiveItem(itemId)
+        await archiveItem(itemId);
       } catch (err) {
-        console.error('Failed to archive item:', err)
-        alert('Failed to remove item. Please try again.')
+        console.error("Failed to archive item:", err);
+        alert("Failed to remove item. Please try again.");
       }
     }
-  }
+  };
 
   const handleArchiveSection = async (sectionId: string) => {
-    if (confirm('Are you sure you want to archive this section? Items will be hidden from customers.')) {
+    if (
+      confirm(
+        "Are you sure you want to archive this section? Items will be hidden from customers.",
+      )
+    ) {
       try {
-        await archiveSection(sectionId)
+        await archiveSection(sectionId);
         if (selectedSection === sectionId) {
-          setSelectedSection(null)
+          setSelectedSection(null);
         }
       } catch (err) {
-        console.error('Failed to archive section:', err)
-        alert('Failed to archive section. Please try again.')
+        console.error("Failed to archive section:", err);
+        alert("Failed to archive section. Please try again.");
       }
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -170,7 +191,9 @@ export default function MenuManagement() {
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                     <ChefHat className="w-5 h-5 text-white" />
                   </div>
-                  <h1 className="text-xl font-semibold text-gray-900">RestaurantOS</h1>
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    RestaurantOS
+                  </h1>
                 </Link>
               </div>
             </div>
@@ -183,7 +206,7 @@ export default function MenuManagement() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -191,7 +214,7 @@ export default function MenuManagement() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-600 mb-4">Error loading menu: {error}</div>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg"
           >
@@ -199,7 +222,7 @@ export default function MenuManagement() {
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -213,20 +236,24 @@ export default function MenuManagement() {
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                   <ChefHat className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-xl font-semibold text-gray-900">RestaurantOS</h1>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  RestaurantOS
+                </h1>
               </Link>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1 bg-green-100 px-3 py-1 rounded-full">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-800">Live Sync</span>
+                <span className="text-sm font-medium text-green-800">
+                  Live Sync
+                </span>
               </div>
               <button className="p-2 text-gray-400 hover:text-gray-600 relative">
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="p-2 text-gray-400 hover:text-gray-600"
               >
@@ -241,31 +268,58 @@ export default function MenuManagement() {
         {/* Navigation */}
         <nav className="mb-8">
           <div className="flex space-x-8">
-            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/dashboard"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Dashboard
             </Link>
-            <Link to="/admin/menu" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
+            <Link
+              to="/admin/menu"
+              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
+            >
               Menu Management
             </Link>
-            <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/orders"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Orders
             </Link>
-            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/table-management"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Table Management
             </Link>
-            <Link to="/staff-management" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/staff-management"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Staff Management
             </Link>
-            <Link to="/admin/kitchen" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/admin/kitchen"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Kitchen Dashboard
             </Link>
-            <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/analytics"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Analytics
             </Link>
-            <Link to="/application-customization" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/application-customization"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Customization
             </Link>
-            <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
+            <Link
+              to="/settings"
+              className="text-gray-500 hover:text-gray-700 pb-2"
+            >
               Settings
             </Link>
           </div>
@@ -277,7 +331,9 @@ export default function MenuManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Items</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.totalItems}
+                </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <ChefHat className="w-6 h-6 text-blue-600" />
@@ -289,7 +345,9 @@ export default function MenuManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Available</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.availableItems}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.availableItems}
+                </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <Eye className="w-6 h-6 text-green-600" />
@@ -301,7 +359,9 @@ export default function MenuManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Sections</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalSections}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.totalSections}
+                </p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-purple-600" />
@@ -313,7 +373,9 @@ export default function MenuManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Price</p>
-                <p className="text-2xl font-bold text-gray-900">${stats.avgPrice.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  ${stats.avgPrice.toFixed(2)}
+                </p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                 <Zap className="w-6 h-6 text-yellow-600" />
@@ -333,7 +395,7 @@ export default function MenuManagement() {
                 <Plus className="w-4 h-4" />
                 <span>Add Section</span>
               </button>
-              
+
               <button
                 onClick={handleCreateItem}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
@@ -341,7 +403,7 @@ export default function MenuManagement() {
                 <Plus className="w-4 h-4" />
                 <span>Add Item</span>
               </button>
-              
+
               <button
                 onClick={() => setShowBulkUploader(true)}
                 className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
@@ -379,7 +441,7 @@ export default function MenuManagement() {
               onArchiveSection={handleArchiveSection}
               onReorderSections={reorderSections}
             />
-            
+
             <MenuFilters
               filters={filters}
               onFiltersChange={setFilters}
@@ -424,5 +486,5 @@ export default function MenuManagement() {
         />
       </div>
     </div>
-  )
+  );
 }

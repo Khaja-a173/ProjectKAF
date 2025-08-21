@@ -1,47 +1,47 @@
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useLogo } from '../contexts/BrandingContext'
-import { useSessionManagement } from '../hooks/useSessionManagement'
-import { ChefHat, Menu as MenuIcon, X, ShoppingCart } from 'lucide-react'
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useLogo } from "../contexts/BrandingContext";
+import { useSessionManagement } from "../hooks/useSessionManagement";
+import { ChefHat, Menu as MenuIcon, X, ShoppingCart } from "lucide-react";
 
 function CartBadge() {
   const { carts } = useSessionManagement({
-    tenantId: 'tenant_123',
-    locationId: 'location_456'
-  })
-  
+    tenantId: "tenant_123",
+    locationId: "location_456",
+  });
+
   // Get total items across all active carts
   const totalItems = carts
-    .filter(cart => cart.status === 'active')
+    .filter((cart) => cart.status === "active")
     .reduce((total, cart) => {
-      const items = Array.isArray(cart.items) ? cart.items : []
-      return total + items.reduce((sum, item) => sum + (item.quantity || 0), 0)
-    }, 0)
-  
-  if (totalItems === 0) return null
-  
+      const items = Array.isArray(cart.items) ? cart.items : [];
+      return total + items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    }, 0);
+
+  if (totalItems === 0) return null;
+
   return (
     <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
-      {totalItems > 99 ? '99+' : totalItems}
+      {totalItems > 99 ? "99+" : totalItems}
     </span>
-  )
+  );
 }
 
 export default function Header() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const location = useLocation()
-  const { logoHeader } = useLogo()
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const location = useLocation();
+  const { logoHeader } = useLogo();
 
   const navigation = [
-    { name: 'Home', href: '/' },
-    { name: 'Menu', href: '/menu' },
-    { name: 'Events', href: '/events' },
-    { name: 'Gallery', href: '/gallery' },
-    { name: 'Live Orders', href: '/live-orders' },
-    { name: 'Contact', href: '/contact' },
-  ]
+    { name: "Home", href: "/" },
+    { name: "Menu", href: "/menu" },
+    { name: "Events", href: "/events" },
+    { name: "Gallery", href: "/gallery" },
+    { name: "Live Orders", href: "/live-orders" },
+    { name: "Contact", href: "/contact" },
+  ];
 
-  const isActive = (href: string) => location.pathname === href
+  const isActive = (href: string) => location.pathname === href;
 
   return (
     <header className="bg-white shadow-lg sticky top-0 z-50">
@@ -50,9 +50,9 @@ export default function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             {logoHeader ? (
-              <img 
-                src={logoHeader} 
-                alt="Restaurant Logo" 
+              <img
+                src={logoHeader}
+                alt="Restaurant Logo"
                 className="h-10 w-auto object-contain"
               />
             ) : (
@@ -74,8 +74,8 @@ export default function Header() {
                 to={item.href}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive(item.href)
-                    ? 'text-orange-600 bg-orange-50'
-                    : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50'
+                    ? "text-orange-600 bg-orange-50"
+                    : "text-gray-700 hover:text-orange-600 hover:bg-orange-50"
                 }`}
               >
                 {item.name}
@@ -102,7 +102,11 @@ export default function Header() {
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="md:hidden p-2 text-gray-600 hover:text-orange-600"
           >
-            {isMenuOpen ? <X className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
+            {isMenuOpen ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <MenuIcon className="w-6 h-6" />
+            )}
           </button>
         </div>
 
@@ -117,8 +121,8 @@ export default function Header() {
                   onClick={() => setIsMenuOpen(false)}
                   className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive(item.href)
-                      ? 'text-orange-600 bg-orange-50'
-                      : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50'
+                      ? "text-orange-600 bg-orange-50"
+                      : "text-gray-700 hover:text-orange-600 hover:bg-orange-50"
                   }`}
                 >
                   {item.name}
@@ -138,5 +142,5 @@ export default function Header() {
         )}
       </div>
     </header>
-  )
+  );
 }
