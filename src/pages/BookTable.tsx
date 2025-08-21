@@ -451,9 +451,8 @@ export default function BookTable() {
                 type="submit"
                 disabled={isCreatingSession}
                 className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-red-700 transition-colors"
-                disabled={isCreatingSession}
+              >
                 {isCreatingSession ? 'Creating Session...' : 'Start Dining Experience'}
-                {isCreatingSession ? 'Creating Session...' : 'Check Availability & View Menu'}
               </button>
             </form>
           </div>

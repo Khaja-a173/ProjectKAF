@@ -11,7 +11,7 @@ interface SessionCartProps {
   disabled?: boolean
 }
 
-export default function SessionCart({
+export default function SessionCartComponent({
   cart,
   onUpdateQuantity,
   onRemoveItem,
