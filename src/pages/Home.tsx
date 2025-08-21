@@ -14,6 +14,9 @@ export default function Home() {
 
   const homePage = pages.find(p => p.slug === 'home' && p.status === 'published')
 
+  // Only use customization if page has been actively customized with sections
+  const hasCustomContent = homePage && homePage.sections.length > 0
+
   if (loading) {
     return (
       <div className="min-h-screen">
@@ -29,8 +32,8 @@ export default function Home() {
     )
   }
 
-  // If customized page exists, render it dynamically
-  if (homePage && homePage.sections.length > 0) {
+  // If tenant has customized the page, render it dynamically
+  if (hasCustomContent) {
     return (
       <div className="min-h-screen">
         <Header />
@@ -40,7 +43,7 @@ export default function Home() {
     )
   }
 
-  // Fallback to original static content
+  // Default beautiful design (original) - unchanged
   const features = [
     {
       icon: ChefHat,
@@ -89,7 +92,7 @@ export default function Home() {
     <div className="min-h-screen">
       <Header />
       
-      {/* Hero Section */}
+      {/* Hero Section - Original Beautiful Design */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-black/40 z-10"></div>
         <div 
@@ -139,7 +142,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features Section - Original Design */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -163,7 +166,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Dishes */}
+      {/* Featured Dishes - Original Design */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -210,7 +213,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Testimonials - Original Design */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -243,7 +246,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Contact Info */}
+      {/* Contact Info - Original Design */}
       <section className="py-20 bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">

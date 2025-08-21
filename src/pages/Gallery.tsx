@@ -1,12 +1,49 @@
 import React, { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import { useCustomization } from '../hooks/useCustomization'
+import DynamicPageRenderer from '../components/DynamicPageRenderer'
 import { X, ChevronLeft, ChevronRight, Camera, Heart, Share2, Play, Award, Users, ChefHat, Star } from 'lucide-react'
 
 export default function Gallery() {
+  const { pages, theme, loading } = useCustomization({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+
+  const galleryPage = pages.find(p => p.slug === 'gallery' && p.status === 'published')
+  const hasCustomContent = galleryPage && galleryPage.sections.length > 0
+
   const [selectedImage, setSelectedImage] = useState<number | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('all')
 
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading gallery...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  // If tenant has customized the gallery page, render it dynamically
+  if (hasCustomContent) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <DynamicPageRenderer page={galleryPage} theme={theme} />
+        <Footer />
+      </div>
+    )
+  }
+
+  // Original beautiful gallery design (unchanged)
   const categories = [
     { id: 'all', name: 'All Photos' },
     { id: 'interiors', name: 'Interiors' },

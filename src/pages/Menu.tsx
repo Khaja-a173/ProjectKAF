@@ -46,6 +46,7 @@ export default function Menu() {
     )
   }
 
+  // Original beautiful menu design (unchanged)
   const getDietaryIcon = (item: any) => {
     if (item.isVegan) return <Leaf className="w-4 h-4 text-green-600" />
     if (item.isVegetarian) return <Leaf className="w-4 h-4 text-green-500" />

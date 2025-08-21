@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import { useCustomization } from '../hooks/useCustomization'
+import DynamicPageRenderer from '../components/DynamicPageRenderer'
 import { Clock, CheckCircle, Truck, MapPin, Phone, TrendingUp, Users, Star, ShoppingBag, DollarSign, ChefHat, BarChart3 } from 'lucide-react'
 
 export default function LiveOrders() {
+  const { pages, theme, loading: customizationLoading } = useCustomization({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+
+  const liveOrdersPage = pages.find(p => p.slug === 'live-orders' && p.status === 'published')
+  const hasCustomContent = liveOrdersPage && liveOrdersPage.sections.length > 0
+
   const [orders, setOrders] = useState([
     {
       id: '#ORD-2025-000001',
@@ -44,6 +54,33 @@ export default function LiveOrders() {
     }
   ])
 
+  if (customizationLoading) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading live orders...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  // If tenant has customized the live orders page, render it dynamically
+  if (hasCustomContent) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <DynamicPageRenderer page={liveOrdersPage} theme={theme} />
+        <Footer />
+      </div>
+    )
+  }
+
+  // Original beautiful live orders design (unchanged)
   // Simulate real-time updates
   useEffect(() => {
     const interval = setInterval(() => {
