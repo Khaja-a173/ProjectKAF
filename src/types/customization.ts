@@ -139,6 +139,67 @@ export interface Theme {
   updatedAt: Date
 }
 
+export const DEFAULT_THEME: Theme = {
+  id: 'theme_default',
+  tenantId: 'default',
+  colors: {
+    primary: '#2563eb',
+    secondary: '#64748b', 
+    accent: '#22c55e',
+    background: '#ffffff',
+    surface: '#f8fafc',
+    text: '#0f172a',
+    textSecondary: '#475569',
+    success: '#16a34a',
+    warning: '#f59e0b',
+    error: '#ef4444'
+  },
+  typography: {
+    fontFamily: 'Inter, system-ui, sans-serif',
+    headingFont: undefined,
+    fontSize: {
+      xs: '0.75rem',
+      sm: '0.875rem', 
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      '2xl': '1.5rem',
+      '3xl': '1.875rem',
+      '4xl': '2.25rem'
+    },
+    fontWeight: {
+      normal: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700
+    },
+    lineHeight: {
+      tight: 1.2,
+      normal: 1.5,
+      relaxed: 1.75
+    }
+  },
+  spacing: {
+    unit: 8,
+    scale: [0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96]
+  },
+  borderRadius: {
+    sm: '0.375rem',
+    md: '0.5rem',
+    lg: '0.75rem',
+    xl: '1rem',
+    full: '9999px'
+  },
+  shadows: {
+    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+    xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
+  },
+  createdAt: new Date(),
+  updatedAt: new Date()
+}
+
 export interface ThemeOverrides {
   colors?: Partial<Theme['colors']>
   typography?: Partial<Theme['typography']>
