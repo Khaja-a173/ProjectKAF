@@ -143,15 +143,15 @@ export default function Events() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Category Filter */}
-        <div className="mb-8 flex flex-wrap gap-2 justify-center">
+        <div className="mb-12 flex flex-wrap gap-4 justify-center">
           {categories.map((category) => (
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`px-6 py-2 rounded-full font-medium transition-colors ${
+              className={`px-8 py-3 rounded-full font-medium transition-all duration-300 ${
                 selectedCategory === category.id
-                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-orange-50 hover:text-orange-600 shadow-md hover:shadow-lg'
               }`}
             >
               {category.name}
@@ -160,47 +160,50 @@ export default function Events() {
         </div>
 
         {/* Events Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
           {filteredEvents.map((event) => (
-            <div key={event.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+            <div key={event.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
               <div className="relative">
-                <img src={event.image} alt={event.title} className="w-full h-48 object-cover" />
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-2">
+                <img src={event.image} alt={event.title} className="w-full h-64 object-cover" />
+                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-3">
                   <event.icon className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="absolute top-4 left-4">
+                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                    ${event.price}
+                  </span>
                 </div>
               </div>
               
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-xl font-semibold text-gray-900">{event.title}</h3>
-                  <span className="text-2xl font-bold text-orange-600">${event.price}</span>
+              <div className="p-8">
+                <div className="mb-4">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{event.description}</p>
                 </div>
                 
-                <p className="text-gray-600 mb-4">{event.description}</p>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-sm text-gray-600">
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center text-gray-700">
                     <Calendar className="w-4 h-4 mr-2 text-orange-500" />
-                    <span>{formatDate(event.date)}</span>
+                    <span className="font-medium">{formatDate(event.date)}</span>
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-gray-700">
                     <Clock className="w-4 h-4 mr-2 text-orange-500" />
-                    <span>{event.time}</span>
+                    <span className="font-medium">{event.time}</span>
                   </div>
-                  <div className="flex items-center text-sm">
+                  <div className="flex items-center">
                     <Users className="w-4 h-4 mr-2 text-orange-500" />
-                    <span className={getAvailabilityColor(event.booked, event.capacity)}>
+                    <span className={`font-medium ${getAvailabilityColor(event.booked, event.capacity)}`}>
                       {event.capacity - event.booked} spots available ({event.booked}/{event.capacity})
                     </span>
                   </div>
                 </div>
                 
-                <div className="mb-4">
-                  <h4 className="font-medium text-gray-900 mb-2">What's Included:</h4>
-                  <div className="grid grid-cols-2 gap-1">
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-900 mb-3">What's Included:</h4>
+                  <div className="grid grid-cols-2 gap-2">
                     {event.features.map((feature, index) => (
-                      <div key={index} className="flex items-center text-sm text-gray-600">
-                        <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-2"></div>
+                      <div key={index} className="flex items-center text-sm text-gray-700">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full mr-3"></div>
                         <span>{feature}</span>
                       </div>
                     ))}
@@ -208,10 +211,10 @@ export default function Events() {
                 </div>
                 
                 <button 
-                  className={`w-full py-3 rounded-xl font-medium transition-colors ${
+                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${
                     event.booked >= event.capacity
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700'
+                      : 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
                   }`}
                   disabled={event.booked >= event.capacity}
                 >
@@ -223,7 +226,7 @@ export default function Events() {
         </div>
 
         {/* Event Booking Info */}
-        <div className="mt-16 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-12">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Host Your Event</h2>
             <p className="text-xl text-gray-600">Let us create an unforgettable experience for your special occasion</p>
@@ -256,7 +259,7 @@ export default function Events() {
           </div>
           
           <div className="text-center mt-8">
-            <button className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-xl hover:from-orange-600 hover:to-red-700 transition-colors font-medium">
+            <button className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-4 rounded-xl hover:from-orange-600 hover:to-red-700 transition-all duration-300 font-semibold text-lg transform hover:scale-105 shadow-lg hover:shadow-xl">
               Contact Event Planner
             </button>
           </div>
