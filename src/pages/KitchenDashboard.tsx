@@ -204,7 +204,6 @@ export default function KitchenDashboard() {
     }
   }
 
-  const handleItemAction = async (orderId: string, itemId: string, action: string) => {
   const handleItemAction = async (_orderId: string, itemId: string, action: string) => {
     try {
       switch (action) {
@@ -772,7 +771,7 @@ export default function KitchenDashboard() {
               <div className="mb-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Items</h4>
                 <div className="space-y-3">
-                  {selectedOrder.items.map(item => (
+                  {selectedOrder.items.map((item: any) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
