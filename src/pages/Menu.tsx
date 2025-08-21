@@ -63,7 +63,7 @@ export default function Menu() {
 
   const handleAddToCart = async (item: any) => {
     if (!currentSession) {
-      alert('Please select a table first')
+      alert('Please book a table first by going to Book Table page')
       return
     }
     
@@ -72,7 +72,7 @@ export default function Menu() {
       console.log('✅ Item added to cart:', item.name)
     } catch (err) {
       console.error('❌ Failed to add to cart:', err)
-      alert('Failed to add item to cart')
+      alert('Failed to add item to cart: ' + (err instanceof Error ? err.message : 'Unknown error'))
     }
   }
 

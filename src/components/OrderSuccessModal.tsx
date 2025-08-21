@@ -3,7 +3,7 @@ import { DineInOrder } from '../types/session'
 import { CheckCircle, Clock, Eye, ChefHat, X } from 'lucide-react'
 
 interface OrderSuccessModalProps {
-  order: DineInOrder
+  order: DineInOrder | null
   isOpen: boolean
   onClose: () => void
   onTrackOrder: () => void
@@ -17,7 +17,7 @@ export default function OrderSuccessModal({
   onTrackOrder,
   onBrowseMenu
 }: OrderSuccessModalProps) {
-  if (!isOpen) return null
+  if (!isOpen || !order) return null
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

@@ -43,7 +43,7 @@ import {
   Coffee, 
   Utensils 
 } from 'lucide-react'
-import { format } from 'date-fns'
+// Removed format import - using native toLocaleTimeString instead
 
 interface Station {
   id: string

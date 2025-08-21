@@ -89,7 +89,7 @@ export default function BookTable() {
       navigate(`/menu?table=${tableId}&session=${session.id}`)
     } catch (err) {
       console.error('❌ Failed to create session:', err)
-      alert('Failed to create table session. Please try again.')
+      alert('Failed to create table session: ' + (err instanceof Error ? err.message : 'Please try again.'))
     } finally {
       setIsCreatingSession(false)
     }

@@ -180,7 +180,7 @@ export default function LiveOrders() {
                       <div>
                         <div className="font-semibold text-gray-900">{order.tableId}</div>
                         <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{format(order.placedAt, 'HH:mm')}</div>
+                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
@@ -220,7 +220,7 @@ export default function LiveOrders() {
                       <div>
                         <div className="font-semibold text-gray-900">{order.tableId}</div>
                         <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{format(order.placedAt, 'HH:mm')}</div>
+                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
@@ -260,7 +260,7 @@ export default function LiveOrders() {
                       <div>
                         <div className="font-semibold text-gray-900">{order.tableId}</div>
                         <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{format(order.placedAt, 'HH:mm')}</div>
+                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
@@ -307,7 +307,7 @@ export default function LiveOrders() {
                       <div>
                         <div className="font-semibold text-gray-900">{order.tableId}</div>
                         <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{format(order.placedAt, 'HH:mm')}</div>
+                        <div className="text-sm text-gray-500">{order.placedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
@@ -347,7 +347,7 @@ export default function LiveOrders() {
                       <div>
                         <div className="font-semibold text-gray-900">{order.tableId}</div>
                         <div className="text-sm text-gray-600">{order.orderNumber}</div>
-                        <div className="text-sm text-gray-500">{format(order.servedAt || order.placedAt, 'HH:mm')}</div>
+                        <div className="text-sm text-gray-500">{(order.servedAt || order.placedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     </div>
                     <div className="space-y-1 mb-3">
