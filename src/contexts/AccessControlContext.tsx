@@ -249,7 +249,6 @@ export function AccessControlProvider({
       hasCapability,
       canAccessDashboard,
       refreshPolicy
-      refreshPolicy,
       switchUser
     }}>
       {children}
