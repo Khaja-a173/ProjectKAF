@@ -15,6 +15,13 @@ import {
   X,
   Check,
   BarChart3,
+  Bell,
+  Monitor,
+  Upload,
+  Play,
+  Eye,
+  GripVertical,
+  Zap,
 } from "lucide-react";
 import { Page, PageSection, SectionType, Theme } from "../types/customization";
 
@@ -83,6 +90,8 @@ export default function ApplicationCustomization() {
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [showSectionPicker, setShowSectionPicker] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<PageSection | null>(null);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const pageTemplates = [
     {
@@ -647,12 +656,25 @@ export default function ApplicationCustomization() {
 
         {/* Right Sidebar - Section Inspector */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-center text-gray-500">
-              <Edit className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>Select a section to edit its properties</p>
+          {selectedSection ? (
+            <SectionInspector
+              section={selectedSection}
+              onUpdate={(props) => handleUpdateSection(selectedSection.id, props)}
+              onToggleVisibility={() => {
+                handleUpdateSection(selectedSection.id, {
+                  ...selectedSection.props,
+                  visible: !selectedSection.visible,
+                });
+              }}
+            />
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="text-center text-gray-500">
+                <Edit className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>Select a section to edit its properties</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -1004,28 +1026,10 @@ export default function ApplicationCustomization() {
               </div>
             </div>
 
-                              primary: "#2563eb",
-                              secondary: "#64748b", 
-                              accent: "#22c55e",
-                              background: "#ffffff",
-                              surface: "#f8fafc",
-                              text: "#0f172a",
-                              textSecondary: "#475569",
-                              success: "#16a34a",
-                              warning: "#f59e0b",
-                              primary: "#2563eb",
-                              secondary: "#64748b",
-                              accent: "#22c55e", 
-                              background: "#ffffff",
-                              surface: "#f8fafc",
-                              text: "#0f172a",
-                              textSecondary: "#475569",
-                              success: "#16a34a",
-                              warning: "#f59e0b",
-                              error: "#ef4444",
+            <div className="p-6 space-y-8">
               {Object.entries(sectionCategories).map(
                 ([categoryKey, category]) => (
-                            },
+                  <div key={categoryKey}>
                     <div className="flex items-center space-x-2 mb-4">
                       <category.icon
                         className={`w-5 h-5 text-${category.color}-600`}
