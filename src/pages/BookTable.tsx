@@ -1,13 +1,22 @@
 import React, { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import { useSessionManagement } from '../hooks/useSessionManagement'
+import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, Users, Phone, Mail, User, MapPin, CheckCircle, QrCode, Camera, Grid3X3 } from 'lucide-react'
 
 export default function BookTable() {
+  const navigate = useNavigate()
+  const { createTableSession, getSessionByTable } = useSessionManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+  
   const [activeSection, setActiveSection] = useState('qr-scanner')
   const [selectedTable, setSelectedTable] = useState('')
   const [tableNumber, setTableNumber] = useState('')
   const [isScanning, setIsScanning] = useState(false)
+  const [isCreatingSession, setIsCreatingSession] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -53,11 +62,46 @@ export default function BookTable() {
   const handleTableSelect = (tableId: string) => {
     setSelectedTable(tableId)
     setTableNumber(tableId)
+    handleCreateSession(tableId)
+  }
+
+  const handleCreateSession = async (tableId: string) => {
+    try {
+      setIsCreatingSession(true)
+      
+      // Check for existing session first
+      const existingSession = getSessionByTable(tableId)
+      if (existingSession) {
+        console.log('♻️ Using existing session for table:', tableId)
+        navigate(`/menu?table=${tableId}&session=${existingSession.id}`)
+        return
+      }
+
+      // Create new session
+      const session = await createTableSession(tableId, {
+        customerName: formData.name || 'Guest',
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        partySize: parseInt(formData.guests) || 2
+      })
+      
+      console.log('✅ Session created, navigating to menu')
+      navigate(`/menu?table=${tableId}&session=${session.id}`)
+    } catch (err) {
+      console.error('❌ Failed to create session:', err)
+      alert('Failed to create table session. Please try again.')
+    } finally {
+      setIsCreatingSession(false)
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitted(true)
+    if (selectedTable) {
+      handleCreateSession(selectedTable)
+    } else {
+      alert('Please select a table first')
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -405,9 +449,11 @@ export default function BookTable() {
 
               <button
                 type="submit"
+                disabled={isCreatingSession}
                 className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-red-700 transition-colors"
-              >
-                Confirm Reservation
+                disabled={isCreatingSession}
+                {isCreatingSession ? 'Creating Session...' : 'Start Dining Experience'}
+                {isCreatingSession ? 'Creating Session...' : 'Check Availability & View Menu'}
               </button>
             </form>
           </div>

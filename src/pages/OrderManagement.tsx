@@ -1,77 +1,34 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useSessionManagement } from '../hooks/useSessionManagement'
 import { ChefHat, Clock, CheckCircle, XCircle, Eye, Filter } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function OrderManagement() {
+  const { 
+    orders, 
+    confirmOrder, 
+    cancelOrder, 
+    markOrderServed,
+    loading 
+  } = useSessionManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+  
   const [selectedStatus, setSelectedStatus] = useState('all')
-
-  const orders = [
-    {
-      id: '#1234',
-      table: 'Table 5',
-      customer: 'John Smith',
-      items: [
-        { name: 'Grilled Salmon', quantity: 1, price: 28.50 },
-        { name: 'Caesar Salad', quantity: 2, price: 14.50 },
-        { name: 'Wine', quantity: 1, price: 12.00 }
-      ],
-      total: 69.50,
-      status: 'preparing',
-      orderTime: new Date(Date.now() - 15 * 60 * 1000),
-      estimatedTime: new Date(Date.now() + 10 * 60 * 1000),
-      specialInstructions: 'No onions in salad'
-    },
-    {
-      id: '#1235',
-      table: 'Table 2',
-      customer: 'Sarah Johnson',
-      items: [
-        { name: 'Pasta Carbonara', quantity: 1, price: 22.00 },
-        { name: 'Garlic Bread', quantity: 1, price: 8.50 }
-      ],
-      total: 30.50,
-      status: 'ready',
-      orderTime: new Date(Date.now() - 25 * 60 * 1000),
-      estimatedTime: new Date(Date.now() - 5 * 60 * 1000),
-      specialInstructions: null
-    },
-    {
-      id: '#1236',
-      table: 'Table 8',
-      customer: 'Mike Wilson',
-      items: [
-        { name: 'Steak', quantity: 1, price: 35.00 },
-        { name: 'Mashed Potatoes', quantity: 1, price: 8.00 },
-        { name: 'Beer', quantity: 2, price: 8.00 }
-      ],
-      total: 59.00,
-      status: 'served',
-      orderTime: new Date(Date.now() - 45 * 60 * 1000),
-      estimatedTime: new Date(Date.now() - 15 * 60 * 1000),
-      specialInstructions: 'Medium rare steak'
-    },
-    {
-      id: '#1237',
-      table: 'Table 1',
-      customer: 'Emma Davis',
-      items: [
-        { name: 'Chicken Salad', quantity: 1, price: 18.50 }
-      ],
-      total: 18.50,
-      status: 'pending',
-      orderTime: new Date(Date.now() - 5 * 60 * 1000),
-      estimatedTime: new Date(Date.now() + 20 * 60 * 1000),
-      specialInstructions: 'Dressing on the side'
-    }
-  ]
+  const [cancelReason, setCancelReason] = useState('')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
 
   const statusCounts = {
     all: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
+    placed: orders.filter(o => o.status === 'placed').length,
+    confirmed: orders.filter(o => o.status === 'confirmed').length,
     preparing: orders.filter(o => o.status === 'preparing').length,
     ready: orders.filter(o => o.status === 'ready').length,
-    served: orders.filter(o => o.status === 'served').length
+    served: orders.filter(o => o.status === 'served').length,
+    paid: orders.filter(o => o.status === 'paid').length
   }
 
   const filteredOrders = selectedStatus === 'all' 
@@ -80,22 +37,85 @@ export default function OrderManagement() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'placed': return 'bg-yellow-100 text-yellow-800'
+      case 'confirmed': return 'bg-blue-100 text-blue-800'
       case 'preparing': return 'bg-blue-100 text-blue-800'
       case 'ready': return 'bg-green-100 text-green-800'
       case 'served': return 'bg-gray-100 text-gray-800'
+      case 'paid': return 'bg-purple-100 text-purple-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />
+      case 'placed': return <Clock className="w-4 h-4" />
+      case 'confirmed': return <CheckCircle className="w-4 h-4" />
       case 'preparing': return <ChefHat className="w-4 h-4" />
       case 'ready': return <CheckCircle className="w-4 h-4" />
       case 'served': return <CheckCircle className="w-4 h-4" />
+      case 'paid': return <CheckCircle className="w-4 h-4" />
       default: return <Clock className="w-4 h-4" />
     }
+  }
+
+  const handleConfirmOrder = async (orderId: string) => {
+    try {
+      await confirmOrder(orderId, 'manager_123')
+      console.log('✅ Order confirmed from management')
+    } catch (err) {
+      alert('Failed to confirm order')
+    }
+  }
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrderId || !cancelReason.trim()) return
+    
+    try {
+      await cancelOrder(selectedOrderId, cancelReason, 'manager_123')
+      setShowCancelModal(false)
+      setCancelReason('')
+      setSelectedOrderId(null)
+      console.log('✅ Order cancelled from management')
+    } catch (err) {
+      alert('Failed to cancel order')
+    }
+  }
+
+  const handleServeOrder = async (orderId: string) => {
+    try {
+      await markOrderServed(orderId, 'staff_123')
+      console.log('✅ Order marked as served')
+    } catch (err) {
+      alert('Failed to mark order as served')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <Link to="/dashboard" className="flex items-center space-x-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                    <ChefHat className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="text-xl font-semibold text-gray-900">RestaurantOS</h1>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading orders...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -173,8 +193,8 @@ export default function OrderManagement() {
               <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{order.id}</h3>
-                    <p className="text-sm text-gray-600">{order.table} • {order.customer}</p>
+                    <p className="font-medium text-gray-900">{order.orderNumber}</p>
+                    <p className="text-sm text-gray-500">{order.tableId} • Session #{order.sessionId.slice(-6)}</p>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${getStatusColor(order.status)}`}>
                     {getStatusIcon(order.status)}
@@ -225,14 +245,54 @@ export default function OrderManagement() {
                     {order.status === 'preparing' && (
                       <button className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
                         Mark Ready
-                      </button>
+                  <p className="font-medium text-gray-900">${order.totalAmount.toFixed(2)}</p>
                     )}
                     {order.status === 'ready' && (
                       <button className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
                         Mark Served
                       </button>
-                    )}
+                    <span className="text-xs text-gray-500">
+                      {Math.floor((Date.now() - order.placedAt.getTime()) / (1000 * 60))}m ago
+                    </span>
                   </div>
+                )}
+              </div>
+              
+              {/* Order Actions */}
+              <div className="mt-4 flex space-x-2">
+                {order.status === 'placed' && (
+                  <>
+                    <button
+                      onClick={() => handleConfirmOrder(order.id)}
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                    >
+                      Confirm Order
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedOrderId(order.id)
+                        setShowCancelModal(true)
+                      }}
+                      className="px-4 py-2 text-red-600 border border-red-300 rounded-lg text-sm hover:bg-red-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {order.status === 'ready' && (
+                  <button
+                    onClick={() => handleServeOrder(order.id)}
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Mark Served
+                  </button>
+                )}
+                {order.status === 'served' && (
+                  <button
+                    className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                  >
+                    Process Payment
+                  </button>
                 )}
               </div>
             </div>
@@ -247,6 +307,48 @@ export default function OrderManagement() {
           </div>
         )}
       </div>
+
+      {/* Cancel Order Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Cancel Order</h3>
+              <p className="text-gray-600 mb-4">
+                Please provide a reason for cancelling this order:
+              </p>
+              
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
+                placeholder="Reason for cancellation..."
+              />
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(false)
+                    setCancelReason('')
+                    setSelectedOrderId(null)
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={!cancelReason.trim()}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  Confirm Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

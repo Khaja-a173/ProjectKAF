@@ -1,18 +1,46 @@
 import React, { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import SessionCart from '../components/SessionCart'
+import OrderSuccessModal from '../components/OrderSuccessModal'
+import TableSessionBadge from '../components/TableSessionBadge'
+import { useSessionManagement } from '../hooks/useSessionManagement'
 import { Search, Filter, Star, Clock, Leaf, Flame } from 'lucide-react'
 import { useMenuManagement } from '../hooks/useMenuManagement'
 
 export default function Menu() {
+  const [searchParams] = useSearchParams()
+  const tableId = searchParams.get('table')
+  const sessionId = searchParams.get('session')
+  
+  const { 
+    sessions, 
+    carts, 
+    orders,
+    addToCart, 
+    placeOrder,
+    getSessionByTable,
+    getCartBySession 
+  } = useSessionManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+  
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [placedOrder, setPlacedOrder] = useState<any>(null)
+  const [showOrderSuccess, setShowOrderSuccess] = useState(false)
 
   // Use real menu data from management system
   const { sections, loading } = useMenuManagement({
     tenantId: 'tenant_123',
     locationId: 'location_456'
   })
+  
+  // Get current session and cart
+  const currentSession = tableId ? getSessionByTable(tableId) : null
+  const currentCart = currentSession ? getCartBySession(currentSession.id) : null
 
   const categories = [
     { id: 'all', name: 'All Items' },
@@ -30,6 +58,61 @@ export default function Menu() {
                          item.description?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesCategory && matchesSearch
   })
+
+  const handleAddToCart = async (item: any) => {
+    if (!currentSession) {
+      alert('Please select a table first')
+      return
+    }
+    
+    try {
+      await addToCart(currentSession.id, item.id, 1)
+      console.log('✅ Item added to cart:', item.name)
+    } catch (err) {
+      console.error('❌ Failed to add to cart:', err)
+      alert('Failed to add item to cart')
+    }
+  }
+
+  const handleUpdateCartQuantity = (itemId: string, newQuantity: number) => {
+    if (!currentCart) return
+    
+    // Update cart item quantity
+    console.log('🔄 Updating cart quantity:', itemId, newQuantity)
+    // Implementation would call API to update quantity
+  }
+
+  const handleRemoveFromCart = (itemId: string) => {
+    if (!currentCart) return
+    
+    // Remove item from cart
+    console.log('🗑️ Removing from cart:', itemId)
+    // Implementation would call API to remove item
+  }
+
+  const handlePlaceOrder = async () => {
+    if (!currentSession || !currentCart) return
+    
+    try {
+      const order = await placeOrder(currentSession.id, 'Customer order from menu')
+      setPlacedOrder(order)
+      setShowOrderSuccess(true)
+      console.log('✅ Order placed successfully:', order.orderNumber)
+    } catch (err) {
+      console.error('❌ Failed to place order:', err)
+      alert('Failed to place order. Please try again.')
+    }
+  }
+
+  const handleTrackOrder = () => {
+    setShowOrderSuccess(false)
+    window.location.href = `/live-orders?order=${placedOrder?.id}`
+  }
+
+  const handleBrowseMenu = () => {
+    setShowOrderSuccess(false)
+    // Stay on menu page
+  }
 
   if (loading) {
     return (
@@ -84,10 +167,18 @@ export default function Menu() {
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm">Live Menu - Synced with Kitchen</span>
           </div>
+          {currentSession && (
+            <div className="mt-4">
+              <TableSessionBadge session={currentSession} />
+            </div>
+          )}
         </div>
       </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Main Menu */}
+          <div className="flex-1">
         {/* Search and Filter */}
         <div className="mb-8 flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -174,8 +265,12 @@ export default function Menu() {
                   ))}
                 </div>
                 
-                <button className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-700 transition-colors font-medium">
-                  Add to Cart
+                <button
+                  onClick={() => handleAddToCart(item)}
+                  disabled={!currentSession}
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {currentSession ? 'Add to Cart' : 'Select Table First'}
                 </button>
               </div>
             </div>
@@ -187,7 +282,29 @@ export default function Menu() {
             <p className="text-gray-500 text-lg">No menu items found matching your criteria.</p>
           </div>
         )}
+          </div>
+
+          {/* Cart Sidebar */}
+          <div className="lg:w-96">
+            <SessionCart
+              cart={currentCart}
+              onUpdateQuantity={handleUpdateCartQuantity}
+              onRemoveItem={handleRemoveFromCart}
+              onPlaceOrder={handlePlaceOrder}
+              disabled={!currentSession}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Order Success Modal */}
+      <OrderSuccessModal
+        order={placedOrder}
+        isOpen={showOrderSuccess}
+        onClose={() => setShowOrderSuccess(false)}
+        onTrackOrder={handleTrackOrder}
+        onBrowseMenu={handleBrowseMenu}
+      />
 
       <Footer />
     </div>
