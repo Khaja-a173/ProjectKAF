@@ -13,6 +13,7 @@ import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import LiveOrders from './pages/LiveOrders'
 import Gallery from './pages/Gallery'
+import Events from './pages/Events'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
         <Route path="/take-away" element={<TakeAway />} />
         <Route path="/live-orders" element={<LiveOrders />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/events" element={<Events />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/orders" element={<OrderManagement />} />
