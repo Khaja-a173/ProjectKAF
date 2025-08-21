@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { MenuItem, MenuSection, ImageUpload } from '../../types/menu'
-import { X, Upload, Link as LinkIcon, Save, Plus, Minus, Image as ImageIcon } from 'lucide-react'
+import { X, Upload, Link as LinkIcon, Save, Plus, Minus, Image as ImageIcon, DollarSign } from 'lucide-react'
 
 interface ItemEditorProps {
   item: MenuItem | null
