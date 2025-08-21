@@ -13,28 +13,10 @@ import {
   Upload, 
   Download, 
   Bell, 
-  Settings, 
-  Search,
+  RefreshCw,
   BarChart3,
   Eye,
-  RefreshCw,
-  Zap,
-  Edit,
-  Trash2,
-  GripVertical,
-  EyeOff,
-  Save,
-  X,
-  Clock,
-  Star,
-  Leaf,
-  Flame,
-  DollarSign,
-  Filter,
-  CheckCircle,
-  AlertTriangle,
-  Image as ImageIcon,
-  Link as LinkIcon
+  Zap
 } from 'lucide-react'
 import { MenuSection, MenuItem } from '../types/menu'
 
@@ -46,6 +28,8 @@ export default function MenuManagement() {
     error,
     filters,
     setFilters,
+    availableTags,
+    availableAllergens,
     createSection,
     updateSection,
     reorderSections,
@@ -53,6 +37,7 @@ export default function MenuManagement() {
     createItem,
     updateItem,
     toggleItemAvailability,
+    archiveItem,
     reorderItems,
     moveItem,
     bulkUpload
@@ -73,8 +58,9 @@ export default function MenuManagement() {
     ? sections.find(s => s.id === selectedSection)?.items || []
     : sections.flatMap(s => s.items || [])
 
-  // Filter items based on search and availability
-  const filteredItems = displayItems
+  const selectedSectionData = selectedSection 
+    ? sections.find(s => s.id === selectedSection) 
+    : null
 
   const stats = {
     totalItems: sections.reduce((total, section) => total + (section.items?.length || 0), 0),
@@ -112,10 +98,13 @@ export default function MenuManagement() {
       if (editingSection) {
         await updateSection(editingSection.id, sectionData)
       } else {
-        await createSection(sectionData)
+        const newSection = await createSection(sectionData)
+        setSelectedSection(newSection.id)
       }
+      setShowSectionEditor(false)
     } catch (err) {
       console.error('Failed to save section:', err)
+      alert('Failed to save section. Please try again.')
     }
   }
 
@@ -124,16 +113,51 @@ export default function MenuManagement() {
       if (editingItem) {
         await updateItem(editingItem.id, itemData)
       } else {
+        // If no section selected, use the first section or prompt user
+        if (!itemData.sectionId && selectedSection) {
+          itemData.sectionId = selectedSection
+        } else if (!itemData.sectionId && sections.length > 0) {
+          itemData.sectionId = sections[0].id
+        }
+        
+        if (!itemData.sectionId) {
+          alert('Please select a section first or create a section.')
+          return
+        }
+        
         await createItem(itemData)
       }
+      setShowItemEditor(false)
     } catch (err) {
       console.error('Failed to save item:', err)
+      alert('Failed to save item. Please try again.')
     }
   }
 
-  // Get all available tags and allergens for filters
-  const availableTags = [...new Set(sections.flatMap(s => s.items?.flatMap(i => i.tags) || []))]
-  const availableAllergens = [...new Set(sections.flatMap(s => s.items?.flatMap(i => i.allergens) || []))]
+  const handleArchiveItem = async (itemId: string) => {
+    if (confirm('Are you sure you want to remove this item?')) {
+      try {
+        await archiveItem(itemId)
+      } catch (err) {
+        console.error('Failed to archive item:', err)
+        alert('Failed to remove item. Please try again.')
+      }
+    }
+  }
+
+  const handleArchiveSection = async (sectionId: string) => {
+    if (confirm('Are you sure you want to archive this section? Items will be hidden from customers.')) {
+      try {
+        await archiveSection(sectionId)
+        if (selectedSection === sectionId) {
+          setSelectedSection(null)
+        }
+      } catch (err) {
+        console.error('Failed to archive section:', err)
+        alert('Failed to archive section. Please try again.')
+      }
+    }
+  }
 
   if (loading) {
     return (
@@ -162,35 +186,20 @@ export default function MenuManagement() {
     )
   }
 
-  const getDietaryIcons = (item: MenuItem) => {
-    const icons = []
-    if (item.isVegan) icons.push(<Leaf key="vegan" className="w-4 h-4 text-green-600" title="Vegan" />)
-    else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-4 h-4 text-green-500" title="Vegetarian" />)
-    
-    if (item.spicyLevel > 0) {
-      icons.push(
-        <div key="spicy" className="flex" title={`Spicy Level: ${item.spicyLevel}`}>
-          {[...Array(item.spicyLevel)].map((_, i) => (
-            <Flame key={i} className="w-3 h-3 text-red-500" />
-          ))}
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">Error loading menu: {error}</div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+          >
+            Retry
+          </button>
         </div>
-      )
-    }
-    
-    return icons
-  }
-
-  const getMarginColor = (item: MenuItem) => {
-    if (!item.cost) return 'text-gray-500'
-    const margin = ((item.price - item.cost) / item.price) * 100
-    if (margin >= 70) return 'text-green-600'
-    if (margin >= 50) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const getMarginPercentage = (item: MenuItem) => {
-    if (!item.cost) return 'N/A'
-    return Math.round(((item.price - item.cost) / item.price) * 100) + '%'
+      </div>
+    )
   }
 
   return (
@@ -217,7 +226,10 @@ export default function MenuManagement() {
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600">
+              <button 
+                onClick={() => window.location.reload()}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
                 <RefreshCw className="w-5 h-5" />
               </button>
             </div>
@@ -334,6 +346,13 @@ export default function MenuManagement() {
             </div>
 
             <div className="flex items-center space-x-2">
+              <Link
+                to="/menu"
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Customer Menu</span>
+              </Link>
               <button className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2">
                 <Download className="w-4 h-4" />
                 <span>Export</span>
@@ -343,15 +362,35 @@ export default function MenuManagement() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Left Sidebar - Sections */}
-          <div className="lg:col-span-1">
+          {/* Left Sidebar - Sections & Filters */}
+          <div className="lg:col-span-1 space-y-6">
             <SectionList
               sections={sections}
               selectedSection={selectedSection}
               onSelectSection={setSelectedSection}
               onCreateSection={handleCreateSection}
               onEditSection={handleEditSection}
-              onArchiveSection={archiveSection}
+              onArchiveSection={handleArchiveSection}
+              onReorderSections={reorderSections}
+            />
+            
+            <MenuFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              availableTags={availableTags}
+              availableAllergens={availableAllergens}
+            />
+          </div>
+
+          {/* Main Content - Items Grid */}
+          <div className="lg:col-span-3">
+            <ItemGrid
+              section={selectedSectionData}
+              items={displayItems}
+              onEditItem={handleEditItem}
+              onToggleAvailability={toggleItemAvailability}
+              onArchiveItem={handleArchiveItem}
+              onReorderItems={reorderItems}
             />
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { MenuItem, MenuSection } from '../../types/menu'
-import { Edit, Trash2, Eye, EyeOff, Clock, Star, Leaf, Flame, DollarSign, GripVertical } from 'lucide-react'
+import { Edit, Trash2, Eye, EyeOff, Clock, Star, Leaf, Flame, DollarSign, GripVertical, Plus } from 'lucide-react'
 
 interface ItemGridProps {
   section: MenuSection | null
@@ -99,9 +99,10 @@ export default function ItemGrid({
         {section && (
           <button
             onClick={() => onEditItem({} as MenuItem)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto"
           >
-            Add First Item
+            <Plus className="w-4 h-4" />
+            <span>Add First Item</span>
           </button>
         )}
       </div>
@@ -117,8 +118,8 @@ export default function ItemGrid({
           </h3>
           <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-1 text-sm text-gray-500">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>Live Sync</span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Live Updates</span>
             </div>
           </div>
         </div>
@@ -231,18 +232,21 @@ export default function ItemGrid({
                           ? 'text-green-600 hover:text-green-800' 
                           : 'text-red-600 hover:text-red-800'
                       }`}
+                      title={item.isAvailable ? 'Mark as unavailable' : 'Mark as available'}
                     >
                       {item.isAvailable ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => onEditItem(item)}
                       className="text-blue-600 hover:text-blue-800 p-1"
+                      title="Edit item"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onArchiveItem(item.id)}
                       className="text-red-600 hover:text-red-800 p-1"
+                      title="Remove item"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

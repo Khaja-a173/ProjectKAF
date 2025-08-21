@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
-import { Search, Filter, Star, Clock, Leaf, Flame, ShoppingCart, Plus, Minus } from 'lucide-react'
+import { Search, Star, Clock, Leaf, Flame, ShoppingCart, Plus, Minus } from 'lucide-react'
 import { MenuSection, MenuItem } from '../types/menu'
 import { useMenuManagement } from '../hooks/useMenuManagement'
 
@@ -18,7 +18,7 @@ export default function CustomerMenu() {
 
   const categories = [
     { id: 'all', name: 'All Items' },
-    ...sections.map(section => ({ id: section.id, name: section.name }))
+    ...sections.filter(s => s.isActive).map(section => ({ id: section.id, name: section.name }))
   ]
 
   const allItems = sections.flatMap(section => section.items || [])
@@ -157,6 +157,7 @@ export default function CustomerMenu() {
             {sections.filter(section => section.isActive).map(section => {
               const sectionItems = section.items?.filter(item => {
                 if (!item.isAvailable) return false
+                
                 const matchesCategory = selectedCategory === 'all' || selectedCategory === section.id
                 const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                    item.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -189,6 +190,13 @@ export default function CustomerMenu() {
                             <div className="absolute top-4 left-4">
                               <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium">
                                 Popular
+                              </span>
+                            </div>
+                          )}
+                          {item.tags.includes('signature') && (
+                            <div className="absolute bottom-4 left-4">
+                              <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                                Signature
                               </span>
                             </div>
                           )}
@@ -245,6 +253,7 @@ export default function CustomerMenu() {
             {filteredItems.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">No menu items found matching your criteria.</p>
+                <p className="text-gray-400 text-sm mt-2">Try adjusting your search or category filter.</p>
               </div>
             )}
           </div>

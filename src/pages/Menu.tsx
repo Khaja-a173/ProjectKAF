@@ -2,154 +2,53 @@ import React, { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { Search, Filter, Star, Clock, Leaf, Flame } from 'lucide-react'
+import { useMenuManagement } from '../hooks/useMenuManagement'
 
 export default function Menu() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Use real menu data from management system
+  const { sections, loading } = useMenuManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+
   const categories = [
     { id: 'all', name: 'All Items' },
-    { id: 'appetizers', name: 'Appetizers' },
-    { id: 'mains', name: 'Main Courses' },
-    { id: 'desserts', name: 'Desserts' },
-    { id: 'beverages', name: 'Beverages' },
-    { id: 'specials', name: 'Chef\'s Specials' }
+    ...sections.filter(s => s.isActive).map(section => ({ id: section.id, name: section.name }))
   ]
 
-  const menuItems = [
-    {
-      id: 1,
-      name: 'Truffle Arancini',
-      category: 'appetizers',
-      price: 16,
-      description: 'Crispy risotto balls with black truffle, parmesan, and herb aioli',
-      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '15 min',
-      rating: 4.8,
-      dietary: ['vegetarian'],
-      spiceLevel: 0
-    },
-    {
-      id: 2,
-      name: 'Pan-Seared Scallops',
-      category: 'appetizers',
-      price: 24,
-      description: 'Fresh diver scallops with cauliflower purée and pancetta crisps',
-      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '12 min',
-      rating: 4.9,
-      dietary: ['gluten-free'],
-      spiceLevel: 0
-    },
-    {
-      id: 3,
-      name: 'Wagyu Beef Tenderloin',
-      category: 'mains',
-      price: 65,
-      description: 'Premium wagyu beef with roasted bone marrow, seasonal vegetables, and red wine jus',
-      image: 'https://images.pexels.com/photos/361184/asparagus-steak-veal-steak-veal-361184.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '25 min',
-      rating: 4.9,
-      dietary: ['gluten-free'],
-      spiceLevel: 0
-    },
-    {
-      id: 4,
-      name: 'Grilled Atlantic Salmon',
-      category: 'mains',
-      price: 32,
-      description: 'Fresh salmon with herb crust, quinoa pilaf, and lemon butter sauce',
-      image: 'https://images.pexels.com/photos/842571/pexels-photo-842571.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '20 min',
-      rating: 4.7,
-      dietary: ['gluten-free', 'healthy'],
-      spiceLevel: 0
-    },
-    {
-      id: 5,
-      name: 'Lobster Risotto',
-      category: 'mains',
-      price: 42,
-      description: 'Creamy arborio rice with fresh lobster, saffron, and microgreens',
-      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '30 min',
-      rating: 4.8,
-      dietary: ['gluten-free'],
-      spiceLevel: 0
-    },
-    {
-      id: 6,
-      name: 'Spicy Thai Curry',
-      category: 'mains',
-      price: 28,
-      description: 'Coconut curry with vegetables, jasmine rice, and fresh herbs',
-      image: 'https://images.pexels.com/photos/2474661/pexels-photo-2474661.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '18 min',
-      rating: 4.6,
-      dietary: ['vegan', 'gluten-free'],
-      spiceLevel: 3
-    },
-    {
-      id: 7,
-      name: 'Chocolate Lava Cake',
-      category: 'desserts',
-      price: 14,
-      description: 'Warm chocolate cake with molten center, vanilla ice cream, and berry coulis',
-      image: 'https://images.pexels.com/photos/291528/pexels-photo-291528.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '12 min',
-      rating: 4.9,
-      dietary: ['vegetarian'],
-      spiceLevel: 0
-    },
-    {
-      id: 8,
-      name: 'Tiramisu',
-      category: 'desserts',
-      price: 12,
-      description: 'Classic Italian dessert with espresso-soaked ladyfingers and mascarpone',
-      image: 'https://images.pexels.com/photos/6880219/pexels-photo-6880219.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '5 min',
-      rating: 4.7,
-      dietary: ['vegetarian'],
-      spiceLevel: 0
-    },
-    {
-      id: 9,
-      name: 'Craft Beer Selection',
-      category: 'beverages',
-      price: 8,
-      description: 'Rotating selection of local craft beers',
-      image: 'https://images.pexels.com/photos/1552630/pexels-photo-1552630.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '2 min',
-      rating: 4.5,
-      dietary: [],
-      spiceLevel: 0
-    },
-    {
-      id: 10,
-      name: 'Tasting Menu',
-      category: 'specials',
-      price: 95,
-      description: '7-course chef\'s tasting menu with wine pairings',
-      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
-      prepTime: '120 min',
-      rating: 5.0,
-      dietary: [],
-      spiceLevel: 0
-    }
-  ]
-
-  const filteredItems = menuItems.filter(item => {
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory
+  // Get all available items from sections
+  const allItems = sections.flatMap(section => section.items || [])
+  
+  const filteredItems = allItems.filter(item => {
+    if (!item.isAvailable) return false // Only show available items
+    
+    const matchesCategory = selectedCategory === 'all' || item.sectionId === selectedCategory
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase())
+                         item.description?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesCategory && matchesSearch
   })
 
-  const getDietaryIcon = (dietary: string[]) => {
-    if (dietary.includes('vegan') || dietary.includes('vegetarian')) {
-      return <Leaf className="w-4 h-4 text-green-500" />
-    }
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading menu...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  const getDietaryIcon = (item: any) => {
+    if (item.isVegan) return <Leaf className="w-4 h-4 text-green-600" />
+    if (item.isVegetarian) return <Leaf className="w-4 h-4 text-green-500" />
     return null
   }
 
@@ -180,6 +79,10 @@ export default function Menu() {
         <div className="relative z-10 text-center text-white">
           <h1 className="text-5xl font-bold mb-4">Our Menu</h1>
           <p className="text-xl">Discover our culinary masterpieces</p>
+          <div className="mt-4 flex items-center justify-center space-x-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm">Live Menu - Synced with Kitchen</span>
+          </div>
         </div>
       </section>
 
@@ -220,13 +123,20 @@ export default function Menu() {
           {filteredItems.map((item) => (
             <div key={item.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
               <div className="relative">
-                <img src={item.image} alt={item.name} className="w-full h-48 object-cover" />
+                <img src={item.imageUrl} alt={item.name} className="w-full h-48 object-cover" />
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1">
                   <div className="flex items-center space-x-1">
                     <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="text-sm font-medium">{item.rating}</span>
+                    <span className="text-sm font-medium">4.8</span>
                   </div>
                 </div>
+                {item.tags.includes('popular') && (
+                  <div className="absolute top-4 left-4">
+                    <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                      Popular
+                    </span>
+                  </div>
+                )}
               </div>
               
               <div className="p-6">
@@ -239,19 +149,26 @@ export default function Menu() {
                 
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <Clock className="w-4 h-4" />
-                    <span>{item.prepTime}</span>
+                    {item.preparationTime && (
+                      <>
+                        <Clock className="w-4 h-4" />
+                        <span>{item.preparationTime} min</span>
+                      </>
+                    )}
+                    {item.calories && (
+                      <span>{item.calories} cal</span>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
-                    {getDietaryIcon(item.dietary)}
+                    {getDietaryIcon(item)}
                     {getSpiceLevel(item.spiceLevel)}
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2 mb-4">
-                  {item.dietary.map((diet, index) => (
-                    <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                      {diet}
+                  {item.tags.slice(0, 3).map((tag, index) => (
+                    <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                      {tag}
                     </span>
                   ))}
                 </div>
