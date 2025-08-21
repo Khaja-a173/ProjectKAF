@@ -15,7 +15,9 @@ export default function Home() {
   const homePage = pages.find(p => p.slug === 'home' && p.status === 'published')
 
   // Only use customization if page has been actively customized with sections AND has visible content
-  const hasCustomContent = homePage && homePage.sections.length > 0 && homePage.sections.some(s => s.visible)
+  const hasCustomContent = homePage && 
+    homePage.sections.length > 0 && 
+    homePage.sections.some(s => s.visible && s.props && Object.keys(s.props).length > 0)
 
   if (loading) {
     return (

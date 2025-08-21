@@ -71,7 +71,9 @@ export default function LiveOrders() {
   }, [])
 
   const liveOrdersPage = pages.find(p => p.slug === 'live-orders' && p.status === 'published')
-  const hasCustomContent = liveOrdersPage && liveOrdersPage.sections.length > 0 && liveOrdersPage.sections.some(s => s.visible)
+  const hasCustomContent = liveOrdersPage && 
+    liveOrdersPage.sections.length > 0 && 
+    liveOrdersPage.sections.some(s => s.visible && s.props && Object.keys(s.props).length > 0)
 
   if (customizationLoading) {
     return (

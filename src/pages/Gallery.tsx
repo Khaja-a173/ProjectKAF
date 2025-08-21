@@ -12,7 +12,9 @@ export default function Gallery() {
   })
 
   const galleryPage = pages.find(p => p.slug === 'gallery' && p.status === 'published')
-  const hasCustomContent = galleryPage && galleryPage.sections.length > 0 && galleryPage.sections.some(s => s.visible)
+  const hasCustomContent = galleryPage && 
+    galleryPage.sections.length > 0 && 
+    galleryPage.sections.some(s => s.visible && s.props && Object.keys(s.props).length > 0)
 
   const [selectedImage, setSelectedImage] = useState<number | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('all')

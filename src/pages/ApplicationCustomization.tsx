@@ -229,12 +229,14 @@ export default function ApplicationCustomization() {
                 >
                   Edit
                 </button>
-                <Link
-                  to={`/${page.slug}`}
+                <a
+                  href={`/${page.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors text-sm text-center"
                 >
                   Preview
-                </Link>
+                </a>
               </div>
             </div>
           ))}
@@ -351,12 +353,14 @@ export default function ApplicationCustomization() {
                 >
                   Publish
                 </button>
-                <Link
-                  to={`/${selectedPage.slug}`}
+                <a
+                  href={`/${selectedPage.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors text-sm text-center"
                 >
                   Preview
-                </Link>
+                </a>
               </div>
             </div>
           </div>
