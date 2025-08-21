@@ -19,6 +19,7 @@ import TableManagement from './pages/TableManagement'
 import StaffManagement from './pages/StaffManagement'
 import CustomerMenu from './pages/CustomerMenu'
 import ApplicationCustomization from './pages/ApplicationCustomization'
+import KitchenDashboard from './pages/KitchenDashboard'
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/customer-menu" element={<CustomerMenu />} />
         <Route path="/application-customization" element={<ApplicationCustomization />} />
+        <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
       </Routes>
     </div>
   )

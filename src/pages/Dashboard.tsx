@@ -205,6 +205,13 @@ export default function Dashboard() {
                   <Users className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Staff Management</span>
                 </Link>
+                <Link
+                  to="/kitchen-dashboard"
+                  className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  <ChefHat className="w-5 h-5 text-red-600 mr-3" />
+                  <span className="font-medium text-red-900">Kitchen Dashboard</span>
+                </Link>
               </div>
             </div>
 
