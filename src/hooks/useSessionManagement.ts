@@ -22,9 +22,9 @@ const EMPTY_CART = {
   locationId: '',
   status: 'active' as const,
   items: [],
-  subtotal: 0,
-  taxAmount: 0,
-  totalAmount: 0,
+  subtotalMinor: 0,
+  taxMinor: 0,
+  totalMinor: 0,
   currency: 'INR',
   lastActivity: new Date(),
   createdAt: new Date(),
@@ -77,6 +77,16 @@ const broadcastEvent = (event: RealtimeEvent) => {
   setTimeout(() => {
     notifySessionSubscribers()
   }, 100)
+}
+
+// Currency exponent helper
+const getCurrencyExponent = (currency: string): number => {
+  const CURRENCY_EXPONENTS: Record<string, number> = { 
+    KWD: 3, BHD: 3, OMR: 3, // 3 decimal places
+    JPY: 0, KRW: 0,          // 0 decimal places
+    // Default: 2 decimal places for INR, AUD, USD, EUR, etc.
+  }
+  return CURRENCY_EXPONENTS[currency] ?? 2
 }
 
 interface UseSessionManagementProps {
@@ -154,9 +164,9 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
         locationId,
         status: 'active',
         items: [],
-        subtotal: 0,
-        taxAmount: 0,
-        totalAmount: 0,
+        subtotalMinor: 0,
+        taxMinor: 0,
+        totalMinor: 0,
         currency: 'INR', // Default currency
         lastActivity: new Date(),
         createdAt: new Date(),
@@ -251,8 +261,14 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
       }
 
       const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-      const taxAmount = subtotal * 0.08 // 8% tax
+      const taxAmount = subtotal * 0.08
       const totalAmount = subtotal + taxAmount
+      
+      // Convert to minor units
+      const exponent = getCurrencyExponent('INR')
+      const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent))
+      const taxMinor = Math.round(taxAmount * Math.pow(10, exponent))
+      const totalMinor = Math.round(totalAmount * Math.pow(10, exponent))
 
       updateGlobalSession(prev => ({
         ...prev,
@@ -261,9 +277,9 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
             ? {
                 ...c,
                 items: updatedItems,
-                subtotal,
-                taxAmount,
-                totalAmount,
+                subtotalMinor,
+                taxMinor,
+                totalMinor,
                 lastActivity: new Date(),
                 updatedAt: new Date()
               }
@@ -306,13 +322,19 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
           const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
           const taxAmount = subtotal * 0.08
           const totalAmount = subtotal + taxAmount
+          
+          // Convert to minor units
+          const exponent = getCurrencyExponent('INR')
+          const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent))
+          const taxMinor = Math.round(taxAmount * Math.pow(10, exponent))
+          const totalMinor = Math.round(totalAmount * Math.pow(10, exponent))
 
           return {
             ...cart,
             items: updatedItems,
-            subtotal,
-            taxAmount,
-            totalAmount,
+            subtotalMinor,
+            taxMinor,
+            totalMinor,
             lastActivity: new Date(),
             updatedAt: new Date()
           }
@@ -337,13 +359,19 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
           const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
           const taxAmount = subtotal * 0.08
           const totalAmount = subtotal + taxAmount
+          
+          // Convert to minor units
+          const exponent = getCurrencyExponent('INR')
+          const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent))
+          const taxMinor = Math.round(taxAmount * Math.pow(10, exponent))
+          const totalMinor = Math.round(totalAmount * Math.pow(10, exponent))
 
           return {
             ...cart,
             items: updatedItems,
-            subtotal,
-            taxAmount,
-            totalAmount,
+            subtotalMinor,
+            taxMinor,
+            totalMinor,
             lastActivity: new Date(),
             updatedAt: new Date()
           }
@@ -399,10 +427,10 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
           createdAt: new Date(),
           updatedAt: new Date()
         })),
-        subtotal: cart.subtotal,
-        taxAmount: cart.taxAmount,
+        subtotal: cart.subtotalMinor / Math.pow(10, getCurrencyExponent(cart.currency || 'INR')),
+        taxAmount: cart.taxMinor / Math.pow(10, getCurrencyExponent(cart.currency || 'INR')),
         tipAmount: 0,
-        totalAmount: cart.totalAmount,
+        totalAmount: cart.totalMinor / Math.pow(10, getCurrencyExponent(cart.currency || 'INR')),
         specialInstructions,
         priority: 'normal',
         placedAt: new Date(),
