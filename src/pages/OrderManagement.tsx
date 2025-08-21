@@ -245,15 +245,13 @@ export default function OrderManagement() {
                     {order.status === 'preparing' && (
                       <button className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
                         Mark Ready
-                  <p className="font-medium text-gray-900">${order.totalAmount.toFixed(2)}</p>
+                      </button>
                     )}
                     {order.status === 'ready' && (
                       <button className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
                         Mark Served
                       </button>
-                    <span className="text-xs text-gray-500">
-                      {Math.floor((Date.now() - order.placedAt.getTime()) / (1000 * 60))}m ago
-                    </span>
+                    )}
                   </div>
                 )}
               </div>
