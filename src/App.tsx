@@ -1,5 +1,6 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
+import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import Home from './pages/Home'
 import Menu from './pages/Menu'
@@ -35,18 +36,53 @@ function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/events" element={<Events />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/admin/menu" element={<MenuManagement />} />
-        <Route path="/orders" element={<OrderManagement />} />
-        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/menu" element={
+          <ProtectedRoute requiredDashboard="MENU">
+            <MenuManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/orders" element={
+          <ProtectedRoute requiredDashboard="LIVE_ORDERS">
+            <OrderManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/analytics" element={
+          <ProtectedRoute requiredDashboard="REPORTS">
+            <Analytics />
+          </ProtectedRoute>
+        } />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/table-management" element={<TableManagement />} />
-        <Route path="/staff-management" element={<StaffManagement />} />
-        <Route path="/admin/menu" element={<MenuManagement />} />
+        <Route path="/table-management" element={
+          <ProtectedRoute requiredDashboard="TABLES">
+            <TableManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/staff-management" element={
+          <ProtectedRoute requiredDashboard="STAFF">
+            <StaffManagement />
+          </ProtectedRoute>
+        } />
         <Route path="/customer-menu" element={<CustomerMenu />} />
-        <Route path="/application-customization" element={<ApplicationCustomization />} />
-        <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
-        <Route path="/admin/kitchen" element={<KitchenDashboard />} />
+        <Route path="/application-customization" element={
+          <ProtectedRoute requiredDashboard="CUSTOMIZATION">
+            <ApplicationCustomization />
+          </ProtectedRoute>
+        } />
+        <Route path="/kitchen-dashboard" element={
+          <ProtectedRoute requiredDashboard="KITCHEN">
+            <KitchenDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/kitchen" element={
+          <ProtectedRoute requiredDashboard="KITCHEN">
+            <KitchenDashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
     </div>
   )

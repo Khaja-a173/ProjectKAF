@@ -130,6 +130,41 @@ export default function AccessControlDashboard({
     }
   }
 
+  const handleGrantCapability = async (userId: string, capability: string) => {
+    try {
+      await grantCapability(userId, capability, undefined, 'Manual grant from admin')
+      alert('Capability granted successfully!')
+    } catch (err) {
+      alert('Failed to grant capability')
+    }
+  }
+
+  const handleRevokeCapability = async (userId: string, capability: string) => {
+    try {
+      await revokeCapability(userId, capability, 'Manual revoke from admin')
+      alert('Capability revoked successfully!')
+    } catch (err) {
+      alert('Failed to revoke capability')
+    }
+  }
+
+  const handleAssignRole = async (userId: string, roleKey: string) => {
+    try {
+      await assignRole(userId, roleKey, 'Manual role assignment from admin')
+      alert('Role assigned successfully!')
+    } catch (err) {
+      alert('Failed to assign role')
+    }
+  }
+
+  const handleRemoveRole = async (userId: string, roleKey: string) => {
+    try {
+      await removeRole(userId, roleKey, 'Manual role removal from admin')
+      alert('Role removed successfully!')
+    } catch (err) {
+      alert('Failed to remove role')
+    }
+  }
   const renderOverview = () => (
     <div className="space-y-8">
       {/* Stats Cards */}
@@ -395,12 +430,201 @@ export default function AccessControlDashboard({
                       )}
                     </div>
                   </td>
+                      <button 
+                        onClick={() => setSelectedUser(member.id)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Manage Access
+                      </button>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* User Access Management Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Manage Access - {users.find(u => u.id === selectedUser)?.firstName} {users.find(u => u.id === selectedUser)?.lastName}
+              </h3>
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Role Assignment */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Role Assignment</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {roles.map(role => {
+                    const user = users.find(u => u.id === selectedUser)
+                    const hasRole = user?.roles.some(r => r.key === role.key)
+                    
+                    return (
+                      <div key={role.key} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: role.color }}
+                            ></div>
+                            <span className="font-medium text-gray-900">{role.displayName}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (hasRole) {
+                                handleRemoveRole(selectedUser, role.key)
+                              } else {
+                                handleAssignRole(selectedUser, role.key)
+                              }
+                            }}
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              hasRole 
+                                ? 'bg-red-100 text-red-800 hover:bg-red-200' 
+                                : 'bg-green-100 text-green-800 hover:bg-green-200'
+                            }`}
+                          >
+                            {hasRole ? 'Remove' : 'Assign'}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {role.capabilities.length} capabilities
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Dashboard Access Matrix */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Dashboard Access</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Dashboard</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">View</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Manage</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Sensitive</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(DASHBOARD_REGISTRY).map(dashboard => {
+                        const user = users.find(u => u.id === selectedUser)
+                        const viewCap = dashboard.capabilities.find(c => c.type === 'view')
+                        const manageCap = dashboard.capabilities.find(c => c.type === 'manage')
+                        const sensitiveCap = dashboard.capabilities.find(c => c.type === 'sensitive')
+                        
+                        return (
+                          <tr key={dashboard.key} className="border-t border-gray-200">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center space-x-2">
+                                <Users className="w-4 h-4 text-gray-500" />
+                                <span className="font-medium text-gray-900">{dashboard.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {viewCap && (
+                                <button
+                                  onClick={() => {
+                                    const hasCapability = user?.capabilities.includes(viewCap.key)
+                                    if (hasCapability) {
+                                      handleRevokeCapability(selectedUser, viewCap.key)
+                                    } else {
+                                      handleGrantCapability(selectedUser, viewCap.key)
+                                    }
+                                  }}
+                                  className={`w-6 h-6 rounded-full border-2 ${
+                                    user?.capabilities.includes(viewCap.key)
+                                      ? 'bg-green-500 border-green-500'
+                                      : 'border-gray-300 hover:border-green-400'
+                                  }`}
+                                >
+                                  {user?.capabilities.includes(viewCap.key) && (
+                                    <CheckCircle className="w-4 h-4 text-white" />
+                                  )}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {manageCap && (
+                                <button
+                                  onClick={() => {
+                                    const hasCapability = user?.capabilities.includes(manageCap.key)
+                                    if (hasCapability) {
+                                      handleRevokeCapability(selectedUser, manageCap.key)
+                                    } else {
+                                      handleGrantCapability(selectedUser, manageCap.key)
+                                    }
+                                  }}
+                                  className={`w-6 h-6 rounded-full border-2 ${
+                                    user?.capabilities.includes(manageCap.key)
+                                      ? 'bg-blue-500 border-blue-500'
+                                      : 'border-gray-300 hover:border-blue-400'
+                                  }`}
+                                >
+                                  {user?.capabilities.includes(manageCap.key) && (
+                                    <CheckCircle className="w-4 h-4 text-white" />
+                                  )}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {sensitiveCap && (
+                                <button
+                                  onClick={() => {
+                                    const hasCapability = user?.capabilities.includes(sensitiveCap.key)
+                                    if (hasCapability) {
+                                      if (confirm('Remove sensitive capability? This requires admin confirmation.')) {
+                                        handleRevokeCapability(selectedUser, sensitiveCap.key)
+                                      }
+                                    } else {
+                                      if (confirm('Grant sensitive capability? This allows critical actions.')) {
+                                        handleGrantCapability(selectedUser, sensitiveCap.key)
+                                      }
+                                    }
+                                  }}
+                                  className={`w-6 h-6 rounded-full border-2 ${
+                                    user?.capabilities.includes(sensitiveCap.key)
+                                      ? 'bg-red-500 border-red-500'
+                                      : 'border-gray-300 hover:border-red-400'
+                                  }`}
+                                >
+                                  {user?.capabilities.includes(sensitiveCap.key) && (
+                                    <AlertTriangle className="w-4 h-4 text-white" />
+                                  )}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 

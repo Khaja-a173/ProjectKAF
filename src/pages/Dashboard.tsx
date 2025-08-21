@@ -13,11 +13,13 @@ import {
   Bell,
   Search,
   Menu as MenuIcon,
-  Grid3X3
+  Grid3X3,
+  UserCog,
+  LogOut
 } from 'lucide-react'
 
 export default function Dashboard() {
-  const { canAccessDashboard } = useAccessControl()
+  const { canAccessDashboard, currentUser, switchUser, users } = useAccessControl()
 
   const stats = [
     { name: 'Total Revenue', value: '$45,231', change: '+20.1%', icon: DollarSign, color: 'text-green-600' },
@@ -49,6 +51,30 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* User Switcher for Testing */}
+              <div className="flex items-center space-x-2">
+                <UserCog className="w-4 h-4 text-gray-500" />
+                <select
+                  value={currentUser?.id || ''}
+                  onChange={(e) => switchUser(e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                >
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.firstName} {user.lastName} ({user.roles[0]?.displayName})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Current User Info */}
+              <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-sm font-medium text-blue-800">
+                  {currentUser?.firstName} ({currentUser?.roles[0]?.displayName})
+                </span>
+              </div>
+              
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
@@ -161,20 +187,20 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {canAccessDashboard('MENU') && (
                 <Link
-                  to="/menu"
+                  to="/admin/menu"
                   className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                 >
                   <MenuIcon className="w-5 h-5 text-blue-600 mr-3" />
-                  <span className="font-medium text-blue-900">Manage Menu</span>
+                  <span className="font-medium text-blue-900">Admin Menu Management</span>
                 </Link>
                 )}
-                {canAccessDashboard('MENU') && (
+                {canAccessDashboard('KITCHEN') && (
                 <Link
-                  to="/admin/menu"
-                  className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                  to="/kitchen-dashboard"
+                  className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                 >
-                  <ChefHat className="w-5 h-5 text-green-600 mr-3" />
-                  <span className="font-medium text-green-900">Admin Menu Management</span>
+                  <ChefHat className="w-5 h-5 text-red-600 mr-3" />
+                  <span className="font-medium text-red-900">Kitchen Dashboard</span>
                 </Link>
                 )}
                 {canAccessDashboard('CUSTOMIZATION') && (
@@ -220,15 +246,6 @@ export default function Dashboard() {
                 >
                   <Users className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Staff Management</span>
-                </Link>
-                )}
-                {canAccessDashboard('KITCHEN') && (
-                <Link
-                  to="/kitchen-dashboard"
-                  className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <ChefHat className="w-5 h-5 text-red-600 mr-3" />
-                  <span className="font-medium text-red-900">Kitchen Dashboard</span>
                 </Link>
                 )}
               </div>

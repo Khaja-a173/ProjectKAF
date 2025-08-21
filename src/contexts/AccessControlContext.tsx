@@ -3,6 +3,7 @@ import { User, Role, AccessPolicy, AccessAuditLog, DASHBOARD_REGISTRY, DEFAULT_R
 
 interface AccessControlContextType {
   currentUser: User | null
+  setCurrentUser: (user: User | null) => void
   policy: AccessPolicy | null
   users: User[]
   roles: Role[]
@@ -12,6 +13,7 @@ interface AccessControlContextType {
   hasCapability: (capability: string, locationId?: string) => boolean
   canAccessDashboard: (dashboardKey: string) => boolean
   refreshPolicy: () => Promise<void>
+  switchUser: (userId: string) => void
 }
 
 const AccessControlContext = createContext<AccessControlContextType | undefined>(undefined)
@@ -139,9 +141,10 @@ export function AccessControlProvider({
   children, 
   tenantId, 
   locationId, 
-  currentUserId = 'user_admin' // Default to admin for demo
+  currentUserId = 'user_admin'
 }: AccessControlProviderProps) {
   const [state, setState] = useState(globalAccessState)
+  const [activeUserId, setActiveUserId] = useState(currentUserId)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -163,7 +166,18 @@ export function AccessControlProvider({
     }
   }, [])
 
-  const currentUser = state.users.find(u => u.id === currentUserId) || null
+  const currentUser = state.users.find(u => u.id === activeUserId) || null
+
+  const setCurrentUser = (user: User | null) => {
+    if (user) {
+      setActiveUserId(user.id)
+    }
+  }
+
+  const switchUser = (userId: string) => {
+    console.log('🔄 Switching to user:', userId)
+    setActiveUserId(userId)
+  }
 
   const hasCapability = (capability: string, locationId?: string): boolean => {
     if (!currentUser) return false
@@ -225,6 +239,7 @@ export function AccessControlProvider({
   return (
     <AccessControlContext.Provider value={{
       currentUser,
+      setCurrentUser,
       policy: state.policy,
       users: state.users,
       roles: state.roles,
@@ -234,6 +249,8 @@ export function AccessControlProvider({
       hasCapability,
       canAccessDashboard,
       refreshPolicy
+      refreshPolicy,
+      switchUser
     }}>
       {children}
     </AccessControlContext.Provider>

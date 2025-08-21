@@ -262,6 +262,9 @@ export default function MenuManagement() {
             <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
               Analytics
             </Link>
+            <Link to="/application-customization" className="text-gray-500 hover:text-gray-700 pb-2">
+              Customization
+            </Link>
             <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
               Settings
             </Link>
