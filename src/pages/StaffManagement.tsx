@@ -46,6 +46,7 @@ import {
   Building,
   Timer,
   Star,
+  Edit,
 } from "lucide-react";
 
 interface StaffMember {

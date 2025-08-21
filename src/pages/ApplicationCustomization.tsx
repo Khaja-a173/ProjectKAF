@@ -82,6 +82,45 @@ const DEFAULT_TYPOGRAPHY = {
   },
 };
 
+const DEFAULT_COLORS = {
+  primary: "#2563eb",
+  secondary: "#64748b",
+  accent: "#22c55e",
+  background: "#ffffff",
+  surface: "#f8fafc",
+  text: "#0f172a",
+  textSecondary: "#475569",
+  success: "#16a34a",
+  warning: "#f59e0b",
+  error: "#ef4444",
+};
+
+const DEFAULT_TYPOGRAPHY = {
+  fontFamily: "Inter, system-ui, sans-serif",
+  headingFont: undefined as string | undefined,
+  fontSize: {
+    xs: "0.75rem",
+    sm: "0.875rem",
+    base: "1rem",
+    lg: "1.125rem",
+    xl: "1.25rem",
+    "2xl": "1.5rem",
+    "3xl": "1.875rem",
+    "4xl": "2.25rem",
+  },
+  fontWeight: {
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+  },
+  lineHeight: {
+    tight: 1.2,
+    normal: 1.5,
+    relaxed: 1.75,
+  },
+};
+
 type ActiveView = "overview" | "editor" | "theme" | "assets" | "branding";
 
 export default function ApplicationCustomization() {
@@ -533,7 +572,7 @@ export default function ApplicationCustomization() {
               <div className="bg-white min-h-96 p-4">
                 {selectedPage.sections
                   .filter((s) => s.visible)
-                  .map((section) => (
+                  .map((section, idx: number) => (
                     <div
                       key={section.id}
                       onClick={() => setSelectedSection(section)}
@@ -571,7 +610,7 @@ export default function ApplicationCustomization() {
                         <div className="grid grid-cols-2 gap-4">
                           {section.props.items
                             ?.slice(0, 4)
-                            .map((item: any, idx) => (
+                            .map((item: any, idx: number) => (
                               <div key={idx} className="text-center">
                                 <div className="text-2xl font-bold text-blue-600">
                                   {item.value}
@@ -589,7 +628,7 @@ export default function ApplicationCustomization() {
                         <div className="grid grid-cols-3 gap-2">
                           {section.props.items
                             ?.slice(0, 6)
-                            .map((item: any, idx) => (
+                            .map((item: any, idx: number) => (
                               <div
                                 key={idx}
                                 className="aspect-square bg-gray-200 rounded-lg overflow-hidden"
@@ -733,7 +772,7 @@ export default function ApplicationCustomization() {
                             ...DEFAULT_COLORS,
                             ...(theme?.colors ?? {}),
                             [key]: e.target.value,
-                          },
+                          } as typeof DEFAULT_COLORS,
                         })
                       }
                       className="w-8 h-8 rounded border border-gray-300"
@@ -747,7 +786,7 @@ export default function ApplicationCustomization() {
                             ...DEFAULT_COLORS,
                             ...(theme?.colors ?? {}),
                             [key]: e.target.value,
-                          },
+                          } as typeof DEFAULT_COLORS,
                         })
                       }
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
@@ -774,7 +813,7 @@ export default function ApplicationCustomization() {
                         ...DEFAULT_TYPOGRAPHY,
                         ...(theme?.typography ?? {}),
                         fontFamily: e.target.value,
-                      },
+                      } as typeof DEFAULT_TYPOGRAPHY,
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
