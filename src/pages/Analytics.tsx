@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { ChefHat, TrendingUp, DollarSign, Users, Clock, BarChart3 } from 'lucide-react'
 

@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { useCustomization } from '../hooks/useCustomization'
 import DynamicPageRenderer from '../components/DynamicPageRenderer'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useLogo } from '../contexts/BrandingContext'
 import { useSessionManagement } from '../hooks/useSessionManagement'

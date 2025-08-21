@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLogo } from '../contexts/BrandingContext'
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, BarChart3, Shield } from 'lucide-react'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { MenuSection } from '../../types/menu'
 import { Plus, Edit, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react'
 

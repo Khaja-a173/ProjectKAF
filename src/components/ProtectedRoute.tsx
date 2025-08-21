@@ -1,4 +1,3 @@
-import React from 'react'
 import { useAccessControl } from '../contexts/AccessControlContext'
 import { AlertTriangle, Lock, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'

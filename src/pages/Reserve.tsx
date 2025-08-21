@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { Calendar, Clock, Users, Star, MapPin, Phone, CheckCircle2 } from 'lucide-react'

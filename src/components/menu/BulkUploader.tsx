@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { BulkUploadItem, BulkUploadResult } from '../../types/menu'
 import { Upload, Download, X, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
 

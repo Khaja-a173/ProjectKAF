@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSessionManagement } from '../hooks/useSessionManagement'
 import { ChefHat, Clock, CheckCircle, XCircle, Eye, Filter, Bell, Search, Users, DollarSign, TrendingUp, BarChart3, X } from 'lucide-react'

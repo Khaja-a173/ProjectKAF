@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { SessionCart, CartItem } from '../types/session'
 import { ShoppingCart, Plus, Minus, Trash2, Clock, Leaf, Flame, Edit, X } from 'lucide-react'
 

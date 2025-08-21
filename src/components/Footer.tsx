@@ -1,4 +1,3 @@
-import React from 'react'
 import { useLogo } from '../contexts/BrandingContext'
 import { ChefHat, MapPin, Phone, Mail, Clock, Facebook, Instagram, Twitter } from 'lucide-react'
 

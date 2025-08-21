@@ -1,4 +1,3 @@
-import React from 'react'
 import { DineInOrder } from '../types/session'
 import { CheckCircle, Clock, Eye, ChefHat, X } from 'lucide-react'
 

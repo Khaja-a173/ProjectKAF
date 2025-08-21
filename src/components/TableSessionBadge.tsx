@@ -1,4 +1,3 @@
-import React from 'react'
 import { TableSession } from '../types/session'
 import { Users, Clock, MapPin } from 'lucide-react'
 

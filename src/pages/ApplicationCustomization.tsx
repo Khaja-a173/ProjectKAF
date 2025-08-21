@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import BrandingEditor from '../components/BrandingEditor'
 import { useCustomization, sectionRegistry } from '../hooks/useCustomization'

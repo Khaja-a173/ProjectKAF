@@ -1,4 +1,3 @@
-import React from 'react'
 import { MenuFilters as MenuFiltersType } from '../../types/menu'
 import { Search, Filter, X } from 'lucide-react'
 

@@ -635,7 +635,16 @@ export function useCustomization({ tenantId, locationId }: UseCustomizationProps
       console.log('🎨 Updating theme')
       updateGlobalCustomization(prev => ({
         ...prev,
-        theme: { ...prev.theme, ...themeData, updatedAt: new Date() }
+        theme: { 
+          ...prev.theme, 
+          ...themeData,
+          colors: themeData.colors ? { ...prev.theme.colors, ...themeData.colors } : prev.theme.colors,
+          typography: themeData.typography ? { ...prev.theme.typography, ...themeData.typography } : prev.theme.typography,
+          spacing: themeData.spacing ? { ...prev.theme.spacing, ...themeData.spacing } : prev.theme.spacing,
+          borderRadius: themeData.borderRadius ? { ...prev.theme.borderRadius, ...themeData.borderRadius } : prev.theme.borderRadius,
+          shadows: themeData.shadows ? { ...prev.theme.shadows, ...themeData.shadows } : prev.theme.shadows,
+          updatedAt: new Date() 
+        }
       }))
     } catch (err) {
       console.error('❌ Failed to update theme:', err)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMenuManagement } from '../hooks/useMenuManagement'
 import SectionList from '../components/menu/SectionList'
