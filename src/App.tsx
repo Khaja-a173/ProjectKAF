@@ -15,6 +15,7 @@ import LiveOrders from './pages/LiveOrders'
 import Gallery from './pages/Gallery'
 import Events from './pages/Events'
 import Contact from './pages/Contact'
+import TableManagement from './pages/TableManagement'
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
         <Route path="/orders" element={<OrderManagement />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/table-management" element={<TableManagement />} />
       </Routes>
     </div>
   )
