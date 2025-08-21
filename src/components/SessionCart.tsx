@@ -22,7 +22,7 @@ const getCurrencyExponent = (currency: string): number => {
   return CURRENCY_EXPONENTS[currency] ?? 2
 }
 
-// Safe money formatter
+// Safe money formatter using minor units
 const formatMoney = (amountMinor: number | undefined, currency: string = 'INR'): string => {
   const safeAmount = Number.isFinite(amountMinor) ? amountMinor! : 0
   const exponent = getCurrencyExponent(currency)
@@ -78,9 +78,10 @@ export default function SessionCartComponent({
     locationId: '',
     status: 'active' as const,
     items: [],
-    subtotal: 0,
-    taxAmount: 0,
-    totalAmount: 0,
+    subtotalMinor: 0,
+    taxMinor: 0,
+    totalMinor: 0,
+    currency: 'INR',
     lastActivity: new Date(),
     createdAt: new Date(),
     updatedAt: new Date()
@@ -92,10 +93,10 @@ export default function SessionCartComponent({
   // Safe currency
   const currency = safeCart.currency || 'INR'
 
-  // Safe totals with fallbacks
-  const subtotal = Number.isFinite(safeCart.subtotal) ? safeCart.subtotal : 0
-  const taxAmount = Number.isFinite(safeCart.taxAmount) ? safeCart.taxAmount : 0
-  const totalAmount = Number.isFinite(safeCart.totalAmount) ? safeCart.totalAmount : 0
+  // Safe totals with fallbacks (using minor units)
+  const subtotalMinor = Number.isFinite(safeCart.subtotalMinor) ? safeCart.subtotalMinor : 0
+  const taxMinor = Number.isFinite(safeCart.taxMinor) ? safeCart.taxMinor : 0
+  const totalMinor = Number.isFinite(safeCart.totalMinor) ? safeCart.totalMinor : (subtotalMinor + taxMinor)
 
   if (!cart) {
     return (
@@ -137,10 +138,11 @@ export default function SessionCartComponent({
     setShowOrderReview(false)
   }
 
-  // Safe item price formatting
+  // Safe item price formatting (convert to minor units)
   const formatItemPrice = (price: number | undefined): string => {
     const safePrice = Number.isFinite(price) ? price! : 0
-    return formatMoney(safePrice * 100, currency) // Convert to minor units
+    const priceMinor = Math.round(safePrice * Math.pow(10, getCurrencyExponent(currency)))
+    return formatMoney(priceMinor, currency)
   }
 
   // Safe line total calculation
@@ -148,7 +150,8 @@ export default function SessionCartComponent({
     const safePrice = Number.isFinite(item.price) ? item.price : 0
     const safeQuantity = Number.isFinite(item.quantity) ? item.quantity : 0
     const lineTotal = safePrice * safeQuantity
-    return formatMoney(lineTotal * 100, currency) // Convert to minor units
+    const lineTotalMinor = Math.round(lineTotal * Math.pow(10, getCurrencyExponent(currency)))
+    return formatMoney(lineTotalMinor, currency)
   }
 
   return (
@@ -242,16 +245,16 @@ export default function SessionCartComponent({
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">{formatMoney(subtotal * 100, currency)}</span>
+                  <span className="font-medium">{formatMoney(subtotalMinor, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Tax</span>
-                  <span className="font-medium">{formatMoney(taxAmount * 100, currency)}</span>
+                  <span className="font-medium">{formatMoney(taxMinor, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span className="text-gray-900">Total</span>
                   <span className="text-orange-600">
-                    {formatMoney(totalAmount * 100, currency)}
+                    {formatMoney(totalMinor, currency)}
                   </span>
                 </div>
               </div>
@@ -300,7 +303,7 @@ export default function SessionCartComponent({
             <div className="border-t pt-2 mb-4">
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
-                <span>{formatMoney(totalAmount * 100, currency)}</span>
+                <span>{formatMoney(totalMinor, currency)}</span>
               </div>
             </div>
             

@@ -23,9 +23,9 @@ export interface SessionCart {
   locationId: string
   status: 'active' | 'locked' | 'abandoned'
   items: CartItem[]
-  subtotal: number
-  taxAmount: number
-  totalAmount: number
+  subtotalMinor: number
+  taxMinor: number
+  totalMinor: number
   currency?: string
   lastActivity: Date
   createdAt: Date

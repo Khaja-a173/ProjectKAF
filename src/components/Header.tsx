@@ -1,7 +1,31 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useLogo } from '../contexts/BrandingContext'
+import { useSessionManagement } from '../hooks/useSessionManagement'
 import { ChefHat, Menu as MenuIcon, X, ShoppingCart, User } from 'lucide-react'
+
+function CartBadge() {
+  const { carts } = useSessionManagement({
+    tenantId: 'tenant_123',
+    locationId: 'location_456'
+  })
+  
+  // Get total items across all active carts
+  const totalItems = carts
+    .filter(cart => cart.status === 'active')
+    .reduce((total, cart) => {
+      const items = Array.isArray(cart.items) ? cart.items : []
+      return total + items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    }, 0)
+  
+  if (totalItems === 0) return null
+  
+  return (
+    <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
+      {totalItems > 99 ? '99+' : totalItems}
+    </span>
+  )
+}
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -63,9 +87,7 @@ export default function Header() {
           <div className="hidden md:flex items-center space-x-4">
             <button className="p-2 text-gray-600 hover:text-orange-600 relative">
               <ShoppingCart className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
-                3
-              </span>
+              <CartBadge />
             </button>
             <Link
               to="/login"
