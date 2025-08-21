@@ -14,6 +14,44 @@ let globalSessionState: {
   payments: []
 }
 
+// Safe empty cart template
+const EMPTY_CART = {
+  id: '',
+  sessionId: '',
+  tenantId: '',
+  locationId: '',
+  status: 'active' as const,
+  items: [],
+  subtotal: 0,
+  taxAmount: 0,
+  totalAmount: 0,
+  currency: 'INR',
+  lastActivity: new Date(),
+  createdAt: new Date(),
+  updatedAt: new Date()
+}
+
+// Safe storage utility
+const safeStore = {
+  get(key: string) {
+    try {
+      if (typeof window === 'undefined') return null
+      const raw = window.localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : null
+    } catch { 
+      return null 
+    }
+  },
+  set(key: string, value: unknown) {
+    try {
+      if (typeof window === 'undefined') return
+      window.localStorage.setItem(key, JSON.stringify(value))
+    } catch { 
+      /* swallow */ 
+    }
+  }
+}
+
 const sessionSubscribers: Set<(state: typeof globalSessionState) => void> = new Set()
 
 const notifySessionSubscribers = () => {
@@ -119,6 +157,7 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
         subtotal: 0,
         taxAmount: 0,
         totalAmount: 0,
+        currency: 'INR', // Default currency
         lastActivity: new Date(),
         createdAt: new Date(),
         updatedAt: new Date()
@@ -852,7 +891,9 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
   }, [sessions])
 
   const getCartBySession = useCallback((sessionId: string) => {
-    return carts.find(c => c.sessionId === sessionId)
+    const cart = carts.find(c => c.sessionId === sessionId)
+    // Return safe cart with defaults if not found
+    return cart || { ...EMPTY_CART, sessionId }
   }, [carts])
 
   const getOrdersBySession = useCallback((sessionId: string) => {

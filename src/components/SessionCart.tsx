@@ -11,6 +11,55 @@ interface SessionCartProps {
   disabled?: boolean
 }
 
+// Currency exponent helper
+const CURRENCY_EXPONENTS: Record<string, number> = { 
+  KWD: 3, BHD: 3, OMR: 3, // 3 decimal places
+  JPY: 0, KRW: 0,          // 0 decimal places
+  // Default: 2 decimal places for INR, AUD, USD, EUR, etc.
+}
+
+const getCurrencyExponent = (currency: string): number => {
+  return CURRENCY_EXPONENTS[currency] ?? 2
+}
+
+// Safe money formatter
+const formatMoney = (amountMinor: number | undefined, currency: string = 'INR'): string => {
+  const safeAmount = Number.isFinite(amountMinor) ? amountMinor! : 0
+  const exponent = getCurrencyExponent(currency)
+  const majorAmount = safeAmount / Math.pow(10, exponent)
+  
+  try {
+    return new Intl.NumberFormat(undefined, { 
+      style: 'currency', 
+      currency: currency 
+    }).format(majorAmount)
+  } catch {
+    // Fallback if currency is invalid
+    return `${currency} ${majorAmount.toFixed(exponent)}`
+  }
+}
+
+// Safe storage utility
+const safeStore = {
+  get(key: string) {
+    try {
+      if (typeof window === 'undefined') return null
+      const raw = window.localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : null
+    } catch { 
+      return null 
+    }
+  },
+  set(key: string, value: unknown) {
+    try {
+      if (typeof window === 'undefined') return
+      window.localStorage.setItem(key, JSON.stringify(value))
+    } catch { 
+      /* swallow */ 
+    }
+  }
+}
+
 export default function SessionCartComponent({
   cart,
   onUpdateQuantity,
@@ -20,6 +69,33 @@ export default function SessionCartComponent({
   disabled = false
 }: SessionCartProps) {
   const [showOrderReview, setShowOrderReview] = useState(false)
+
+  // Safe cart with defaults
+  const safeCart = cart || {
+    id: '',
+    sessionId: '',
+    tenantId: '',
+    locationId: '',
+    status: 'active' as const,
+    items: [],
+    subtotal: 0,
+    taxAmount: 0,
+    totalAmount: 0,
+    lastActivity: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+
+  // Safe items array
+  const items = Array.isArray(safeCart.items) ? safeCart.items : []
+  
+  // Safe currency
+  const currency = safeCart.currency || 'INR'
+
+  // Safe totals with fallbacks
+  const subtotal = Number.isFinite(safeCart.subtotal) ? safeCart.subtotal : 0
+  const taxAmount = Number.isFinite(safeCart.taxAmount) ? safeCart.taxAmount : 0
+  const totalAmount = Number.isFinite(safeCart.totalAmount) ? safeCart.totalAmount : 0
 
   if (!cart) {
     return (
@@ -52,13 +128,27 @@ export default function SessionCartComponent({
   }
 
   const handlePlaceOrder = () => {
-    if (cart.items.length === 0) return
+    if (items.length === 0) return
     setShowOrderReview(true)
   }
 
   const confirmPlaceOrder = () => {
     onPlaceOrder()
     setShowOrderReview(false)
+  }
+
+  // Safe item price formatting
+  const formatItemPrice = (price: number | undefined): string => {
+    const safePrice = Number.isFinite(price) ? price! : 0
+    return formatMoney(safePrice * 100, currency) // Convert to minor units
+  }
+
+  // Safe line total calculation
+  const getLineTotal = (item: CartItem): string => {
+    const safePrice = Number.isFinite(item.price) ? item.price : 0
+    const safeQuantity = Number.isFinite(item.quantity) ? item.quantity : 0
+    const lineTotal = safePrice * safeQuantity
+    return formatMoney(lineTotal * 100, currency) // Convert to minor units
   }
 
   return (
@@ -68,8 +158,8 @@ export default function SessionCartComponent({
           <h3 className="text-lg font-semibold text-gray-900">Your Order</h3>
           <div className="flex items-center space-x-2">
             <ShoppingCart className="w-5 h-5 text-orange-500" />
-            <span className="text-sm text-gray-600">{cart.items.length} items</span>
-            {cart.status === 'locked' && (
+            <span className="text-sm text-gray-600">{items.length} items</span>
+            {safeCart.status === 'locked' && (
               <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
                 Processing
               </span>
@@ -77,7 +167,7 @@ export default function SessionCartComponent({
           </div>
         </div>
 
-        {cart.items.length === 0 ? (
+        {items.length === 0 ? (
           <div className="text-center py-8">
             <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">Your cart is empty</p>
@@ -86,12 +176,12 @@ export default function SessionCartComponent({
         ) : (
           <>
             <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
-              {cart.items.map((item) => (
+              {items.map((item) => (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{item.name}</h4>
-                      <p className="text-sm text-gray-600">${item.price} each</p>
+                      <h4 className="font-medium text-gray-900">{item.name || 'Unknown Item'}</h4>
+                      <p className="text-sm text-gray-600">{formatItemPrice(item.price)} each</p>
                       {item.specialInstructions && (
                         <p className="text-xs text-orange-600 mt-1">
                           Note: {item.specialInstructions}
@@ -106,16 +196,16 @@ export default function SessionCartComponent({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                        disabled={disabled || cart.status === 'locked'}
+                        onClick={() => onUpdateQuantity(item.id, (item.quantity || 1) - 1)}
+                        disabled={disabled || safeCart.status === 'locked'}
                         className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 disabled:opacity-50"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <span className="w-8 text-center font-medium">{item.quantity || 0}</span>
                       <button
-                        onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                        disabled={disabled || cart.status === 'locked'}
+                        onClick={() => onUpdateQuantity(item.id, (item.quantity || 0) + 1)}
+                        disabled={disabled || safeCart.status === 'locked'}
                         className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 disabled:opacity-50"
                       >
                         <Plus className="w-3 h-3" />
@@ -124,12 +214,12 @@ export default function SessionCartComponent({
                     
                     <div className="flex items-center space-x-2">
                       <span className="font-medium text-gray-900">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        {getLineTotal(item)}
                       </span>
                       {onEditItem && (
                         <button
                           onClick={() => onEditItem(item)}
-                          disabled={disabled || cart.status === 'locked'}
+                          disabled={disabled || safeCart.status === 'locked'}
                           className="p-1 text-gray-400 hover:text-orange-500 disabled:opacity-50"
                         >
                           <Edit className="w-3 h-3" />
@@ -137,7 +227,7 @@ export default function SessionCartComponent({
                       )}
                       <button
                         onClick={() => onRemoveItem(item.id)}
-                        disabled={disabled || cart.status === 'locked'}
+                        disabled={disabled || safeCart.status === 'locked'}
                         className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -149,19 +239,29 @@ export default function SessionCartComponent({
             </div>
 
             <div className="border-t pt-4">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-semibold text-gray-900">Total</span>
-                <span className="text-lg font-bold text-orange-600">
-                  ${(cart.totalAmount || 0).toFixed(2)}
-                </span>
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium">{formatMoney(subtotal * 100, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Tax</span>
+                  <span className="font-medium">{formatMoney(taxAmount * 100, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-lg font-bold">
+                  <span className="text-gray-900">Total</span>
+                  <span className="text-orange-600">
+                    {formatMoney(totalAmount * 100, currency)}
+                  </span>
+                </div>
               </div>
               
               <button
                 onClick={handlePlaceOrder}
-                disabled={disabled || cart.status === 'locked' || cart.items.length === 0}
+                disabled={disabled || safeCart.status === 'locked' || items.length === 0}
                 className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
-                {cart.status === 'locked' ? (
+                {safeCart.status === 'locked' ? (
                   <>
                     <Clock className="w-4 h-4" />
                     <span>Processing Order...</span>
@@ -189,10 +289,10 @@ export default function SessionCartComponent({
             </div>
             
             <div className="space-y-2 mb-4">
-              {cart.items.map((item) => (
+              {items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
-                  <span>{item.quantity}x {item.name}</span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                  <span>{item.quantity || 0}x {item.name || 'Unknown Item'}</span>
+                  <span>{getLineTotal(item)}</span>
                 </div>
               ))}
             </div>
@@ -200,7 +300,7 @@ export default function SessionCartComponent({
             <div className="border-t pt-2 mb-4">
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
-                <span>${cart.total.toFixed(2)}</span>
+                <span>{formatMoney(totalAmount * 100, currency)}</span>
               </div>
             </div>
             

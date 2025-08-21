@@ -26,6 +26,7 @@ export interface SessionCart {
   subtotal: number
   taxAmount: number
   totalAmount: number
+  currency?: string
   lastActivity: Date
   createdAt: Date
   updatedAt: Date
