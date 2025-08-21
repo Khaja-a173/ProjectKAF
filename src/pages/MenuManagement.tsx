@@ -352,6 +352,10 @@ export default function MenuManagement() {
               onCreateSection={handleCreateSection}
               onEditSection={handleEditSection}
               onArchiveSection={archiveSection}
+            />
+          </div>
+        </div>
+
         {/* Modals */}
         <SectionEditor
           section={editingSection}
