@@ -272,10 +272,8 @@ export default function KitchenDashboard() {
               <div className="flex items-center space-x-1">
                 {getDietaryIcons(item)}
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                stations.find(s => s.id === item.station)?.color ? 
-                `bg-[${stations.find(s => s.id === item.station)?.color}]` : 'bg-gray-500'
-              }`}>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium text-white`}
+                style={{ backgroundColor: stations.find(s => s.id === item.station)?.color || '#6B7280' }}>
                 {stations.find(s => s.id === item.station)?.name}
               </span>
             </div>
@@ -387,12 +385,12 @@ export default function KitchenDashboard() {
                 e.stopPropagation()
                 handleOrderAction(order.id, 'recall')
               }}
-            {ordersByStatus.confirmed.length + orders.filter(o => o.status === 'placed').length}
+              className="px-3 py-2 text-orange-600 border border-orange-300 rounded-lg text-sm hover:bg-orange-50 transition-colors"
             >
               Recall
             </button>
           </>
-        {[...orders.filter(o => o.status === 'placed'), ...ordersByStatus.confirmed].map(renderTicketCard)}
+        )}
       </div>
     </div>
   )
@@ -589,12 +587,12 @@ export default function KitchenDashboard() {
                     </div>
                   </div>
                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.confirmed.length + orders.filter(o => o.status === 'placed').length}
+                    {ordersByStatus.confirmed.length}
                   </span>
                 </div>
               </div>
               <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {[...orders.filter(o => o.status === 'placed'), ...ordersByStatus.confirmed].map(renderTicketCard)}
+                {ordersByStatus.confirmed.map(renderTicketCard)}
               </div>
             </div>
 
@@ -762,6 +760,10 @@ export default function KitchenDashboard() {
                 <div>
                   <div className="text-sm text-gray-600">Total</div>
                   <div className="font-medium text-gray-900">${selectedOrder.totalAmount}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">Status</div>
+                  <div className="font-medium text-gray-900 capitalize">{selectedOrder.status}</div>
                 </div>
               </div>
 
