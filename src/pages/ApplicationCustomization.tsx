@@ -82,45 +82,6 @@ const DEFAULT_TYPOGRAPHY = {
   },
 };
 
-const DEFAULT_COLORS = {
-  primary: "#2563eb",
-  secondary: "#64748b",
-  accent: "#22c55e",
-  background: "#ffffff",
-  surface: "#f8fafc",
-  text: "#0f172a",
-  textSecondary: "#475569",
-  success: "#16a34a",
-  warning: "#f59e0b",
-  error: "#ef4444",
-};
-
-const DEFAULT_TYPOGRAPHY = {
-  fontFamily: "Inter, system-ui, sans-serif",
-  headingFont: undefined as string | undefined,
-  fontSize: {
-    xs: "0.75rem",
-    sm: "0.875rem",
-    base: "1rem",
-    lg: "1.125rem",
-    xl: "1.25rem",
-    "2xl": "1.5rem",
-    "3xl": "1.875rem",
-    "4xl": "2.25rem",
-  },
-  fontWeight: {
-    normal: 400,
-    medium: 500,
-    semibold: 600,
-    bold: 700,
-  },
-  lineHeight: {
-    tight: 1.2,
-    normal: 1.5,
-    relaxed: 1.75,
-  },
-};
-
 type ActiveView = "overview" | "editor" | "theme" | "assets" | "branding";
 
 export default function ApplicationCustomization() {
