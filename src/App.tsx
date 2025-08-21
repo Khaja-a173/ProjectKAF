@@ -17,6 +17,8 @@ import Events from './pages/Events'
 import Contact from './pages/Contact'
 import TableManagement from './pages/TableManagement'
 import StaffManagement from './pages/StaffManagement'
+import MenuManagement from './pages/MenuManagement'
+import CustomerMenu from './pages/CustomerMenu'
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/table-management" element={<TableManagement />} />
         <Route path="/staff-management" element={<StaffManagement />} />
+        <Route path="/admin/menu" element={<MenuManagement />} />
+        <Route path="/customer-menu" element={<CustomerMenu />} />
       </Routes>
     </div>
   )

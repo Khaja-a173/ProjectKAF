@@ -164,6 +164,13 @@ export default function Dashboard() {
                   <span className="font-medium text-blue-900">Manage Menu</span>
                 </Link>
                 <Link
+                  to="/admin/menu"
+                  className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                >
+                  <ChefHat className="w-5 h-5 text-green-600 mr-3" />
+                  <span className="font-medium text-green-900">Admin Menu Management</span>
+                </Link>
+                <Link
                   to="/orders"
                   className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                 >
