@@ -191,6 +191,13 @@ export default function Dashboard() {
                   <Users className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Staff Management</span>
                 </Link>
+                <Link
+                  to="/staff-management"
+                  className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                >
+                  <Users className="w-5 h-5 text-purple-600 mr-3" />
+                  <span className="font-medium text-purple-900">Staff Management</span>
+                </Link>
               </div>
             </div>
 
