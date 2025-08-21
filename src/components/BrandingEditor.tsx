@@ -8,6 +8,10 @@ import {
   Image as ImageIcon,
   RotateCcw,
   X,
+  Globe,
+  Smartphone,
+  Monitor,
+  Rocket,
 } from "lucide-react";
 
 interface BrandingEditorProps {

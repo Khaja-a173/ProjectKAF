@@ -3,6 +3,7 @@ import {
   Award,
   MapPin,
   Mail,
+  Phone,
 } from "lucide-react";
 
 interface DynamicPageRendererProps {

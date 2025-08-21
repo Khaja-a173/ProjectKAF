@@ -22,6 +22,7 @@ import {
   History,
   X,
   Building,
+  Edit,
 } from "lucide-react";
 
 interface AccessControlDashboardProps {
