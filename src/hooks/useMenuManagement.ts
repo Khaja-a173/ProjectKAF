@@ -1,6 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MenuSection, MenuItem, MenuFilters, BulkUploadResult, MenuRealtimeEvent } from '../types/menu'
 
+// Global state for menu data (simulating real-time sync)
+let globalMenuState: MenuSection[] = []
+const menuSubscribers: Set<(sections: MenuSection[]) => void> = new Set()
+
+const notifySubscribers = () => {
+  menuSubscribers.forEach(callback => callback([...globalMenuState]))
+}
+
+const updateGlobalMenu = (updater: (prev: MenuSection[]) => MenuSection[]) => {
+  globalMenuState = updater(globalMenuState)
+  notifySubscribers()
+}
+
 interface UseMenuManagementProps {
   tenantId: string
   locationId: string
@@ -19,12 +32,33 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
     dietary: []
   })
 
+  // Subscribe to global menu changes
+  useEffect(() => {
+    const updateSections = (newSections: MenuSection[]) => {
+      setSections(newSections)
+    }
+    
+    menuSubscribers.add(updateSections)
+    
+    // Initialize with current global state
+    if (globalMenuState.length > 0) {
+      setSections(globalMenuState)
+      setLoading(false)
+    }
+    
+    return () => {
+      menuSubscribers.delete(updateSections)
+    }
+  }, [])
+
   // Simulated API calls - replace with actual API integration
   const fetchMenu = useCallback(async () => {
     try {
       setLoading(true)
-      // Simulate API call
-      const mockSections: MenuSection[] = [
+      
+      // Initialize global state if empty
+      if (globalMenuState.length === 0) {
+        const mockSections: MenuSection[] = [
         {
           id: 'sec_1',
           tenantId,
@@ -145,7 +179,10 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
         }
       ]
       
-      setSections(mockSections)
+        globalMenuState = mockSections
+      }
+      
+      setSections([...globalMenuState])
       setError(null)
     } catch (err) {
       setError('Failed to load menu')
@@ -155,22 +192,9 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
     }
   }, [tenantId, locationId])
 
-  // Real-time subscription simulation
+  // Initialize menu data
   useEffect(() => {
     fetchMenu()
-    
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      // Simulate random availability changes
-      setSections(prev => prev.map(section => ({
-        ...section,
-        items: section.items?.map(item => 
-          Math.random() > 0.95 ? { ...item, isAvailable: !item.isAvailable } : item
-        )
-      })))
-    }, 10000)
-
-    return () => clearInterval(interval)
   }, [fetchMenu])
 
   const createSection = useCallback(async (data: Partial<MenuSection>) => {
@@ -188,7 +212,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
         items: []
       }
       
-      setSections(prev => [...prev, newSection].sort((a, b) => a.sortIndex - b.sortIndex))
+      updateGlobalMenu(prev => [...prev, newSection].sort((a, b) => a.sortIndex - b.sortIndex))
       return newSection
     } catch (err) {
       throw new Error('Failed to create section')
@@ -197,7 +221,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const updateSection = useCallback(async (id: string, data: Partial<MenuSection>) => {
     try {
-      setSections(prev => prev.map(section => 
+      updateGlobalMenu(prev => prev.map(section => 
         section.id === id 
           ? { ...section, ...data, updatedAt: new Date() }
           : section
@@ -209,7 +233,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const reorderSections = useCallback(async (order: Array<{ id: string; sortIndex: number }>) => {
     try {
-      setSections(prev => prev.map(section => {
+      updateGlobalMenu(prev => prev.map(section => {
         const newOrder = order.find(o => o.id === section.id)
         return newOrder ? { ...section, sortIndex: newOrder.sortIndex } : section
       }).sort((a, b) => a.sortIndex - b.sortIndex))
@@ -220,7 +244,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const archiveSection = useCallback(async (id: string) => {
     try {
-      setSections(prev => prev.map(section => 
+      updateGlobalMenu(prev => prev.map(section => 
         section.id === id 
           ? { ...section, isActive: false, updatedAt: new Date() }
           : section
@@ -232,7 +256,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const createItem = useCallback(async (data: Partial<MenuItem>) => {
     try {
-      const section = sections.find(s => s.id === data.sectionId)
+      const section = globalMenuState.find(s => s.id === data.sectionId)
       if (!section) throw new Error('Section not found')
 
       const newItem: MenuItem = {
@@ -259,7 +283,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
         updatedAt: new Date()
       }
       
-      setSections(prev => prev.map(section => 
+      updateGlobalMenu(prev => prev.map(section => 
         section.id === data.sectionId
           ? { 
               ...section, 
@@ -272,11 +296,11 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
     } catch (err) {
       throw new Error('Failed to create item')
     }
-  }, [tenantId, locationId, sections])
+  }, [tenantId, locationId])
 
   const updateItem = useCallback(async (id: string, data: Partial<MenuItem>) => {
     try {
-      setSections(prev => prev.map(section => ({
+      updateGlobalMenu(prev => prev.map(section => ({
         ...section,
         items: section.items?.map(item => 
           item.id === id 
@@ -291,7 +315,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const toggleItemAvailability = useCallback(async (id: string, isAvailable: boolean) => {
     try {
-      setSections(prev => prev.map(section => ({
+      updateGlobalMenu(prev => prev.map(section => ({
         ...section,
         items: section.items?.map(item => 
           item.id === id 
@@ -306,7 +330,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const reorderItems = useCallback(async (sectionId: string, order: Array<{ id: string; sortIndex: number }>) => {
     try {
-      setSections(prev => prev.map(section => 
+      updateGlobalMenu(prev => prev.map(section => 
         section.id === sectionId
           ? {
               ...section,
@@ -324,7 +348,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
 
   const moveItem = useCallback(async (itemId: string, fromSectionId: string, toSectionId: string, sortIndex: number) => {
     try {
-      setSections(prev => prev.map(section => {
+      updateGlobalMenu(prev => prev.map(section => {
         if (section.id === fromSectionId) {
           return {
             ...section,
@@ -359,7 +383,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
         const item = items[i]
         try {
           // Find or create section
-          let section = sections.find(s => s.name.toLowerCase() === item.section.toLowerCase())
+          let section = globalMenuState.find(s => s.name.toLowerCase() === item.section.toLowerCase())
           if (!section) {
             section = await createSection({ name: item.section })
           }
@@ -409,7 +433,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
     } catch (err) {
       throw new Error('Bulk upload failed')
     }
-  }, [sections, createSection, createItem, updateItem])
+  }, [createSection, createItem, updateItem])
 
   // Filter sections and items based on current filters
   const filteredSections = sections.filter(section => {
