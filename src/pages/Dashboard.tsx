@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useAccessControl } from '../contexts/AccessControlContext'
 import { 
   BarChart3, 
   Users, 
@@ -16,6 +17,8 @@ import {
 } from 'lucide-react'
 
 export default function Dashboard() {
+  const { canAccessDashboard } = useAccessControl()
+
   const stats = [
     { name: 'Total Revenue', value: '$45,231', change: '+20.1%', icon: DollarSign, color: 'text-green-600' },
     { name: 'Orders Today', value: '156', change: '+12.5%', icon: ShoppingCart, color: 'text-blue-600' },
@@ -156,6 +159,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="space-y-3">
+                {canAccessDashboard('MENU') && (
                 <Link
                   to="/menu"
                   className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -163,6 +167,8 @@ export default function Dashboard() {
                   <MenuIcon className="w-5 h-5 text-blue-600 mr-3" />
                   <span className="font-medium text-blue-900">Manage Menu</span>
                 </Link>
+                )}
+                {canAccessDashboard('MENU') && (
                 <Link
                   to="/admin/menu"
                   className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
@@ -170,6 +176,8 @@ export default function Dashboard() {
                   <ChefHat className="w-5 h-5 text-green-600 mr-3" />
                   <span className="font-medium text-green-900">Admin Menu Management</span>
                 </Link>
+                )}
+                {canAccessDashboard('CUSTOMIZATION') && (
                 <Link
                   to="/application-customization"
                   className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -177,6 +185,8 @@ export default function Dashboard() {
                   <Settings className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Application Customization</span>
                 </Link>
+                )}
+                {canAccessDashboard('LIVE_ORDERS') && (
                 <Link
                   to="/orders"
                   className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
@@ -184,6 +194,8 @@ export default function Dashboard() {
                   <ShoppingCart className="w-5 h-5 text-green-600 mr-3" />
                   <span className="font-medium text-green-900">View Orders</span>
                 </Link>
+                )}
+                {canAccessDashboard('REPORTS') && (
                 <Link
                   to="/analytics"
                   className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -191,6 +203,8 @@ export default function Dashboard() {
                   <BarChart3 className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Analytics</span>
                 </Link>
+                )}
+                {canAccessDashboard('TABLES') && (
                 <Link
                   to="/table-management"
                   className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
@@ -198,6 +212,8 @@ export default function Dashboard() {
                   <Grid3X3 className="w-5 h-5 text-indigo-600 mr-3" />
                   <span className="font-medium text-indigo-900">Table Management</span>
                 </Link>
+                )}
+                {canAccessDashboard('STAFF') && (
                 <Link
                   to="/staff-management"
                   className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -205,6 +221,8 @@ export default function Dashboard() {
                   <Users className="w-5 h-5 text-purple-600 mr-3" />
                   <span className="font-medium text-purple-900">Staff Management</span>
                 </Link>
+                )}
+                {canAccessDashboard('KITCHEN') && (
                 <Link
                   to="/kitchen-dashboard"
                   className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
@@ -212,10 +230,13 @@ export default function Dashboard() {
                   <ChefHat className="w-5 h-5 text-red-600 mr-3" />
                   <span className="font-medium text-red-900">Kitchen Dashboard</span>
                 </Link>
+                )}
+                {canAccessDashboard('KITCHEN') && (
                 <Link to="/admin/kitchen" className="flex items-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
                   <ChefHat className="w-5 h-5 text-orange-600 mr-3" />
                   <span className="font-medium text-orange-900">Admin Kitchen</span>
                 </Link>
+                )}
               </div>
             </div>
 

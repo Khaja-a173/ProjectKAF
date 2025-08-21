@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChefHat, Save, Bell, Shield, Palette, Globe, Users, CreditCard } from 'lucide-react'
+import { ChefHat, Save, Bell, Shield, Palette, Globe, Users, CreditCard, Key } from 'lucide-react'
+import AccessControlDashboard from '../components/AccessControlDashboard'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('general')
@@ -23,6 +24,7 @@ export default function Settings() {
 
   const tabs = [
     { id: 'general', name: 'General', icon: Globe },
+    { id: 'access', name: 'Access Control', icon: Key },
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'security', name: 'Security', icon: Shield },
     { id: 'appearance', name: 'Appearance', icon: Palette },
@@ -124,6 +126,15 @@ export default function Settings() {
               </div>
             </div>
           </div>
+        )
+      
+      case 'access':
+        return (
+          <AccessControlDashboard 
+            tenantId="tenant_123" 
+            locationId="location_456"
+            currentUserId="user_admin"
+          />
         )
       
       case 'notifications':
