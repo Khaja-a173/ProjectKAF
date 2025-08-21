@@ -11,9 +11,6 @@ export default function LiveOrders() {
     locationId: 'location_456'
   })
 
-  const liveOrdersPage = pages.find(p => p.slug === 'live-orders' && p.status === 'published')
-  const hasCustomContent = liveOrdersPage && liveOrdersPage.sections.length > 0
-
   const [orders, setOrders] = useState([
     {
       id: '#ORD-2025-000001',
@@ -54,6 +51,28 @@ export default function LiveOrders() {
     }
   ])
 
+  // Simulate real-time updates - moved to top level
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOrders(prevOrders => 
+        prevOrders.map(order => {
+          if (order.status === 'received' && Math.random() > 0.8) {
+            return { ...order, status: 'preparing' }
+          }
+          if (order.status === 'preparing' && Math.random() > 0.9) {
+            return { ...order, status: 'ready' }
+          }
+          return order
+        })
+      )
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const liveOrdersPage = pages.find(p => p.slug === 'live-orders' && p.status === 'published')
+  const hasCustomContent = liveOrdersPage && liveOrdersPage.sections.length > 0
+
   if (customizationLoading) {
     return (
       <div className="min-h-screen">
@@ -81,25 +100,6 @@ export default function LiveOrders() {
   }
 
   // Original beautiful live orders design (unchanged)
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders(prevOrders => 
-        prevOrders.map(order => {
-          if (order.status === 'received' && Math.random() > 0.8) {
-            return { ...order, status: 'preparing' }
-          }
-          if (order.status === 'preparing' && Math.random() > 0.9) {
-            return { ...order, status: 'ready' }
-          }
-          return order
-        })
-      )
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [])
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'received': return 'bg-blue-500'
