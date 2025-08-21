@@ -395,7 +395,6 @@ export default function KitchenDashboard() {
       </div>
     </div>
   )
-}
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
