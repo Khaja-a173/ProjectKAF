@@ -128,4 +128,4 @@ export default function SessionCartComponent({
                       </span>
                       {onEditItem && (
                         <button
-                          onClick={() => on
+                          onClick={() => onEditItem(item)}
