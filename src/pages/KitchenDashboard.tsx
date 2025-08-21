@@ -888,3 +888,4 @@ export default function KitchenDashboard() {
     </div>
   )
 }
+}
