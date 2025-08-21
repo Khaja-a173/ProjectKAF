@@ -80,6 +80,7 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
   const [orders, setOrders] = useState<DineInOrder[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [error] = useState<string | null>(null)
 
   // Subscribe to global session changes
   useEffect(() => {
@@ -918,6 +919,7 @@ export function useSessionManagement({ tenantId, locationId }: UseSessionManagem
     orders,
     payments,
     loading,
+    error,
     createTableSession,
     addToCart,
     updateCartQuantity,

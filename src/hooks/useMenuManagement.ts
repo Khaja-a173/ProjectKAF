@@ -147,6 +147,7 @@ interface UseMenuManagementProps {
 export function useMenuManagement({ tenantId, locationId }: UseMenuManagementProps) {
   const [sections, setSections] = useState<MenuSection[]>([])
   const [loading, setLoading] = useState(true)
+  const [error] = useState<string | null>(null)
   const [filters, setFilters] = useState<MenuFilters>({
     search: '',
     section: 'all',
@@ -474,6 +475,7 @@ export function useMenuManagement({ tenantId, locationId }: UseMenuManagementPro
   return {
     sections,
     loading,
+    error,
     filters,
     setFilters,
     availableTags,

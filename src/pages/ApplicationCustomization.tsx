@@ -82,6 +82,8 @@ const DEFAULT_TYPOGRAPHY = {
   }
 }
 
+type ActiveView = 'overview' | 'editor' | 'theme' | 'assets' | 'branding'
+
 export default function ApplicationCustomization() {
   const {
     pages,
@@ -103,7 +105,7 @@ export default function ApplicationCustomization() {
     locationId: 'location_456'
   })
 
-  const [activeView, setActiveView] = useState<'overview' | 'editor' | 'theme' | 'assets' | 'branding'>('overview')
+  const [activeView, setActiveView] = useState<ActiveView>('overview')
   const [selectedPage, setSelectedPage] = useState<Page | null>(null)
   const [selectedSection, setSelectedSection] = useState<PageSection | null>(null)
   const [showSectionPicker, setShowSectionPicker] = useState(false)
@@ -589,9 +591,10 @@ export default function ApplicationCustomization() {
                       value={value}
                       onChange={(e) => updateTheme({
                         colors: { 
-                          ...(theme?.colors ?? DEFAULT_COLORS), 
+                          ...DEFAULT_COLORS,
+                          ...(theme?.colors ?? {}), 
                           [key]: e.target.value 
-                        } as typeof DEFAULT_COLORS
+                        }
                       })}
                       className="w-8 h-8 rounded border border-gray-300"
                     />
@@ -600,9 +603,10 @@ export default function ApplicationCustomization() {
                       value={value}
                       onChange={(e) => updateTheme({
                         colors: { 
-                          ...(theme?.colors ?? DEFAULT_COLORS), 
+                          ...DEFAULT_COLORS,
+                          ...(theme?.colors ?? {}), 
                           [key]: e.target.value 
-                        } as typeof DEFAULT_COLORS
+                        }
                       })}
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
                     />
@@ -622,9 +626,10 @@ export default function ApplicationCustomization() {
                   value={theme?.typography.fontFamily}
                   onChange={(e) => updateTheme({
                     typography: { 
-                      ...(theme?.typography ?? DEFAULT_TYPOGRAPHY), 
+                      ...DEFAULT_TYPOGRAPHY,
+                      ...(theme?.typography ?? {}), 
                       fontFamily: e.target.value 
-                    } as typeof DEFAULT_TYPOGRAPHY
+                    }
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >

@@ -126,3 +126,4 @@ export function useLogo() {
     appIcon: branding.assets.appIcon || '/vite.svg',
     ogImage: branding.assets.ogImage || null
   }
+}

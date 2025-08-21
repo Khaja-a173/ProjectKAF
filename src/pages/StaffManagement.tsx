@@ -55,8 +55,8 @@ interface StaffMember {
   email: string
   phone: string
   status: 'invited' | 'active' | 'suspended' | 'expired'
-  roles: Role[]
-  locations: Location[]
+  roles: StaffRole[]
+  locations: StaffLocation[]
   lastActive: Date
   isOnline: boolean
   deviceCount: number
@@ -66,7 +66,7 @@ interface StaffMember {
   notes?: string
 }
 
-interface Role {
+interface StaffRole {
   id: string
   name: string
   displayName: string
@@ -76,7 +76,7 @@ interface Role {
   isCustom: boolean
 }
 
-interface Location {
+interface StaffLocation {
   id: string
   name: string
   address: string
@@ -168,7 +168,7 @@ export default function StaffManagement() {
     }
   ])
 
-  const defaultRoles: Role[] = [
+  const defaultRoles: StaffRole[] = [
     { id: 'owner', name: 'OWNER', displayName: 'Owner', color: '#DC2626', icon: 'Crown', capabilities: ['all'], isCustom: false },
     { id: 'admin', name: 'ADMIN', displayName: 'Admin', color: '#7C2D12', icon: 'Shield', capabilities: ['manage_all', 'view_all'], isCustom: false },
     { id: 'manager', name: 'MANAGER', displayName: 'Manager', color: '#3B82F6', icon: 'UserCog', capabilities: ['manage_tables', 'view_reports', 'manage_staff'], isCustom: false },
@@ -180,7 +180,7 @@ export default function StaffManagement() {
     { id: 'runner', name: 'RUNNER', displayName: 'Runner', color: '#6366F1', icon: 'Zap', capabilities: ['deliver_orders', 'update_status'], isCustom: false }
   ]
 
-  const locations: Location[] = [
+  const locations: StaffLocation[] = [
     { id: 'loc1', name: 'Main Location', address: '123 Main St', isActive: true },
     { id: 'loc2', name: 'Downtown Branch', address: '456 Downtown Ave', isActive: true },
     { id: 'loc3', name: 'Mall Location', address: '789 Mall Blvd', isActive: false }

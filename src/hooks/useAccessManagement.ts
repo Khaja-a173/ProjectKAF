@@ -33,8 +33,8 @@ export function useAccessManagement(tenantId: string, currentUserId: string): Ac
     actorId: currentUserId,
     actorEmail: 'admin@restaurant.com', // Would come from current user context
     reason,
-    before: details.before ?? null,
-    after: details.after ?? null,
+    before: null,
+    after: null,
     ipAddress: '192.168.1.100', // Would come from request
     userAgent: navigator.userAgent,
     createdAt: new Date(),

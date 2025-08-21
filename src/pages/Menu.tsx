@@ -14,12 +14,12 @@ export default function Menu() {
   const tableId = searchParams.get('table')
   
   const { 
-    addToCart, 
+    addToCart,
     updateCartQuantity,
     removeFromCart,
     placeOrder,
     getSessionByTable,
-    getCartBySession 
+    getCartBySession
   } = useSessionManagement({
     tenantId: 'tenant_123',
     locationId: 'location_456'

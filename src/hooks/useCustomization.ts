@@ -272,6 +272,7 @@ export function useCustomization({ tenantId, locationId }: UseCustomizationProps
   const [assets, setAssets] = useState<Asset[]>([])
   const [versions, setVersions] = useState<PageVersion[]>([])
   const [loading, setLoading] = useState(true)
+  const [error] = useState<string | null>(null)
 
   // Subscribe to global customization changes
   useEffect(() => {
@@ -597,6 +598,7 @@ export function useCustomization({ tenantId, locationId }: UseCustomizationProps
     assets,
     versions,
     loading,
+    error,
     sectionRegistry,
     createPage,
     updatePage,
