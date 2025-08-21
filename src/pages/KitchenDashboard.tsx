@@ -95,7 +95,7 @@ export default function KitchenDashboard() {
     { id: 'dessert', name: 'Dessert', color: '#EC4899', icon: 'Star', activeOrders: 0, avgPrepTime: 10 }
   ]
 
-  const [insights, setInsights] = useState<KitchenInsights>({
+  const [insights] = useState<KitchenInsights>({
     ordersCompleted: 47,
     avgPrepTime: '14m 30s',
     onTimePercentage: 94,
@@ -887,3 +887,4 @@ export default function KitchenDashboard() {
       )}
     </div>
   )
+}
