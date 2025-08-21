@@ -600,7 +600,7 @@ export default function TableManagement() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Turn Time Distribution</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-600">< 1 hour</span>
+              <span className="text-sm text-gray-600">{"< 1 hour"}</span>
               <span className="text-sm font-medium">23%</span>
             </div>
             <div className="flex justify-between">
@@ -612,7 +612,7 @@ export default function TableManagement() {
               <span className="text-sm font-medium">28%</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-600">> 3 hours</span>
+              <span className="text-sm text-gray-600">{">"} 3 hours</span>
               <span className="text-sm font-medium">4%</span>
             </div>
           </div>
