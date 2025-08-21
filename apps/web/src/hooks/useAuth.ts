@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const value = {
+  const authContextValue = {
     user,
     session,
     loading,
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={authContextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
