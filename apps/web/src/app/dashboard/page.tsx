@@ -16,7 +16,6 @@ import {
   Star,
   AlertCircle
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface DashboardStats {
   totalOrders: number;
@@ -38,10 +37,9 @@ const mockChartData = [
 ];
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recentOrders, setRecentOrders] = useState([]);
 
   useEffect(() => {
     if (user) {
@@ -53,16 +51,7 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       
-      // Fetch dashboard statistics
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (ordersError) throw ordersError;
-
-      // Calculate stats (mock data for now)
+      // Mock data for demonstration
       const dashboardStats: DashboardStats = {
         totalOrders: 1247,
         totalRevenue: 45678.90,
@@ -73,7 +62,6 @@ export default function DashboardPage() {
       };
 
       setStats(dashboardStats);
-      setRecentOrders(orders || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -126,6 +114,9 @@ export default function DashboardPage() {
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Export Report
               </Button>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                Sign Out
+              </Button>
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-medium">
                   {user?.user_metadata?.first_name?.charAt(0) || 'U'}
@@ -169,35 +160,8 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Charts and Recent Activity */}
+        {/* Quick Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Revenue Chart */}
-          <Card className="lg:col-span-2 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Revenue Overview</h3>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">7 days</Button>
-                <Button variant="outline" size="sm">30 days</Button>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={mockChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value, name) => [`$${value}`, 'Revenue']} />
-                <Line 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3}
-                  dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-
-          {/* Quick Stats */}
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">Today's Overview</h3>
             <div className="space-y-4">
@@ -226,59 +190,38 @@ export default function DashboardPage() {
               </div>
             </div>
           </Card>
-        </div>
 
-        {/* Orders Chart */}
-        <Card className="p-6 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Weekly Orders</h3>
-            <Button variant="outline" size="sm">View All Orders</Button>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={mockChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`${value}`, 'Orders']} />
-              <Bar dataKey="orders" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-            <Button variant="outline" size="sm">View All</Button>
-          </div>
-          <div className="space-y-4">
-            {[
-              { action: 'New order received', customer: 'John Doe', time: '2 minutes ago', type: 'order' },
-              { action: 'Payment processed', customer: 'Jane Smith', time: '5 minutes ago', type: 'payment' },
-              { action: 'Order completed', customer: 'Mike Johnson', time: '8 minutes ago', type: 'completed' },
-              { action: 'New customer registered', customer: 'Sarah Wilson', time: '12 minutes ago', type: 'customer' },
-              { action: 'Menu item updated', customer: 'System', time: '15 minutes ago', type: 'system' },
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center space-x-4 p-3 hover:bg-gray-50 rounded-lg">
-                <div className={`w-2 h-2 rounded-full ${
-                  activity.type === 'order' ? 'bg-blue-500' :
-                  activity.type === 'payment' ? 'bg-green-500' :
-                  activity.type === 'completed' ? 'bg-purple-500' :
-                  activity.type === 'customer' ? 'bg-orange-500' : 'bg-gray-500'
-                }`} />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900">
-                    <span className="font-medium">{activity.action}</span>
-                    {activity.customer !== 'System' && (
-                      <span className="text-gray-600"> - {activity.customer}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
+          <Card className="lg:col-span-2 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Recent Activity</h3>
+            <div className="space-y-4">
+              {[
+                { action: 'New order received', customer: 'John Doe', time: '2 minutes ago', type: 'order' },
+                { action: 'Payment processed', customer: 'Jane Smith', time: '5 minutes ago', type: 'payment' },
+                { action: 'Order completed', customer: 'Mike Johnson', time: '8 minutes ago', type: 'completed' },
+                { action: 'New customer registered', customer: 'Sarah Wilson', time: '12 minutes ago', type: 'customer' },
+                { action: 'Menu item updated', customer: 'System', time: '15 minutes ago', type: 'system' },
+              ].map((activity, index) => (
+                <div key={index} className="flex items-center space-x-4 p-3 hover:bg-gray-50 rounded-lg">
+                  <div className={`w-2 h-2 rounded-full ${
+                    activity.type === 'order' ? 'bg-blue-500' :
+                    activity.type === 'payment' ? 'bg-green-500' :
+                    activity.type === 'completed' ? 'bg-purple-500' :
+                    activity.type === 'customer' ? 'bg-orange-500' : 'bg-gray-500'
+                  }`} />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">
+                      <span className="font-medium">{activity.action}</span>
+                      {activity.customer !== 'System' && (
+                        <span className="text-gray-600"> - {activity.customer}</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">{activity.time}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
