@@ -12,6 +12,7 @@ import OrderManagement from './pages/OrderManagement'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import LiveOrders from './pages/LiveOrders'
+import Gallery from './pages/Gallery'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
         <Route path="/reserve" element={<Reserve />} />
         <Route path="/take-away" element={<TakeAway />} />
         <Route path="/live-orders" element={<LiveOrders />} />
+        <Route path="/gallery" element={<Gallery />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/orders" element={<OrderManagement />} />
