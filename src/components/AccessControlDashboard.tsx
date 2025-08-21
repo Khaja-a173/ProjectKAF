@@ -7,14 +7,12 @@ import {
   Shield,
   Search,
   Plus,
-  Edit,
   Clock,
   CheckCircle,
   XCircle,
   AlertTriangle,
   Download,
   RotateCcw,
-  EyeOff,
   UserPlus,
   UserMinus,
   Key,
@@ -22,13 +20,8 @@ import {
   MapPin,
   Activity,
   History,
-  Save,
   X,
-  Send,
   Building,
-  Target,
-  Award,
-  Bell,
 } from "lucide-react";
 
 interface AccessControlDashboardProps {

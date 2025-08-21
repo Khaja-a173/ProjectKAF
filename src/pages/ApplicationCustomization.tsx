@@ -5,40 +5,15 @@ import { useCustomization, sectionRegistry } from "../hooks/useCustomization";
 import { DEFAULT_THEME } from "../types/customization";
 import {
   ChefHat,
-  Bell,
-  RefreshCw,
-  Settings,
-  Eye,
   Edit,
   Plus,
-  Save,
-  Upload,
-  Download,
   Trash2,
-  GripVertical,
-  Play,
   Image as ImageIcon,
   Type,
-  Award,
-  Phone,
-  ArrowRight,
-  HelpCircle,
-  Monitor,
-  Palette,
   Globe,
   Smartphone,
-  Search,
-  Filter,
-  Calendar,
-  Clock,
-  Users,
-  Star,
   X,
   Check,
-  AlertTriangle,
-  Copy,
-  RotateCcw,
-  Zap,
   BarChart3,
 } from "lucide-react";
 import { Page, PageSection, SectionType, Theme } from "../types/customization";
@@ -107,13 +82,7 @@ export default function ApplicationCustomization() {
 
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [selectedSection, setSelectedSection] = useState<PageSection | null>(
-    null,
-  );
   const [showSectionPicker, setShowSectionPicker] = useState(false);
-  const [previewMode, setPreviewMode] = useState<
-    "desktop" | "tablet" | "mobile"
-  >("desktop");
 
   const pageTemplates = [
     {
@@ -533,14 +502,11 @@ export default function ApplicationCustomization() {
               <div className="bg-white min-h-96 p-4">
                 {selectedPage.sections
                   .filter((s) => s.visible)
-                  .map((section, idx: number) => (
+                  .map((section) => (
                     <div
                       key={section.id}
-                      onClick={() => setSelectedSection(section)}
                       className={`mb-4 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                        selectedSection?.id === section.id
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                        "border-gray-200 hover:border-gray-300"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -569,10 +535,10 @@ export default function ApplicationCustomization() {
 
                       {section.type === "achievements_counters" && (
                         <div className="grid grid-cols-2 gap-4">
-                          {section.props.items
-                            ?.slice(0, 4)
-                            .map((item: any, idx: number) => (
-                              <div key={idx} className="text-center">
+                          {(section.props.items || [])
+                            .slice(0, 4)
+                            .map((item: any, index: number) => (
+                              <div key={index} className="text-center">
                                 <div className="text-2xl font-bold text-blue-600">
                                   {item.value}
                                   {item.suffix}
@@ -587,11 +553,11 @@ export default function ApplicationCustomization() {
 
                       {section.type === "image_gallery" && (
                         <div className="grid grid-cols-3 gap-2">
-                          {section.props.items
-                            ?.slice(0, 6)
-                            .map((item: any, idx: number) => (
+                          {(section.props.items || [])
+                            .slice(0, 6)
+                            .map((item: any, index: number) => (
                               <div
-                                key={idx}
+                                key={index}
                                 className="aspect-square bg-gray-200 rounded-lg overflow-hidden"
                               >
                                 {item.asset?.url && (
@@ -645,11 +611,11 @@ export default function ApplicationCustomization() {
 
                       {section.type === "faq_accordion" && (
                         <div className="space-y-2">
-                          {section.props.items
-                            ?.slice(0, 3)
-                            .map((item: any, idx) => (
+                          {(section.props.items || [])
+                            .slice(0, 3)
+                            .map((item: any, index: number) => (
                               <div
-                                key={idx}
+                                key={index}
                                 className="border border-gray-200 rounded p-2"
                               >
                                 <div className="font-medium text-sm">
@@ -681,26 +647,12 @@ export default function ApplicationCustomization() {
 
         {/* Right Sidebar - Section Inspector */}
         <div className="lg:col-span-1">
-          {selectedSection ? (
-            <SectionInspector
-              section={selectedSection}
-              onUpdate={(props) =>
-                handleUpdateSection(selectedSection.id, props)
-              }
-              onToggleVisibility={() =>
-                updateSection(selectedPage.id, selectedSection.id, {
-                  visible: !selectedSection.visible,
-                })
-              }
-            />
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="text-center text-gray-500">
-                <Settings className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>Select a section to edit its properties</p>
-              </div>
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="text-center text-gray-500">
+              <Edit className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>Select a section to edit its properties</p>
             </div>
-          )}
+          </div>
         </div>
       </div>
     );
@@ -771,10 +723,32 @@ export default function ApplicationCustomization() {
                   onChange={(e) =>
                     updateTheme({
                       typography: {
-                        ...DEFAULT_TYPOGRAPHY,
+                        fontFamily: "Inter, system-ui, sans-serif",
+                        headingFont: undefined,
+                        fontSize: {
+                          xs: "0.75rem",
+                          sm: "0.875rem", 
+                          base: "1rem",
+                          lg: "1.125rem",
+                          xl: "1.25rem",
+                          "2xl": "1.5rem",
+                          "3xl": "1.875rem",
+                          "4xl": "2.25rem",
+                        },
+                        fontWeight: {
+                          normal: 400,
+                          medium: 500,
+                          semibold: 600,
+                          bold: 700,
+                        },
+                        lineHeight: {
+                          tight: 1.2,
+                          normal: 1.5,
+                          relaxed: 1.75,
+                        },
                         ...(theme?.typography ?? {}),
                         fontFamily: e.target.value,
-                      } as typeof DEFAULT_TYPOGRAPHY,
+                      },
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -1030,10 +1004,28 @@ export default function ApplicationCustomization() {
               </div>
             </div>
 
-            <div className="p-6">
+                              primary: "#2563eb",
+                              secondary: "#64748b", 
+                              accent: "#22c55e",
+                              background: "#ffffff",
+                              surface: "#f8fafc",
+                              text: "#0f172a",
+                              textSecondary: "#475569",
+                              success: "#16a34a",
+                              warning: "#f59e0b",
+                              primary: "#2563eb",
+                              secondary: "#64748b",
+                              accent: "#22c55e", 
+                              background: "#ffffff",
+                              surface: "#f8fafc",
+                              text: "#0f172a",
+                              textSecondary: "#475569",
+                              success: "#16a34a",
+                              warning: "#f59e0b",
+                              error: "#ef4444",
               {Object.entries(sectionCategories).map(
                 ([categoryKey, category]) => (
-                  <div key={categoryKey} className="mb-8">
+                            },
                     <div className="flex items-center space-x-2 mb-4">
                       <category.icon
                         className={`w-5 h-5 text-${category.color}-600`}

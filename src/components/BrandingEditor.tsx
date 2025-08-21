@@ -3,20 +3,10 @@ import { useBrandingManagement } from "../hooks/useBrandingManagement";
 import {
   Upload,
   Link as LinkIcon,
-  Trash2,
   Eye,
-  Save,
-  Rocket,
   History,
-  Download,
   Image as ImageIcon,
-  Smartphone,
-  Globe,
-  Palette,
-  Monitor,
   RotateCcw,
-  CheckCircle,
-  AlertTriangle,
   X,
 } from "lucide-react";
 

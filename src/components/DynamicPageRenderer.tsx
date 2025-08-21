@@ -1,15 +1,8 @@
 import { Page, PageSection } from "../types/customization";
 import {
-  Play,
   Award,
-  Users,
-  Star,
-  ChefHat,
-  Phone,
   MapPin,
-  Clock,
   Mail,
-  HelpCircle,
 } from "lucide-react";
 
 interface DynamicPageRendererProps {
