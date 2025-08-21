@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@projectkaf/ui', '@projectkaf/utils'],
   images: {
     domains: ['images.pexels.com', 'localhost'],
   },
