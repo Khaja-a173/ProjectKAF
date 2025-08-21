@@ -14,6 +14,7 @@ import Settings from './pages/Settings'
 import LiveOrders from './pages/LiveOrders'
 import Gallery from './pages/Gallery'
 import Events from './pages/Events'
+import Contact from './pages/Contact'
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Route path="/live-orders" element={<LiveOrders />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/events" element={<Events />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/menu" element={<MenuManagement />} />
         <Route path="/orders" element={<OrderManagement />} />

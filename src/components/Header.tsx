@@ -12,9 +12,7 @@ export default function Header() {
     { name: 'Events', href: '/events' },
     { name: 'Gallery', href: '/gallery' },
     { name: 'Live Orders', href: '/live-orders' },
-    { name: 'Book Table', href: '/book-table' },
-    { name: 'Reserve', href: '/reserve' },
-    { name: 'Take Away', href: '/take-away' },
+    { name: 'Contact', href: '/contact' },
   ]
 
   const isActive = (href: string) => location.pathname === href
