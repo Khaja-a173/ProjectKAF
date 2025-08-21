@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import BrandingEditor from '../components/BrandingEditor'
 import { useCustomization, sectionRegistry } from '../hooks/useCustomization'
 import { 
   ChefHat, 
@@ -731,6 +732,12 @@ export default function ApplicationCustomization() {
               Page Editor
             </button>
             <button 
+              onClick={() => setActiveView('branding')}
+              className={`pb-2 font-medium ${activeView === 'branding' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Branding & Assets
+            </button>
+            <button 
               onClick={() => setActiveView('theme')}
               className={`pb-2 font-medium ${activeView === 'theme' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
             >
@@ -748,6 +755,12 @@ export default function ApplicationCustomization() {
         {/* Content */}
         {activeView === 'overview' && renderOverview()}
         {activeView === 'editor' && renderPageEditor()}
+        {activeView === 'branding' && (
+          <BrandingEditor 
+            tenantId="tenant_123" 
+            locationId="location_456" 
+          />
+        )}
         {activeView === 'theme' && renderThemeEditor()}
         {activeView === 'assets' && renderAssetsLibrary()}
       </div>

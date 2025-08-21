@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLogo } from '../contexts/BrandingContext'
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Building2, Users, BarChart3, Shield } from 'lucide-react'
 
 export default function LoginPage() {
@@ -8,6 +9,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { logoHeader } = useLogo()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,9 +41,19 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative z-10 flex flex-col justify-center px-12 text-white">
           <div className="mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-6">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
+            {logoHeader ? (
+              <div className="mb-6">
+                <img 
+                  src={logoHeader} 
+                  alt="Restaurant Logo" 
+                  className="h-16 w-auto object-contain filter brightness-0 invert"
+                />
+              </div>
+            ) : (
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-6">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+            )}
             <h1 className="text-4xl font-bold mb-4">RestaurantOS</h1>
             <p className="text-xl text-blue-100 mb-8">
               Complete enterprise restaurant management platform
@@ -102,9 +114,19 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="lg:hidden inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
+            {logoHeader ? (
+              <div className="lg:hidden mb-4">
+                <img 
+                  src={logoHeader} 
+                  alt="Restaurant Logo" 
+                  className="h-16 w-auto object-contain mx-auto"
+                />
+              </div>
+            ) : (
+              <div className="lg:hidden inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+            )}
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back</h2>
             <p className="text-gray-600">Sign in to your RestaurantOS account</p>
           </div>

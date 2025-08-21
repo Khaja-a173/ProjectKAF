@@ -1,7 +1,10 @@
 import React from 'react'
+import { useLogo } from '../contexts/BrandingContext'
 import { ChefHat, MapPin, Phone, Mail, Clock, Facebook, Instagram, Twitter } from 'lucide-react'
 
 export default function Footer() {
+  const { logoHeader } = useLogo()
+
   return (
     <footer className="bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -9,9 +12,17 @@ export default function Footer() {
           {/* Restaurant Info */}
           <div>
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
-                <ChefHat className="w-6 h-6 text-white" />
-              </div>
+              {logoHeader ? (
+                <img 
+                  src={logoHeader} 
+                  alt="Restaurant Logo" 
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
+                  <ChefHat className="w-6 h-6 text-white" />
+                </div>
+              )}
               <div>
                 <h3 className="text-xl font-bold">Bella Vista</h3>
                 <p className="text-sm text-gray-400">Fine Dining Restaurant</p>

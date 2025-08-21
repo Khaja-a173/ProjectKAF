@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useLogo } from '../contexts/BrandingContext'
 import { ChefHat, Menu as MenuIcon, X, ShoppingCart, User } from 'lucide-react'
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const location = useLocation()
+  const { logoHeader, logoHeaderDark } = useLogo()
 
   const navigation = [
     { name: 'Home', href: '/' },
@@ -23,9 +25,17 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
-              <ChefHat className="w-6 h-6 text-white" />
-            </div>
+            {logoHeader ? (
+              <img 
+                src={logoHeader} 
+                alt="Restaurant Logo" 
+                className="h-10 w-auto object-contain"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
+                <ChefHat className="w-6 h-6 text-white" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-bold text-gray-900">Bella Vista</h1>
               <p className="text-xs text-gray-500">Fine Dining Restaurant</p>
