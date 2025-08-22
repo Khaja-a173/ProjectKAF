@@ -271,264 +271,23 @@ export default function LiveOrders() {
   );
 
   if (loading) {
-  const [searchParams] = useSearchParams();
-  const highlightOrderId = searchParams.get("order");
-  
-  const {
-    orders,
-    archivedOrders,
-    loading,
-  } = useSessionManagement({
-    tenantId: "tenant_123",
-    locationId: "location_456",
-  });
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTable, setSelectedTable] = useState("all");
-  const [autoRefresh, setAutoRefresh] = useState(true);
-
-  // Auto-refresh every 5 seconds when enabled
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing live orders");
-      // Force re-render by updating a dummy state
-      setSearchTerm(prev => prev);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
-
-  // Scroll to highlighted order
-  useEffect(() => {
-    if (highlightOrderId) {
-      setTimeout(() => {
-        const element = document.getElementById(`order-${highlightOrderId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-          element.classList.add("ring-4", "ring-blue-500", "ring-opacity-50");
-          setTimeout(() => {
-            element.classList.remove("ring-4", "ring-blue-500", "ring-opacity-50");
-          }, 3000);
-        }
-      }, 500);
-    }
-  }, [highlightOrderId, orders]);
-
-  console.log("LiveOrders - Current orders:", orders.length);
-  console.log("LiveOrders - Archived orders:", archivedOrders.length);
-
-  // Group orders by status
-  const ordersByStatus = {
-    placed: orders.filter(o => o.status === "placed"),
-    confirmed: orders.filter(o => o.status === "confirmed"),
-    preparing: orders.filter(o => o.status === "preparing"),
-    ready: orders.filter(o => o.status === "ready"),
-    delivering: orders.filter(o => o.status === "delivering"),
-    served: orders.filter(o => o.status === "served"),
-    paying: orders.filter(o => o.status === "paying"),
-    completed: archivedOrders.filter(o => ["paid", "closed"].includes(o.status)),
-  };
-
-  const allTables = [...new Set([
-    ...orders.map(o => o.tableId),
-    ...archivedOrders.map(o => o.tableId)
-  ])].filter(Boolean).sort();
-
-  const filteredOrdersByStatus = Object.fromEntries(
-    Object.entries(ordersByStatus).map(([status, statusOrders]) => [
-      status,
-      statusOrders.filter(order => {
-        const matchesSearch = 
-          order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.tableId?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesTable = selectedTable === "all" || order.tableId === selectedTable;
-        return matchesSearch && matchesTable;
-      })
-    ])
-  );
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "placed": return "bg-yellow-500";
-      case "confirmed": return "bg-blue-500";
-      case "preparing": return "bg-orange-500";
-      case "ready": return "bg-green-500";
-      case "delivering": return "bg-purple-500";
-      case "served": return "bg-gray-500";
-      case "paying": return "bg-indigo-500";
-      case "paid": return "bg-emerald-500";
-      case "closed": return "bg-slate-500";
-      default: return "bg-gray-400";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "placed": return <Clock className="w-4 h-4" />;
-      case "confirmed": return <CheckCircle className="w-4 h-4" />;
-      case "preparing": return <ChefHat className="w-4 h-4" />;
-      case "ready": return <Package className="w-4 h-4" />;
-      case "delivering": return <Truck className="w-4 h-4" />;
-      case "served": return <CheckCircle className="w-4 h-4" />;
-      case "paying": return <CreditCard className="w-4 h-4" />;
-      case "paid": return <DollarSign className="w-4 h-4" />;
-      case "closed": return <Archive className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
-
-  const getDietaryIcons = (item: any) => {
-    const icons = [];
-    if (item.isVegan) icons.push(<Leaf key="vegan" className="w-3 h-3 text-green-600" aria-label="Vegan" />);
-    else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-3 h-3 text-green-500" aria-label="Vegetarian" />);
-    
-    if (item.spicyLevel > 0) {
-      icons.push(
-        <div key="spicy" className="flex" aria-label={`Spicy Level: ${item.spicyLevel}`}>
-          {[...Array(item.spicyLevel)].map((_, i) => (
-            <Flame key={i} className="w-3 h-3 text-red-500" />
-          ))}
-        </div>
-      );
-    }
-    
-    return icons;
-  };
-
-  const formatElapsedTime = (placedAt: Date) => {
-    const minutes = Math.floor((Date.now() - placedAt.getTime()) / (1000 * 60));
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  const renderOrderCard = (order: any, isHighlighted = false) => (
-    <div
-      id={`order-${order.id}`}
-      key={order.id}
-      className={`bg-white rounded-xl shadow-lg border-l-4 p-6 hover:shadow-xl transition-all ${
-        isHighlighted ? "ring-4 ring-blue-500 ring-opacity-50" : ""
-      } ${
-        order.priority === "urgent" ? "border-red-500 bg-red-50" :
-        order.priority === "high" ? "border-orange-500 bg-orange-50" :
-        "border-gray-300"
-      }`}
-    >
-      {/* Order Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className={`w-10 h-10 rounded-lg ${getStatusColor(order.status)} flex items-center justify-center text-white`}>
-            {getStatusIcon(order.status)}
-          </div>
-          <div>
-            <h3 className="font-bold text-gray-900">{order.orderNumber}</h3>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <MapPin className="w-3 h-3" />
-              <span>{order.tableId}</span>
-              <span>•</span>
-              <Users className="w-3 h-3" />
-              <span>Session #{order.sessionId.slice(-6)}</span>
-            </div>
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-lg font-bold text-gray-900">
-            ${order.totalAmount.toFixed(2)}
-          </div>
-          <div className="text-sm text-gray-500">
-            {formatElapsedTime(order.placedAt)}
-          </div>
-        </div>
-      </div>
-
-      {/* Order Items */}
-      <div className="space-y-2 mb-4">
-        {order.items.map((item: any, index: number) => (
-          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-900">
-                {item.quantity}x {item.name}
-              </span>
-              <div className="flex items-center space-x-1">
-                {getDietaryIcons(item)}
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">
-                ${(item.unitPrice * item.quantity).toFixed(2)}
-              </span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                item.status === "queued" ? "bg-gray-500" :
-                item.status === "in_progress" ? "bg-orange-500" :
-                item.status === "ready_item" ? "bg-green-500" :
-                item.status === "served_item" ? "bg-blue-500" :
-                "bg-gray-400"
-              }`}>
-                {item.status.replace("_", " ").toUpperCase()}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Special Instructions */}
-      {order.specialInstructions && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="text-sm text-yellow-800">
-            <strong>Special Instructions:</strong> {order.specialInstructions}
-          </div>
-        </div>
-      )}
-
-      {/* Order Timeline */}
-      <div className="text-xs text-gray-500 space-y-1">
-        <div>Placed: {format(order.placedAt, "HH:mm:ss")}</div>
-        {order.confirmedAt && (
-          <div>Confirmed: {format(order.confirmedAt, "HH:mm:ss")}</div>
-        )}
-        {order.readyAt && (
-          <div>Ready: {format(order.readyAt, "HH:mm:ss")}</div>
-        )}
-        {order.servedAt && (
-          <div>Served: {format(order.servedAt, "HH:mm:ss")}</div>
-        )}
-        {order.paidAt && (
-          <div>Paid: {format(order.paidAt, "HH:mm:ss")}</div>
-        )}
-      </div>
-
-      {/* Estimated Ready Time */}
-      {order.estimatedReadyAt && order.status !== "served" && order.status !== "paid" && (
-        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center space-x-2 text-sm text-blue-800">
-            <Timer className="w-4 h-4" />
-            <span>Est. Ready: {format(order.estimatedReadyAt, "HH:mm")}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  if (loading) {
     return (
       <div className="min-h-screen">
-        <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
+        <Header />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading live orders...</p>
           </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen">
-      <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
+      <Header />
 
       {/* Hero Section */}
       <section className="relative h-64 flex items-center justify-center">
@@ -774,7 +533,7 @@ export default function LiveOrders() {
           </section>
 
           {/* Served */}
-          <section>
+          <section className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
                 <CheckCircle className="w-5 h-5 text-white" />
@@ -786,13 +545,13 @@ export default function LiveOrders() {
             </div>
             
             {filteredOrdersByStatus.served.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600">No served orders</p>
                 <p className="text-sm text-gray-500">Served orders will appear here</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {filteredOrdersByStatus.served.map(order => 
                   renderOrderCard(order, order.id === highlightOrderId)
                 )}
@@ -801,7 +560,7 @@ export default function LiveOrders() {
           </section>
 
           {/* Payment Processing */}
-          <section>
+          <section className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
                 <CreditCard className="w-5 h-5 text-white" />
@@ -813,13 +572,13 @@ export default function LiveOrders() {
             </div>
             
             {filteredOrdersByStatus.paying.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
                 <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600">No payments being processed</p>
                 <p className="text-sm text-gray-500">Payment processing orders will appear here</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {filteredOrdersByStatus.paying.map(order => 
                   renderOrderCard(order, order.id === highlightOrderId)
                 )}
@@ -828,7 +587,7 @@ export default function LiveOrders() {
           </section>
 
           {/* Completed Orders */}
-          <section>
+          <section className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
                 <Archive className="w-5 h-5 text-white" />
@@ -840,13 +599,13 @@ export default function LiveOrders() {
             </div>
             
             {filteredOrdersByStatus.completed.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
                 <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600">No completed orders</p>
                 <p className="text-sm text-gray-500">Completed orders will appear here</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {filteredOrdersByStatus.completed.map(order => 
                   renderOrderCard(order, order.id === highlightOrderId)
                 )}
@@ -887,6 +646,7 @@ export default function LiveOrders() {
         </div>
       </div>
 
+      <Footer />
     </div>
   );
 }
