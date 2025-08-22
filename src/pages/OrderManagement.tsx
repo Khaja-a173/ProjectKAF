@@ -406,6 +406,7 @@ export default function OrderManagement() {
                 {activeTab === "active" 
                   ? "No active orders have been placed yet. Orders will appear here when customers place them."
                   : "Completed and paid orders will appear here after payment processing."}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
