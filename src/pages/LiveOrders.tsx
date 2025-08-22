@@ -52,7 +52,6 @@ export default function LiveOrders() {
 
     const interval = setInterval(() => {
       console.log("🔄 Auto-refreshing live orders");
-      // Force re-render by updating a dummy state
       setSearchTerm(prev => prev);
     }, 5000);
 
