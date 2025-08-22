@@ -147,21 +147,27 @@ export default function Menu() {
     if (!currentSession || !currentCart) return;
 
     try {
+      console.log("🚀 Starting order placement process...");
+      console.log("Session:", currentSession.id);
+      console.log("Cart items:", currentCart.items.length);
+      
       const order = await placeOrder(
         currentSession.id,
         "Customer order from menu",
       );
+      
+      console.log("✅ Order placed successfully:", order);
       setPlacedOrder(order);
       setShowOrderSuccess(true);
-      console.log("✅ Order placed successfully:", order.orderNumber);
       
       // Auto-redirect to live orders after 3 seconds
       setTimeout(() => {
+        console.log("🔄 Redirecting to live orders...");
         window.location.href = `/live-orders?order=${order.id}`;
       }, 3000);
     } catch (err) {
       console.error("❌ Failed to place order:", err);
-      alert("Failed to place order. Please try again.");
+      alert("Failed to place order: " + (err instanceof Error ? err.message : "Please try again."));
     }
   };
 

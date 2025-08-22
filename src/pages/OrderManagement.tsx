@@ -37,6 +37,15 @@ export default function OrderManagement() {
     locationId: "location_456",
   });
 
+  console.log("OrderManagement - Current orders:", orders.length);
+  console.log("OrderManagement - Archived orders:", archivedOrders.length);
+  console.log("OrderManagement - All orders:", orders.map(o => ({
+    id: o.id,
+    number: o.orderNumber,
+    table: o.tableId,
+    status: o.status,
+    total: o.totalAmount
+  })));
   const [selectedStatus, setSelectedStatus] = useState("active");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [cancelReason, setCancelReason] = useState("");
@@ -86,6 +95,9 @@ export default function OrderManagement() {
     return matchesStatus && matchesSearch;
   });
 
+  console.log("Filtered orders:", filteredOrders.length);
+  console.log("Selected status:", selectedStatus);
+  console.log("Show archived:", showArchivedOrders);
   const getStatusColor = (status: string) => {
     switch (status) {
       case "placed":
@@ -509,7 +521,20 @@ export default function OrderManagement() {
         )}
 
         {/* Orders Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="space-y-6">
+          {/* Debug Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">Debug Info</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>Total Orders: {orders.length}</p>
+              <p>Archived Orders: {archivedOrders.length}</p>
+              <p>Filtered Orders: {filteredOrders.length}</p>
+              <p>Selected Status: {selectedStatus}</p>
+              <p>Show Archived: {showArchivedOrders ? "Yes" : "No"}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredOrders.map((order) => (
             <div
               key={order.id}
@@ -664,6 +689,7 @@ export default function OrderManagement() {
               </div>
             </div>
           ))}
+          </div>
         </div>
 
         {filteredOrders.length === 0 && (

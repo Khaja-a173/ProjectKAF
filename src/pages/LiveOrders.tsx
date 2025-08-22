@@ -22,11 +22,19 @@ export default function LiveOrders() {
   const [searchParams] = useSearchParams();
   const trackingOrderId = searchParams.get("order");
 
-  const { orders, loading: sessionLoading } = useSessionManagement({
+  const { orders, archivedOrders, loading: sessionLoading } = useSessionManagement({
     tenantId: "tenant_123",
     locationId: "location_456",
   });
 
+  console.log("LiveOrders - Current orders:", orders.length);
+  console.log("LiveOrders - Orders by status:", {
+    placed: orders.filter(o => o.status === "placed").length,
+    confirmed: orders.filter(o => o.status === "confirmed").length,
+    preparing: orders.filter(o => o.status === "preparing").length,
+    ready: orders.filter(o => o.status === "ready").length,
+    served: orders.filter(o => o.status === "served").length,
+  });
   const {
     pages,
     theme,
@@ -41,6 +49,8 @@ export default function LiveOrders() {
     ? orders.find((o) => o.id === trackingOrderId)
     : null;
 
+  // Combine active and archived orders for complete view
+  const allOrders = [...orders, ...archivedOrders];
   const liveOrdersPage = pages.find(
     (p) => p.slug === "live-orders" && p.status === "published",
   );
@@ -130,21 +140,23 @@ export default function LiveOrders() {
   };
 
   const ordersByStatus = {
-    placed: orders.filter(
+    placed: allOrders.filter(
       (o) => o.status === "placed" || o.status === "confirmed",
     ),
-    confirmed: orders.filter((o) => o.status === "confirmed"),
-    preparing: orders.filter((o) => o.status === "preparing"),
-    ready: orders.filter((o) => o.status === "ready"),
-    served: orders.filter((o) => o.status === "served" || o.status === "delivering"),
-    paying: orders.filter((o) => o.status === "paying"),
-    paid: orders.filter((o) => o.status === "paid"),
+    confirmed: allOrders.filter((o) => o.status === "confirmed"),
+    preparing: allOrders.filter((o) => o.status === "preparing"),
+    ready: allOrders.filter((o) => o.status === "ready"),
+    served: allOrders.filter((o) => o.status === "served" || o.status === "delivering"),
+    paying: allOrders.filter((o) => o.status === "paying"),
+    paid: allOrders.filter((o) => o.status === "paid"),
   };
 
-  const totalOrders = orders.filter(
+  console.log("Orders by status:", ordersByStatus);
+
+  const totalOrders = allOrders.filter(
     (o) => o.status !== "paid" && o.status !== "closed",
   ).length;
-  const activeOrders = orders.filter((o) =>
+  const activeOrders = allOrders.filter((o) =>
     ["placed", "confirmed", "preparing", "ready"].includes(o.status),
   ).length;
 

@@ -127,10 +127,13 @@ export default function SessionCartComponent({
 
   const handlePlaceOrder = () => {
     if (items.length === 0) return;
+    console.log("🛒 Cart - Placing order with items:", items.length);
+    console.log("🛒 Cart - Total amount:", formatMoney(totalMinor, currency));
     setShowOrderReview(true);
   };
 
   const confirmPlaceOrder = () => {
+    console.log("🛒 Cart - Confirming order placement");
     onPlaceOrder();
     setShowOrderReview(false);
   };

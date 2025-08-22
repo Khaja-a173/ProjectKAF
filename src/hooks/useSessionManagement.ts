@@ -18,7 +18,46 @@ let globalSessionState: {
 } = {
   sessions: [],
   carts: [],
-  orders: [],
+  orders: [
+    // Add some sample orders for testing
+    {
+      id: "order_sample_1",
+      orderNumber: "#ORD-001",
+      tenantId: "tenant_123",
+      locationId: "location_456",
+      sessionId: "session_sample_1",
+      tableId: "T01",
+      status: "placed",
+      items: [
+        {
+          id: "orderitem_1",
+          orderId: "order_sample_1",
+          menuItemId: "itm_1",
+          name: "Truffle Arancini",
+          quantity: 2,
+          unitPrice: 16.0,
+          totalPrice: 32.0,
+          status: "queued",
+          station: "hot",
+          allergens: ["dairy", "gluten"],
+          isVegetarian: true,
+          isVegan: false,
+          spicyLevel: 0,
+          preparationTime: 15,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      ],
+      subtotal: 32.0,
+      taxAmount: 2.56,
+      tipAmount: 0,
+      totalAmount: 34.56,
+      priority: "normal",
+      placedAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+  ],
   payments: [],
   archivedOrders: [],
 };
@@ -47,18 +86,29 @@ const sessionSubscribers: Set<(state: typeof globalSessionState) => void> =
 
 const notifySessionSubscribers = () => {
   console.log("🔄 Notifying session subscribers of changes");
+  console.log("Current state:", {
+    sessions: globalSessionState.sessions.length,
+    carts: globalSessionState.carts.length,
+    orders: globalSessionState.orders.length,
+    archivedOrders: globalSessionState.archivedOrders.length
+  });
   sessionSubscribers.forEach((callback) => callback({ ...globalSessionState }));
 };
 
 const updateGlobalSession = (
   updater: (prev: typeof globalSessionState) => typeof globalSessionState,
 ) => {
+  const prevState = { ...globalSessionState };
   globalSessionState = updater(globalSessionState);
   console.log("📝 Session state updated:", {
-    sessions: globalSessionState.sessions.length,
-    carts: globalSessionState.carts.length,
-    orders: globalSessionState.orders.length,
-    payments: globalSessionState.payments.length,
+    before: {
+      sessions: prevState.sessions.length,
+      orders: prevState.orders.length,
+    },
+    after: {
+      sessions: globalSessionState.sessions.length,
+      orders: globalSessionState.orders.length,
+    },
   });
   notifySessionSubscribers();
 };
@@ -107,6 +157,7 @@ export function useSessionManagement({
       console.log("🔄 Received session update:", {
         sessions: newState.sessions.length,
         orders: newState.orders.length,
+        archivedOrders: newState.archivedOrders.length,
       });
       setSessions(newState.sessions);
       setCarts(newState.carts);
@@ -447,6 +498,11 @@ export function useSessionManagement({
     async (sessionId: string, specialInstructions?: string) => {
       try {
         console.log("📝 Placing order for session:", sessionId);
+        console.log("Current global state:", {
+          sessions: globalSessionState.sessions.length,
+          carts: globalSessionState.carts.length,
+          orders: globalSessionState.orders.length
+        });
 
         const session = globalSessionState.sessions.find(
           (s) => s.id === sessionId,
@@ -455,14 +511,18 @@ export function useSessionManagement({
           (c) => c.sessionId === sessionId,
         );
 
+        console.log("Found session:", !!session);
+        console.log("Found cart:", !!cart);
+        console.log("Cart items:", cart?.items?.length || 0);
         if (!session || !cart) throw new Error("Session or cart not found");
         if (cart.items.length === 0) throw new Error("Cart is empty");
         if (cart.status === "locked")
           throw new Error("Order already being processed");
 
-        const orderNumber = `#ORD-${Date.now()}`;
+        const orderNumber = `#ORD-${String(Date.now()).slice(-6)}`;
         const orderId = `order_${Date.now()}`;
 
+        console.log("Creating order:", orderNumber);
         const newOrder: DineInOrder = {
           id: orderId,
           orderNumber,
@@ -480,7 +540,8 @@ export function useSessionManagement({
             unitPrice: cartItem.price,
             totalPrice: cartItem.price * cartItem.quantity,
             status: "queued",
-            station: "hot", // Mock station assignment
+            station: cartItem.name.toLowerCase().includes("salad") ? "cold" : 
+                    cartItem.name.toLowerCase().includes("drink") ? "bar" : "hot",
             customizations: cartItem.customizations,
             specialInstructions: cartItem.specialInstructions,
             allergens: cartItem.allergens,
@@ -508,6 +569,7 @@ export function useSessionManagement({
           updatedAt: new Date(),
         };
 
+        console.log("New order created:", newOrder);
         // Lock cart and add order
         updateGlobalSession((prev) => ({
           ...prev,
@@ -524,6 +586,11 @@ export function useSessionManagement({
           ),
         }));
 
+        // Force immediate notification
+        setTimeout(() => {
+          console.log("🔔 Force notifying subscribers after order placement");
+          notifySessionSubscribers();
+        }, 100);
         // Broadcast order placed
         broadcastEvent({
           type: "order.placed",
@@ -542,6 +609,7 @@ export function useSessionManagement({
         });
 
         console.log("✅ Order placed successfully:", newOrder.orderNumber);
+        console.log("Final global orders count:", globalSessionState.orders.length);
         return newOrder;
       } catch (err) {
         console.error("❌ Failed to place order:", err);
