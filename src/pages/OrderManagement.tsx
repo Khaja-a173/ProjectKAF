@@ -15,6 +15,10 @@ import {
   TrendingUp,
   BarChart3,
   X,
+  Archive,
+  Package,
+  CreditCard,
+  Truck,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -29,8 +33,6 @@ export default function OrderManagement() {
     markOrderForDelivery,
     initiatePayment,
     markOrderPaid,
-    processPayment,
-    clearTable,
     loading,
   } = useSessionManagement({
     tenantId: "tenant_123",
@@ -39,13 +41,7 @@ export default function OrderManagement() {
 
   console.log("OrderManagement - Current orders:", orders.length);
   console.log("OrderManagement - Archived orders:", archivedOrders.length);
-  console.log("OrderManagement - All orders:", orders.map(o => ({
-    id: o.id,
-    number: o.orderNumber,
-    table: o.tableId,
-    status: o.status,
-    total: o.totalAmount
-  })));
+  
   const [selectedStatus, setSelectedStatus] = useState("active");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [cancelReason, setCancelReason] = useState("");
@@ -53,12 +49,9 @@ export default function OrderManagement() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showStaffAssignModal, setShowStaffAssignModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "cash" | "card" | "digital"
-  >("card");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "digital">("card");
   const [selectedStaff, setSelectedStaff] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [showArchivedOrders, setShowArchivedOrders] = useState(false);
 
   // Mock staff data
   const availableStaff = [
@@ -68,12 +61,12 @@ export default function OrderManagement() {
     { id: "staff_4", name: "James Wilson", role: "Host" },
   ];
 
-  const currentOrders = activeTab === "active" ? orders : archivedOrders;
-
   const statusCounts = {
     active: orders.filter((o) => 
       ["placed", "confirmed", "preparing", "ready", "served", "delivering", "paying"].includes(o.status)
     ).length,
+    placed: orders.filter((o) => o.status === "placed").length,
+    confirmed: orders.filter((o) => o.status === "confirmed").length,
     preparing: orders.filter((o) => o.status === "preparing").length,
     ready: orders.filter((o) => o.status === "ready").length,
     served: orders.filter((o) => o.status === "served").length,
@@ -82,65 +75,49 @@ export default function OrderManagement() {
     archived: archivedOrders.length,
   };
 
-  const filteredOrders = (showArchivedOrders ? archivedOrders : orders).filter((order) => {
-    const matchesStatus =
-      selectedStatus === "active"
-        ? showArchivedOrders 
-          ? ["paid", "closed"].includes(order.status)
-          : !["paid", "closed", "cancelled"].includes(order.status)
-        : order.status === selectedStatus;
+  const currentOrders = activeTab === "active" ? orders : archivedOrders;
+
+  const filteredOrders = currentOrders.filter((order) => {
+    const matchesStatus = activeTab === "active" 
+      ? (selectedStatus === "active" 
+          ? ["placed", "confirmed", "preparing", "ready", "served", "delivering", "paying"].includes(order.status)
+          : order.status === selectedStatus)
+      : ["paid", "closed", "cancelled"].includes(order.status);
+    
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.tableId?.toLowerCase().includes(searchTerm.toLowerCase());
+    
     return matchesStatus && matchesSearch;
   });
 
-  console.log("Filtered orders:", filteredOrders.length);
-  console.log("Selected status:", selectedStatus);
-  console.log("Show archived:", showArchivedOrders);
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "placed":
-        return "bg-yellow-100 text-yellow-800";
-      case "confirmed":
-        return "bg-blue-100 text-blue-800";
-      case "preparing":
-        return "bg-orange-100 text-orange-800";
-      case "ready":
-        return "bg-green-100 text-green-800";
-      case "served":
-        return "bg-gray-100 text-gray-800";
-      case "paid":
-        return "bg-purple-100 text-purple-800";
-      case "paying":
-        return "bg-indigo-100 text-indigo-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case "placed": return "bg-yellow-100 text-yellow-800";
+      case "confirmed": return "bg-blue-100 text-blue-800";
+      case "preparing": return "bg-orange-100 text-orange-800";
+      case "ready": return "bg-green-100 text-green-800";
+      case "served": return "bg-gray-100 text-gray-800";
+      case "delivering": return "bg-purple-100 text-purple-800";
+      case "paying": return "bg-indigo-100 text-indigo-800";
+      case "paid": return "bg-emerald-100 text-emerald-800";
+      case "cancelled": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "placed":
-        return <Clock className="w-4 h-4" />;
-      case "confirmed":
-        return <CheckCircle className="w-4 h-4" />;
-      case "preparing":
-        return <ChefHat className="w-4 h-4" />;
-      case "ready":
-        return <CheckCircle className="w-4 h-4" />;
-      case "served":
-        return <CheckCircle className="w-4 h-4" />;
-      case "paid":
-        return <CheckCircle className="w-4 h-4" />;
-      case "paying":
-        return <Clock className="w-4 h-4" />;
-      case "cancelled":
-        return <XCircle className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
+      case "placed": return <Clock className="w-4 h-4" />;
+      case "confirmed": return <CheckCircle className="w-4 h-4" />;
+      case "preparing": return <ChefHat className="w-4 h-4" />;
+      case "ready": return <Package className="w-4 h-4" />;
+      case "served": return <CheckCircle className="w-4 h-4" />;
+      case "delivering": return <Truck className="w-4 h-4" />;
+      case "paying": return <CreditCard className="w-4 h-4" />;
+      case "paid": return <DollarSign className="w-4 h-4" />;
+      case "cancelled": return <XCircle className="w-4 h-4" />;
+      default: return <Clock className="w-4 h-4" />;
     }
   };
 
@@ -224,31 +201,6 @@ export default function OrderManagement() {
     }
   };
 
-  const handleProcessPayment = async () => {
-    if (!selectedOrderId) return;
-
-    try {
-      const order = orders.find((o) => o.id === selectedOrderId);
-      if (!order) return;
-
-      await processPayment(selectedOrderId, paymentMethod, order.totalAmount);
-      setShowPaymentModal(false);
-      setSelectedOrderId(null);
-      console.log("✅ Payment processed successfully");
-    } catch (err) {
-      alert("Failed to process payment");
-    }
-  };
-
-  const handleClearTable = async (tableId: string) => {
-    try {
-      await clearTable(tableId, "manager_123");
-      console.log("✅ Table cleared successfully");
-    } catch (err) {
-      alert("Failed to clear table");
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -315,52 +267,28 @@ export default function OrderManagement() {
         {/* Navigation */}
         <nav className="mb-8">
           <div className="flex space-x-8">
-            <Link
-              to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
               Dashboard
             </Link>
-            <Link
-              to="/admin/menu"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/admin/menu" className="text-gray-500 hover:text-gray-700 pb-2">
               Menu Management
             </Link>
-            <Link
-              to="/orders"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Orders
+            <Link to="/orders" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
+              View Orders
             </Link>
-            <Link
-              to="/table-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
               Table Management
             </Link>
-            <Link
-              to="/staff-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/staff-management" className="text-gray-500 hover:text-gray-700 pb-2">
               Staff Management
             </Link>
-            <Link
-              to="/kitchen-dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/kitchen-dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
               Kitchen Dashboard
             </Link>
-            <Link
-              to="/analytics"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
               Analytics
             </Link>
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
+            <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
               Settings
             </Link>
           </div>
@@ -371,12 +299,8 @@ export default function OrderManagement() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Orders
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {orders.length}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Active Orders</p>
+                <p className="text-2xl font-bold text-gray-900">{statusCounts.active}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-blue-600" />
@@ -387,21 +311,13 @@ export default function OrderManagement() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Active Orders
-                </p>
+                <p className="text-sm font-medium text-gray-600">In Kitchen</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {
-                    orders.filter((o) =>
-                      ["placed", "confirmed", "preparing", "ready"].includes(
-                        o.status,
-                      ),
-                    ).length
-                  }
+                  {statusCounts.preparing + statusCounts.ready}
                 </p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-orange-600" />
+                <ChefHat className="w-6 h-6 text-orange-600" />
               </div>
             </div>
           </div>
@@ -409,13 +325,10 @@ export default function OrderManagement() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Revenue Today
-                </p>
+                <p className="text-sm font-medium text-gray-600">Revenue Today</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  $
-                  {orders
-                    .filter((o) => o.status === "paid")
+                  ${[...orders, ...archivedOrders]
+                    .filter((o) => ["paid", "served"].includes(o.status))
                     .reduce((sum, o) => sum + o.totalAmount, 0)
                     .toFixed(2)}
                 </p>
@@ -429,21 +342,11 @@ export default function OrderManagement() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Avg Order Value
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  $
-                  {orders.length > 0
-                    ? (
-                        orders.reduce((sum, o) => sum + o.totalAmount, 0) /
-                        orders.length
-                      ).toFixed(2)
-                    : "0.00"}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{statusCounts.archived}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
+                <Archive className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </div>
@@ -456,12 +359,9 @@ export default function OrderManagement() {
               {/* Tab Switcher */}
               <div className="flex space-x-2">
                 <button
-                  onClick={() => {
-                    setActiveTab("active");
-                    setShowArchivedOrders(false);
-                  }}
+                  onClick={() => setActiveTab("active")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === "active" && !showArchivedOrders
+                    activeTab === "active"
                       ? "bg-blue-100 text-blue-700 border border-blue-200"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
@@ -469,17 +369,14 @@ export default function OrderManagement() {
                   Active Orders ({statusCounts.active})
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveTab("archived");
-                    setShowArchivedOrders(true);
-                  }}
+                  onClick={() => setActiveTab("archived")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    showArchivedOrders
+                    activeTab === "archived"
                       ? "bg-blue-100 text-blue-700 border border-blue-200"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  Archive Orders ({statusCounts.archived})
+                  Archived Orders ({statusCounts.archived})
                 </button>
               </div>
               
@@ -497,8 +394,8 @@ export default function OrderManagement() {
           </div>
         </div>
 
-        {/* Status Filter */}
-        {!showArchivedOrders && (
+        {/* Status Filter for Active Orders */}
+        {activeTab === "active" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
             <div className="flex flex-wrap gap-4">
               {Object.entries(statusCounts)
@@ -520,191 +417,194 @@ export default function OrderManagement() {
           </div>
         )}
 
-        {/* Orders Grid */}
-        <div className="space-y-6">
-          {/* Debug Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">Debug Info</h4>
-            <div className="text-sm text-blue-800 space-y-1">
-              <p>Total Orders: {orders.length}</p>
-              <p>Archived Orders: {archivedOrders.length}</p>
-              <p>Filtered Orders: {filteredOrders.length}</p>
-              <p>Selected Status: {selectedStatus}</p>
-              <p>Show Archived: {showArchivedOrders ? "Yes" : "No"}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredOrders.map((order) => (
-            <div
-              key={order.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {order.orderNumber}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {order.tableId} • Session #{order.sessionId.slice(-6)}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Placed: {format(order.placedAt, "HH:mm")}
-                    </p>
-                  </div>
-                  <div
-                    className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${getStatusColor(order.status)}`}
-                  >
-                    {getStatusIcon(order.status)}
-                    <span>
-                      {order.status.charAt(0).toUpperCase() +
-                        order.status.slice(1)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  {order.items.map((item, index) => (
-                    <div key={index} className="flex justify-between text-sm">
-                      <span className="text-gray-600">
-                        {item.quantity}x {item.name}
-                      </span>
-                      <span className="font-medium">
-                        ${(item.unitPrice * item.quantity).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {order.specialInstructions && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Special Instructions:</strong>{" "}
-                      {order.specialInstructions}
-                    </p>
-                  </div>
-                )}
-
-                <div className="border-t border-gray-200 pt-4 mb-4">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-900">
-                      Total: ${order.totalAmount.toFixed(2)}
-                    </span>
-                    <button className="p-1 text-gray-400 hover:text-blue-600">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {order.estimatedReadyAt && (
-                    <div className="text-xs text-gray-500 mt-2">
-                      Est. Ready: {format(order.estimatedReadyAt, "HH:mm")}
-                    </div>
-                  )}
-                </div>
-
-                {/* Order Actions */}
-                <div className="flex space-x-2">
-                  {order.status === "placed" && (
-                    <>
-                      <button
-                        onClick={() => handleConfirmOrder(order.id)}
-                        className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-                      >
-                        Confirm Order
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedOrderId(order.id);
-                          setShowCancelModal(true);
-                        }}
-                        className="px-4 py-2 text-red-600 border border-red-300 rounded-lg text-sm hover:bg-red-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                  {order.status === "ready" && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setSelectedOrderId(order.id);
-                          setShowStaffAssignModal(true);
-                        }}
-                        className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
-                      >
-                        Assign Staff
-                      </button>
-                      <button
-                        onClick={() => handleMarkForDelivery(order.id)}
-                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                      >
-                        Mark for Delivery
-                      </button>
-                    </>
-                  )}
-                  {order.status === "delivering" && (
-                    <button
-                      onClick={() => handleServeOrder(order.id)}
-                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-                    >
-                      Mark Delivered
-                    </button>
-                  )}
-                  {order.status === "served" && (
-                    <button
-                      onClick={() => handleInitiatePayment(order.id)}
-                      className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                      Initiate Payment
-                    </button>
-                  )}
-                  {order.status === "paying" && (
-                    <button
-                      onClick={() => {
-                        setSelectedOrderId(order.id);
-                        setShowPaymentModal(true);
-                      }}
-                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Mark Paid
-                    </button>
-                  )}
-                  
-                  {/* Show assigned staff info */}
-                  {order.assignedStaffId && (
-                    <div className="text-xs text-gray-500 mt-2">
-                      Assigned: {availableStaff.find(s => s.id === order.assignedStaffId)?.name || "Unknown"}
-                    </div>
-                  )}
-                  
-                  {/* Archive section - show completed orders */}
-                  {showArchivedOrders && (order.status === "paid" || order.status === "closed") && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Completed: {order.paidAt ? format(order.paidAt, "HH:mm") : "N/A"}
-                      {order.closedAt && ` • Closed: ${format(order.closedAt, "HH:mm")}`}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Debug Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <h4 className="font-medium text-blue-900 mb-2">📊 Order Management Debug</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-blue-800">
+            <div>Total Orders: {orders.length}</div>
+            <div>Archived Orders: {archivedOrders.length}</div>
+            <div>Filtered Orders: {filteredOrders.length}</div>
+            <div>Active Tab: {activeTab}</div>
           </div>
         </div>
 
-        {filteredOrders.length === 0 && (
-          <div className="text-center py-12">
-            <ChefHat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {showArchivedOrders ? "No archived orders found" : "No active orders found"}
-            </h3>
-            <p className="text-gray-600">
-              {showArchivedOrders
-                ? "Completed and paid orders will appear here after payment processing."
-                : "No active orders have been placed yet. Orders will appear here when customers place them."}
-            </p>
-          </div>
-        )}
+        {/* Orders Grid */}
+        <div className="space-y-6">
+          {filteredOrders.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                {activeTab === "active" ? (
+                  <Clock className="w-8 h-8 text-gray-400" />
+                ) : (
+                  <Archive className="w-8 h-8 text-gray-400" />
+                )}
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {activeTab === "active" ? "No active orders found" : "No archived orders found"}
+              </h3>
+              <p className="text-gray-600">
+                {activeTab === "active"
+                  ? "No active orders have been placed yet. Orders will appear here when customers place them."
+                  : "Completed and paid orders will appear here after payment processing."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                >
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{order.orderNumber}</p>
+                        <p className="text-sm text-gray-500">
+                          {order.tableId} • Session #{order.sessionId.slice(-6)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Placed: {format(order.placedAt, "HH:mm:ss")}
+                        </p>
+                      </div>
+                      <div
+                        className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${getStatusColor(order.status)}`}
+                      >
+                        {getStatusIcon(order.status)}
+                        <span>{order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className="text-gray-600">
+                            {item.quantity}x {item.name}
+                          </span>
+                          <span className="font-medium">
+                            ${(item.unitPrice * item.quantity).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {order.specialInstructions && (
+                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          <strong>Special Instructions:</strong> {order.specialInstructions}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="border-t border-gray-200 pt-4 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-900">
+                          Total: ${order.totalAmount.toFixed(2)}
+                        </span>
+                        <button className="p-1 text-gray-400 hover:text-blue-600">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {order.estimatedReadyAt && (
+                        <div className="text-xs text-gray-500 mt-2">
+                          Est. Ready: {format(order.estimatedReadyAt, "HH:mm")}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Actions */}
+                    <div className="space-y-2">
+                      {order.status === "placed" && (
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleConfirmOrder(order.id)}
+                            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                          >
+                            Confirm Order
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowCancelModal(true);
+                            }}
+                            className="px-4 py-2 text-red-600 border border-red-300 rounded-lg text-sm hover:bg-red-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      
+                      {order.status === "ready" && (
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowStaffAssignModal(true);
+                            }}
+                            className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                          >
+                            Assign Staff
+                          </button>
+                          <button
+                            onClick={() => handleMarkForDelivery(order.id)}
+                            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                          >
+                            Mark for Delivery
+                          </button>
+                        </div>
+                      )}
+                      
+                      {order.status === "delivering" && (
+                        <button
+                          onClick={() => handleServeOrder(order.id)}
+                          className="w-full bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                        >
+                          Mark Delivered
+                        </button>
+                      )}
+                      
+                      {order.status === "served" && (
+                        <button
+                          onClick={() => handleInitiatePayment(order.id)}
+                          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          Initiate Payment
+                        </button>
+                      )}
+                      
+                      {order.status === "paying" && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrderId(order.id);
+                            setShowPaymentModal(true);
+                          }}
+                          className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+
+                      {/* Show assigned staff info */}
+                      {order.assignedStaffId && (
+                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
+                          Assigned: {availableStaff.find(s => s.id === order.assignedStaffId)?.name || "Unknown"}
+                        </div>
+                      )}
+
+                      {/* Archive section - show completion info */}
+                      {activeTab === "archived" && (order.status === "paid" || order.status === "closed") && (
+                        <div className="mt-2 text-xs text-gray-500 p-2 bg-green-50 rounded">
+                          Completed: {order.paidAt ? format(order.paidAt, "HH:mm:ss") : "N/A"}
+                          {order.closedAt && ` • Closed: ${format(order.closedAt, "HH:mm:ss")}`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Cancel Order Modal */}
@@ -767,9 +667,7 @@ export default function OrderManagement() {
                 <select
                   value={paymentMethod}
                   onChange={(e) =>
-                    setPaymentMethod(
-                      e.target.value as "cash" | "card" | "digital",
-                    )
+                    setPaymentMethod(e.target.value as "cash" | "card" | "digital")
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
@@ -782,14 +680,9 @@ export default function OrderManagement() {
               <div className="mb-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-900">
-                      Total Amount:
-                    </span>
+                    <span className="font-medium text-gray-900">Total Amount:</span>
                     <span className="text-xl font-bold text-gray-900">
-                      $
-                      {currentOrders
-                        .find((o) => o.id === selectedOrderId)
-                        ?.totalAmount.toFixed(2)}
+                      ${currentOrders.find((o) => o.id === selectedOrderId)?.totalAmount.toFixed(2)}
                     </span>
                   </div>
                 </div>

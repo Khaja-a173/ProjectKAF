@@ -6,6 +6,7 @@ import {
   DineInOrder,
   Payment,
   RealtimeEvent,
+  OrderItem,
 } from "../types/session";
 
 // Global state for session management (simulating real-time sync)
@@ -18,71 +19,12 @@ let globalSessionState: {
 } = {
   sessions: [],
   carts: [],
-  orders: [
-    // Add some sample orders for testing
-    {
-      id: "order_sample_1",
-      orderNumber: "#ORD-001",
-      tenantId: "tenant_123",
-      locationId: "location_456",
-      sessionId: "session_sample_1",
-      tableId: "T01",
-      status: "placed",
-      items: [
-        {
-          id: "orderitem_1",
-          orderId: "order_sample_1",
-          menuItemId: "itm_1",
-          name: "Truffle Arancini",
-          quantity: 2,
-          unitPrice: 16.0,
-          totalPrice: 32.0,
-          status: "queued",
-          station: "hot",
-          allergens: ["dairy", "gluten"],
-          isVegetarian: true,
-          isVegan: false,
-          spicyLevel: 0,
-          preparationTime: 15,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ],
-      subtotal: 32.0,
-      taxAmount: 2.56,
-      tipAmount: 0,
-      totalAmount: 34.56,
-      priority: "normal",
-      placedAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-  ],
+  orders: [],
   payments: [],
   archivedOrders: [],
 };
 
-// Safe empty cart template
-const EMPTY_CART = {
-  id: "",
-  sessionId: "",
-  tenantId: "",
-  locationId: "",
-  status: "active" as const,
-  items: [],
-  subtotalMinor: 0,
-  taxMinor: 0,
-  totalMinor: 0,
-  currency: "INR",
-  lastActivity: new Date(),
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-// Safe storage utility
-
-const sessionSubscribers: Set<(state: typeof globalSessionState) => void> =
-  new Set();
+const sessionSubscribers: Set<(state: typeof globalSessionState) => void> = new Set();
 
 const notifySessionSubscribers = () => {
   console.log("🔄 Notifying session subscribers of changes");
@@ -104,18 +46,24 @@ const updateGlobalSession = (
     before: {
       sessions: prevState.sessions.length,
       orders: prevState.orders.length,
+      archivedOrders: prevState.archivedOrders.length,
     },
     after: {
       sessions: globalSessionState.sessions.length,
       orders: globalSessionState.orders.length,
+      archivedOrders: globalSessionState.archivedOrders.length,
     },
   });
-  notifySessionSubscribers();
+  
+  // Force immediate notification
+  setTimeout(() => {
+    notifySessionSubscribers();
+  }, 50);
 };
 
 const broadcastEvent = (event: RealtimeEvent) => {
   console.log("📡 Broadcasting event:", event.type, event);
-  // In real app, this would use WebSocket/SSE
+  // Simulate real-time broadcast
   setTimeout(() => {
     notifySessionSubscribers();
   }, 100);
@@ -124,11 +72,8 @@ const broadcastEvent = (event: RealtimeEvent) => {
 // Currency exponent helper
 const getCurrencyExponent = (currency: string): number => {
   const CURRENCY_EXPONENTS: Record<string, number> = {
-    KWD: 3,
-    BHD: 3,
-    OMR: 3, // 3 decimal places
-    JPY: 0,
-    KRW: 0, // 0 decimal places
+    KWD: 3, BHD: 3, OMR: 3, // 3 decimal places
+    JPY: 0, KRW: 0, // 0 decimal places
     // Default: 2 decimal places for INR, AUD, USD, EUR, etc.
   };
   return CURRENCY_EXPONENTS[currency] ?? 2;
@@ -219,7 +164,7 @@ export function useSessionManagement({
           subtotalMinor: 0,
           taxMinor: 0,
           totalMinor: 0,
-          currency: "INR", // Default currency
+          currency: "USD",
           lastActivity: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -361,7 +306,7 @@ export function useSessionManagement({
         const totalAmount = subtotal + taxAmount;
 
         // Convert to minor units
-        const exponent = getCurrencyExponent("INR");
+        const exponent = getCurrencyExponent("USD");
         const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent));
         const taxMinor = Math.round(taxAmount * Math.pow(10, exponent));
         const totalMinor = Math.round(totalAmount * Math.pow(10, exponent));
@@ -404,7 +349,6 @@ export function useSessionManagement({
         console.log("🔄 Updating cart item quantity:", cartItemId, newQuantity);
 
         if (newQuantity <= 0) {
-          // Remove item if quantity is 0 or less
           return removeFromCart(cartItemId);
         }
 
@@ -425,8 +369,7 @@ export function useSessionManagement({
             const taxAmount = subtotal * 0.08;
             const totalAmount = subtotal + taxAmount;
 
-            // Convert to minor units
-            const exponent = getCurrencyExponent("INR");
+            const exponent = getCurrencyExponent("USD");
             const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent));
             const taxMinor = Math.round(taxAmount * Math.pow(10, exponent));
             const totalMinor = Math.round(totalAmount * Math.pow(10, exponent));
@@ -469,8 +412,7 @@ export function useSessionManagement({
           const taxAmount = subtotal * 0.08;
           const totalAmount = subtotal + taxAmount;
 
-          // Convert to minor units
-          const exponent = getCurrencyExponent("INR");
+          const exponent = getCurrencyExponent("USD");
           const subtotalMinor = Math.round(subtotal * Math.pow(10, exponent));
           const taxMinor = Math.round(taxAmount * Math.pow(10, exponent));
           const totalMinor = Math.round(totalAmount * Math.pow(10, exponent));
@@ -497,13 +439,8 @@ export function useSessionManagement({
   const placeOrder = useCallback(
     async (sessionId: string, specialInstructions?: string) => {
       try {
-        console.log("📝 Placing order for session:", sessionId);
-        console.log("Current global state:", {
-          sessions: globalSessionState.sessions.length,
-          carts: globalSessionState.carts.length,
-          orders: globalSessionState.orders.length
-        });
-
+        console.log("📝 PLACING ORDER - Starting process for session:", sessionId);
+        
         const session = globalSessionState.sessions.find(
           (s) => s.id === sessionId,
         );
@@ -511,18 +448,28 @@ export function useSessionManagement({
           (c) => c.sessionId === sessionId,
         );
 
-        console.log("Found session:", !!session);
-        console.log("Found cart:", !!cart);
-        console.log("Cart items:", cart?.items?.length || 0);
-        if (!session || !cart) throw new Error("Session or cart not found");
-        if (cart.items.length === 0) throw new Error("Cart is empty");
-        if (cart.status === "locked")
+        console.log("📝 PLACING ORDER - Found session:", !!session);
+        console.log("📝 PLACING ORDER - Found cart:", !!cart);
+        console.log("📝 PLACING ORDER - Cart items:", cart?.items?.length || 0);
+        
+        if (!session || !cart) {
+          console.error("❌ PLACING ORDER - Session or cart not found");
+          throw new Error("Session or cart not found");
+        }
+        if (cart.items.length === 0) {
+          console.error("❌ PLACING ORDER - Cart is empty");
+          throw new Error("Cart is empty");
+        }
+        if (cart.status === "locked") {
+          console.error("❌ PLACING ORDER - Cart is locked");
           throw new Error("Order already being processed");
+        }
 
         const orderNumber = `#ORD-${String(Date.now()).slice(-6)}`;
         const orderId = `order_${Date.now()}`;
 
-        console.log("Creating order:", orderNumber);
+        console.log("📝 PLACING ORDER - Creating order:", orderNumber);
+        
         const newOrder: DineInOrder = {
           id: orderId,
           orderNumber,
@@ -541,27 +488,23 @@ export function useSessionManagement({
             totalPrice: cartItem.price * cartItem.quantity,
             status: "queued",
             station: cartItem.name.toLowerCase().includes("salad") ? "cold" : 
-                    cartItem.name.toLowerCase().includes("drink") ? "bar" : "hot",
+                    cartItem.name.toLowerCase().includes("drink") ? "bar" : 
+                    cartItem.name.toLowerCase().includes("scallop") ? "grill" :
+                    cartItem.name.toLowerCase().includes("beef") ? "grill" : "hot",
             customizations: cartItem.customizations,
             specialInstructions: cartItem.specialInstructions,
             allergens: cartItem.allergens,
             isVegetarian: cartItem.isVegetarian,
             isVegan: cartItem.isVegan,
             spicyLevel: cartItem.spicyLevel,
-            preparationTime: 15, // Mock prep time
+            preparationTime: 15,
             createdAt: new Date(),
             updatedAt: new Date(),
           })),
-          subtotal:
-            cart.subtotalMinor /
-            Math.pow(10, getCurrencyExponent(cart.currency || "INR")),
-          taxAmount:
-            cart.taxMinor /
-            Math.pow(10, getCurrencyExponent(cart.currency || "INR")),
+          subtotal: cart.subtotalMinor / Math.pow(10, getCurrencyExponent(cart.currency || "USD")),
+          taxAmount: cart.taxMinor / Math.pow(10, getCurrencyExponent(cart.currency || "USD")),
           tipAmount: 0,
-          totalAmount:
-            cart.totalMinor /
-            Math.pow(10, getCurrencyExponent(cart.currency || "INR")),
+          totalAmount: cart.totalMinor / Math.pow(10, getCurrencyExponent(cart.currency || "USD")),
           specialInstructions,
           priority: "normal",
           placedAt: new Date(),
@@ -569,29 +512,40 @@ export function useSessionManagement({
           updatedAt: new Date(),
         };
 
-        console.log("New order created:", newOrder);
-        // Lock cart and add order
-        updateGlobalSession((prev) => ({
-          ...prev,
-          carts: prev.carts.map((c) =>
-            c.sessionId === sessionId
-              ? { ...c, status: "locked" as const, updatedAt: new Date() }
-              : c,
-          ),
-          orders: [...prev.orders, newOrder],
-          sessions: prev.sessions.map((s) =>
-            s.id === sessionId
-              ? { ...s, lastActivity: new Date(), updatedAt: new Date() }
-              : s,
-          ),
-        }));
+        console.log("📝 PLACING ORDER - New order object created:", {
+          id: newOrder.id,
+          orderNumber: newOrder.orderNumber,
+          tableId: newOrder.tableId,
+          itemCount: newOrder.items.length,
+          total: newOrder.totalAmount
+        });
 
-        // Force immediate notification
-        setTimeout(() => {
-          console.log("🔔 Force notifying subscribers after order placement");
-          notifySessionSubscribers();
-        }, 100);
-        // Broadcast order placed
+        // Lock cart and add order
+        updateGlobalSession((prev) => {
+          console.log("📝 PLACING ORDER - Updating global state");
+          console.log("📝 PLACING ORDER - Previous orders:", prev.orders.length);
+          
+          const newState = {
+            ...prev,
+            carts: prev.carts.map((c) =>
+              c.sessionId === sessionId
+                ? { ...c, status: "locked" as const, updatedAt: new Date() }
+                : c,
+            ),
+            orders: [...prev.orders, newOrder],
+            sessions: prev.sessions.map((s) =>
+              s.id === sessionId
+                ? { ...s, lastActivity: new Date(), updatedAt: new Date() }
+                : s,
+            ),
+          };
+          
+          console.log("📝 PLACING ORDER - New orders count:", newState.orders.length);
+          return newState;
+        });
+
+        // Broadcast order placed event
+        console.log("📡 PLACING ORDER - Broadcasting order placed event");
         broadcastEvent({
           type: "order.placed",
           tenantId,
@@ -608,11 +562,281 @@ export function useSessionManagement({
           },
         });
 
-        console.log("✅ Order placed successfully:", newOrder.orderNumber);
-        console.log("Final global orders count:", globalSessionState.orders.length);
+        console.log("✅ PLACING ORDER - Order placed successfully:", newOrder.orderNumber);
+        console.log("✅ PLACING ORDER - Final global orders count:", globalSessionState.orders.length);
+        
         return newOrder;
       } catch (err) {
-        console.error("❌ Failed to place order:", err);
+        console.error("❌ PLACING ORDER - Failed:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const confirmOrder = useCallback(
+    async (orderId: string, staffId: string) => {
+      try {
+        console.log("✅ CONFIRMING ORDER:", orderId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  status: "confirmed" as const,
+                  confirmedAt: new Date(),
+                  estimatedReadyAt: new Date(Date.now() + 20 * 60 * 1000),
+                  updatedAt: new Date(),
+                }
+              : order,
+          ),
+          carts: prev.carts.map((cart) => {
+            const order = prev.orders.find((o) => o.id === orderId);
+            return cart.sessionId === order?.sessionId
+              ? { ...cart, status: "active" as const, updatedAt: new Date() }
+              : cart;
+          }),
+        }));
+
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (order) {
+          broadcastEvent({
+            type: "order.confirmed",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId,
+            data: { order },
+            timestamp: new Date(),
+            actor: {
+              userId: staffId,
+              role: "manager",
+              name: "Manager",
+            },
+          });
+        }
+
+        console.log("✅ Order confirmed successfully");
+      } catch (err) {
+        console.error("❌ Failed to confirm order:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const startOrderItem = useCallback(
+    async (itemId: string, chefId: string) => {
+      try {
+        console.log("🔥 Starting order item:", itemId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) => {
+            const updatedItems = order.items.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    status: "in_progress" as const,
+                    startedAt: new Date(),
+                    assignedChef: chefId,
+                    updatedAt: new Date(),
+                  }
+                : item,
+            );
+
+            // Check if order should move to preparing
+            const hasStartedItems = updatedItems.some(i => i.status === "in_progress");
+            
+            return {
+              ...order,
+              items: updatedItems,
+              status: hasStartedItems ? ("preparing" as const) : order.status,
+              updatedAt: new Date(),
+            };
+          }),
+        }));
+
+        const order = globalSessionState.orders.find((o) =>
+          o.items.some((i) => i.id === itemId),
+        );
+        
+        if (order) {
+          broadcastEvent({
+            type: "item.started",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId: order.id,
+            itemId,
+            data: { itemId, chefId },
+            timestamp: new Date(),
+            actor: {
+              userId: chefId,
+              role: "chef",
+              name: "Chef",
+            },
+          });
+
+          // Broadcast order preparing if status changed
+          const updatedOrder = globalSessionState.orders.find(o => o.id === order.id);
+          if (updatedOrder?.status === "preparing") {
+            broadcastEvent({
+              type: "order.preparing",
+              tenantId,
+              locationId,
+              tableId: order.tableId,
+              sessionId: order.sessionId,
+              orderId: order.id,
+              data: { order: updatedOrder },
+              timestamp: new Date(),
+            });
+          }
+        }
+
+        console.log("✅ Order item started successfully");
+      } catch (err) {
+        console.error("❌ Failed to start order item:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const markItemReady = useCallback(
+    async (itemId: string, chefId: string) => {
+      try {
+        console.log("✅ Marking item ready:", itemId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) => {
+            const updatedItems = order.items.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    status: "ready_item" as const,
+                    readyAt: new Date(),
+                    updatedAt: new Date(),
+                  }
+                : item,
+            );
+
+            // Check if all items are ready
+            const allItemsReady = updatedItems.every(
+              (item) =>
+                item.status === "ready_item" || item.status === "served_item",
+            );
+
+            return {
+              ...order,
+              items: updatedItems,
+              status: allItemsReady ? ("ready" as const) : order.status,
+              readyAt: allItemsReady ? new Date() : order.readyAt,
+              updatedAt: new Date(),
+            };
+          }),
+        }));
+
+        const order = globalSessionState.orders.find((o) =>
+          o.items.some((i) => i.id === itemId),
+        );
+        
+        if (order) {
+          broadcastEvent({
+            type: "item.ready",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId: order.id,
+            itemId,
+            data: { itemId },
+            timestamp: new Date(),
+            actor: {
+              userId: chefId,
+              role: "chef",
+              name: "Chef",
+            },
+          });
+
+          // Check if order is now ready
+          const updatedOrder = globalSessionState.orders.find(o => o.id === order.id);
+          if (updatedOrder?.status === "ready") {
+            broadcastEvent({
+              type: "order.ready",
+              tenantId,
+              locationId,
+              tableId: order.tableId,
+              sessionId: order.sessionId,
+              orderId: order.id,
+              data: { order: updatedOrder },
+              timestamp: new Date(),
+            });
+          }
+        }
+
+        console.log("✅ Item marked ready successfully");
+      } catch (err) {
+        console.error("❌ Failed to mark item ready:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const markOrderServed = useCallback(
+    async (orderId: string, staffId: string) => {
+      try {
+        console.log("🍽️ Marking order served:", orderId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  status: "served" as const,
+                  servedAt: new Date(),
+                  assignedStaffId: staffId,
+                  items: order.items.map((item) => ({
+                    ...item,
+                    status: "served_item" as const,
+                    servedAt: new Date(),
+                    updatedAt: new Date(),
+                  })),
+                  updatedAt: new Date(),
+                }
+              : order,
+          ),
+        }));
+
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (order) {
+          broadcastEvent({
+            type: "order.served",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId,
+            data: { order, staffId },
+            timestamp: new Date(),
+            actor: {
+              userId: staffId,
+              role: "staff",
+              name: "Staff",
+            },
+          });
+        }
+
+        console.log("✅ Order marked served successfully");
+      } catch (err) {
+        console.error("❌ Failed to mark order served:", err);
         throw err;
       }
     },
@@ -637,7 +861,6 @@ export function useSessionManagement({
           ),
         }));
 
-        // Broadcast staff assignment
         const order = globalSessionState.orders.find((o) => o.id === orderId);
         if (order) {
           broadcastEvent({
@@ -680,7 +903,6 @@ export function useSessionManagement({
           ),
         }));
 
-        // Broadcast delivery status
         const order = globalSessionState.orders.find((o) => o.id === orderId);
         if (order) {
           broadcastEvent({
@@ -692,6 +914,11 @@ export function useSessionManagement({
             orderId,
             data: { order, staffId },
             timestamp: new Date(),
+            actor: {
+              userId: staffId,
+              role: "staff",
+              name: "Staff",
+            },
           });
         }
 
@@ -722,7 +949,6 @@ export function useSessionManagement({
           ),
         }));
 
-        // Broadcast payment initiation
         const order = globalSessionState.orders.find((o) => o.id === orderId);
         if (order) {
           broadcastEvent({
@@ -749,7 +975,7 @@ export function useSessionManagement({
   const markOrderPaid = useCallback(
     async (orderId: string, paymentMethod: "cash" | "card" | "digital", staffId: string) => {
       try {
-        console.log("✅ Marking order as paid:", orderId);
+        console.log("✅ MARKING ORDER PAID:", orderId);
 
         const order = globalSessionState.orders.find((o) => o.id === orderId);
         if (!order) throw new Error("Order not found");
@@ -805,60 +1031,6 @@ export function useSessionManagement({
     },
     [tenantId, locationId],
   );
-  const confirmOrder = useCallback(
-    async (orderId: string, staffId: string) => {
-      try {
-        console.log("✅ Confirming order:", orderId);
-
-        updateGlobalSession((prev) => ({
-          ...prev,
-          orders: prev.orders.map((order) =>
-            order.id === orderId
-              ? {
-                  ...order,
-                  status: "confirmed" as const,
-                  confirmedAt: new Date(),
-                  estimatedReadyAt: new Date(Date.now() + 20 * 60 * 1000), // 20 min estimate
-                  updatedAt: new Date(),
-                }
-              : order,
-          ),
-          carts: prev.carts.map((cart) => {
-            const order = prev.orders.find((o) => o.id === orderId);
-            return cart.sessionId === order?.sessionId
-              ? { ...cart, status: "active" as const, updatedAt: new Date() }
-              : cart;
-          }),
-        }));
-
-        // Broadcast order confirmed
-        const order = globalSessionState.orders.find((o) => o.id === orderId);
-        if (order) {
-          broadcastEvent({
-            type: "order.confirmed",
-            tenantId,
-            locationId,
-            tableId: order.tableId,
-            sessionId: order.sessionId,
-            orderId,
-            data: { order },
-            timestamp: new Date(),
-            actor: {
-              userId: staffId,
-              role: "manager",
-              name: "Manager",
-            },
-          });
-        }
-
-        console.log("✅ Order confirmed successfully");
-      } catch (err) {
-        console.error("❌ Failed to confirm order:", err);
-        throw err;
-      }
-    },
-    [tenantId, locationId],
-  );
 
   const cancelOrder = useCallback(
     async (orderId: string, reason: string, staffId: string) => {
@@ -886,7 +1058,6 @@ export function useSessionManagement({
           }),
         }));
 
-        // Broadcast order cancelled
         const order = globalSessionState.orders.find((o) => o.id === orderId);
         if (order) {
           broadcastEvent({
@@ -915,308 +1086,11 @@ export function useSessionManagement({
     [tenantId, locationId],
   );
 
-  const startOrderItem = useCallback(
-    async (itemId: string, chefId: string) => {
-      try {
-        console.log("🔥 Starting order item:", itemId);
-
-        updateGlobalSession((prev) => ({
-          ...prev,
-          orders: prev.orders.map((order) => ({
-            ...order,
-            items: order.items.map((item) =>
-              item.id === itemId
-                ? {
-                    ...item,
-                    status: "in_progress" as const,
-                    startedAt: new Date(),
-                    assignedChef: chefId,
-                    updatedAt: new Date(),
-                  }
-                : item,
-            ),
-            status: order.items.some((i) => i.id === itemId)
-              ? ("preparing" as const)
-              : order.status,
-            updatedAt: new Date(),
-          })),
-        }));
-
-        // Broadcast item started
-        const order = globalSessionState.orders.find((o) =>
-          o.items.some((i) => i.id === itemId),
-        );
-        if (order) {
-          broadcastEvent({
-            type: "item.started",
-            tenantId,
-            locationId,
-            tableId: order.tableId,
-            sessionId: order.sessionId,
-            orderId: order.id,
-            itemId,
-            data: { itemId, chefId },
-            timestamp: new Date(),
-            actor: {
-              userId: chefId,
-              role: "chef",
-              name: "Chef",
-            },
-          });
-
-          // If order status changed to preparing, broadcast that too
-          if (order.status !== "preparing") {
-            broadcastEvent({
-              type: "order.preparing",
-              tenantId,
-              locationId,
-              tableId: order.tableId,
-              sessionId: order.sessionId,
-              orderId: order.id,
-              data: { order },
-              timestamp: new Date(),
-            });
-          }
-        }
-
-        console.log("✅ Order item started successfully");
-      } catch (err) {
-        console.error("❌ Failed to start order item:", err);
-        throw err;
-      }
-    },
-    [tenantId, locationId],
-  );
-
-  const markItemReady = useCallback(
-    async (itemId: string, chefId: string) => {
-      try {
-        console.log("✅ Marking item ready:", itemId);
-
-        updateGlobalSession((prev) => ({
-          ...prev,
-          orders: prev.orders.map((order) => {
-            const updatedItems = order.items.map((item) =>
-              item.id === itemId
-                ? {
-                    ...item,
-                    status: "ready_item" as const,
-                    readyAt: new Date(),
-                    updatedAt: new Date(),
-                  }
-                : item,
-            );
-
-            // Check if all items are ready
-            const allItemsReady = updatedItems.every(
-              (item) =>
-                item.status === "ready_item" || item.status === "served_item",
-            );
-
-            return {
-              ...order,
-              items: updatedItems,
-              status: allItemsReady ? ("ready" as const) : order.status,
-              readyAt: allItemsReady ? new Date() : order.readyAt,
-              updatedAt: new Date(),
-            };
-          }),
-        }));
-
-        // Broadcast item ready
-        const order = globalSessionState.orders.find((o) =>
-          o.items.some((i) => i.id === itemId),
-        );
-        if (order) {
-          broadcastEvent({
-            type: "item.ready",
-            tenantId,
-            locationId,
-            tableId: order.tableId,
-            sessionId: order.sessionId,
-            orderId: order.id,
-            itemId,
-            data: { itemId },
-            timestamp: new Date(),
-            actor: {
-              userId: chefId,
-              role: "chef",
-              name: "Chef",
-            },
-          });
-
-          // Check if order is now ready
-          const updatedOrder = globalSessionState.orders.find(
-            (o) => o.id === order.id,
-          );
-          if (updatedOrder?.status === "ready") {
-            broadcastEvent({
-              type: "order.ready",
-              tenantId,
-              locationId,
-              tableId: order.tableId,
-              sessionId: order.sessionId,
-              orderId: order.id,
-              data: { order: updatedOrder },
-              timestamp: new Date(),
-            });
-          }
-        }
-
-        console.log("✅ Item marked ready successfully");
-      } catch (err) {
-        console.error("❌ Failed to mark item ready:", err);
-        throw err;
-      }
-    },
-    [tenantId, locationId],
-  );
-
-  const markOrderServed = useCallback(
-    async (orderId: string, staffId: string) => {
-      try {
-        console.log("🍽️ Marking order served:", orderId);
-
-        updateGlobalSession((prev) => ({
-          ...prev,
-          orders: prev.orders.map((order) =>
-            order.id === orderId
-              ? {
-                  ...order,
-                  status: "served" as const,
-                  servedAt: new Date(),
-                  assignedStaffId: staffId,
-                  items: order.items.map((item) => ({
-                    ...item,
-                    status: "served_item" as const,
-                    servedAt: new Date(),
-                    updatedAt: new Date(),
-                  })),
-                  updatedAt: new Date(),
-                }
-              : order,
-          ),
-        }));
-
-        // Broadcast order served
-        const order = globalSessionState.orders.find((o) => o.id === orderId);
-        if (order) {
-          broadcastEvent({
-            type: "order.served",
-            tenantId,
-            locationId,
-            tableId: order.tableId,
-            sessionId: order.sessionId,
-            orderId,
-            data: { order, staffId },
-            timestamp: new Date(),
-            actor: {
-              userId: staffId,
-              role: "staff",
-              name: "Staff",
-            },
-          });
-        }
-
-        console.log("✅ Order marked served successfully");
-      } catch (err) {
-        console.error("❌ Failed to mark order served:", err);
-        throw err;
-      }
-    },
-    [tenantId, locationId],
-  );
-
-  const processPayment = useCallback(
-    async (
-      orderId: string,
-      method: "cash" | "card" | "digital",
-      amount: number,
-    ) => {
-      try {
-        console.log("💳 Processing payment for order:", orderId);
-
-        const order = globalSessionState.orders.find((o) => o.id === orderId);
-        if (!order) throw new Error("Order not found");
-
-        const payment: Payment = {
-          id: `payment_${Date.now()}`,
-          orderId,
-          sessionId: order.sessionId,
-          tenantId,
-          amount,
-          method,
-          status: "processing",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        // Add payment and update order status
-        updateGlobalSession((prev) => ({
-          ...prev,
-          payments: [...prev.payments, payment],
-          orders: prev.orders.map((o) =>
-            o.id === orderId
-              ? { ...o, status: "paying" as const, updatedAt: new Date() }
-              : o,
-          ),
-        }));
-
-        // Simulate payment processing
-        setTimeout(() => {
-          updateGlobalSession((prev) => ({
-            ...prev,
-            payments: prev.payments.map((p) =>
-              p.id === payment.id
-                ? {
-                    ...p,
-                    status: "completed" as const,
-                    processedAt: new Date(),
-                    updatedAt: new Date(),
-                  }
-                : p,
-            ),
-            orders: prev.orders.map((o) =>
-              o.id === orderId
-                ? {
-                    ...o,
-                    status: "paid" as const,
-                    paidAt: new Date(),
-                    updatedAt: new Date(),
-                  }
-                : o,
-            ),
-          }));
-
-          // Broadcast payment completed
-          broadcastEvent({
-            type: "order.paid",
-            tenantId,
-            locationId,
-            tableId: order.tableId,
-            sessionId: order.sessionId,
-            orderId,
-            data: { order, payment, amount, method },
-            timestamp: new Date(),
-          });
-        }, 2000);
-
-        console.log("✅ Payment processing started");
-        return payment;
-      } catch (err) {
-        console.error("❌ Failed to process payment:", err);
-        throw err;
-      }
-    },
-    [tenantId, locationId],
-  );
-
   const clearTable = useCallback(
     async (tableId: string, staffId: string) => {
       try {
         console.log("🧹 Clearing table:", tableId);
 
-        // Close active session
         const activeSession = globalSessionState.sessions.find(
           (s) => s.tableId === tableId && s.status === "active",
         );
@@ -1236,7 +1110,6 @@ export function useSessionManagement({
             ),
           }));
 
-          // Broadcast session closed
           broadcastEvent({
             type: "table.session.closed",
             tenantId,
@@ -1253,34 +1126,7 @@ export function useSessionManagement({
           });
         }
 
-        // Simulate table cleaning process
-        broadcastEvent({
-          type: "table.status.changed",
-          tenantId,
-          locationId,
-          tableId,
-          data: { status: "cleaning", previousStatus: "occupied" },
-          timestamp: new Date(),
-          actor: {
-            userId: staffId,
-            role: "staff",
-            name: "Staff",
-          },
-        });
-
-        // After cleaning timer, mark available
-        setTimeout(() => {
-          broadcastEvent({
-            type: "table.status.changed",
-            tenantId,
-            locationId,
-            tableId,
-            data: { status: "available", previousStatus: "cleaning" },
-            timestamp: new Date(),
-          });
-        }, 5000); // 5 second cleaning simulation
-
-        console.log("✅ Table clearing initiated");
+        console.log("✅ Table cleared successfully");
       } catch (err) {
         console.error("❌ Failed to clear table:", err);
         throw err;
@@ -1289,6 +1135,7 @@ export function useSessionManagement({
     [tenantId, locationId],
   );
 
+  // Helper functions
   const getSessionByTable = useCallback(
     (tableId: string) => {
       return sessions.find(
@@ -1345,7 +1192,6 @@ export function useSessionManagement({
     markOrderForDelivery,
     initiatePayment,
     markOrderPaid,
-    processPayment,
     clearTable,
     getSessionByTable,
     getCartBySession,

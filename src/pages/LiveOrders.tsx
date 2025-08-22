@@ -1,67 +1,283 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useSessionManagement } from "../hooks/useSessionManagement";
-import { useSearchParams } from "react-router-dom";
-import { useCustomization } from "../hooks/useCustomization";
-import DynamicPageRenderer from "../components/DynamicPageRenderer";
+import { format } from "date-fns";
 import {
   Clock,
   CheckCircle,
-  Users,
-  Star,
-  ShoppingBag,
-  DollarSign,
   ChefHat,
-  BarChart3,
-  TrendingUp,
+  Truck,
+  DollarSign,
+  Eye,
+  Bell,
+  RefreshCw,
+  Filter,
+  Search,
   MapPin,
+  Users,
+  Timer,
+  Activity,
+  AlertTriangle,
+  Star,
+  Flame,
+  Leaf,
+  Package,
+  CreditCard,
+  Archive,
 } from "lucide-react";
 
 export default function LiveOrders() {
   const [searchParams] = useSearchParams();
-  const trackingOrderId = searchParams.get("order");
-
-  const { orders, archivedOrders, loading: sessionLoading } = useSessionManagement({
+  const highlightOrderId = searchParams.get("order");
+  
+  const {
+    orders,
+    archivedOrders,
+    loading,
+  } = useSessionManagement({
     tenantId: "tenant_123",
     locationId: "location_456",
   });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTable, setSelectedTable] = useState("all");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Auto-refresh every 5 seconds when enabled
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      console.log("🔄 Auto-refreshing live orders");
+      // Force re-render by updating a dummy state
+      setSearchTerm(prev => prev);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
+  // Scroll to highlighted order
+  useEffect(() => {
+    if (highlightOrderId) {
+      setTimeout(() => {
+        const element = document.getElementById(`order-${highlightOrderId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          element.classList.add("ring-4", "ring-blue-500", "ring-opacity-50");
+          setTimeout(() => {
+            element.classList.remove("ring-4", "ring-blue-500", "ring-opacity-50");
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [highlightOrderId, orders]);
 
   console.log("LiveOrders - Current orders:", orders.length);
-  console.log("LiveOrders - Orders by status:", {
-    placed: orders.filter(o => o.status === "placed").length,
-    confirmed: orders.filter(o => o.status === "confirmed").length,
-    preparing: orders.filter(o => o.status === "preparing").length,
-    ready: orders.filter(o => o.status === "ready").length,
-    served: orders.filter(o => o.status === "served").length,
-  });
-  const {
-    pages,
-    theme,
-    loading: customizationLoading,
-  } = useCustomization({
-    tenantId: "tenant_123",
-    locationId: "location_456",
-  });
+  console.log("LiveOrders - Archived orders:", archivedOrders.length);
+  console.log("LiveOrders - All orders:", orders.map(o => ({
+    id: o.id,
+    number: o.orderNumber,
+    table: o.tableId,
+    status: o.status,
+    total: o.totalAmount
+  })));
 
-  // Focus on tracking order if provided
-  const trackingOrder = trackingOrderId
-    ? orders.find((o) => o.id === trackingOrderId)
-    : null;
+  // Group orders by status
+  const ordersByStatus = {
+    placed: orders.filter(o => o.status === "placed"),
+    confirmed: orders.filter(o => o.status === "confirmed"),
+    preparing: orders.filter(o => o.status === "preparing"),
+    ready: orders.filter(o => o.status === "ready"),
+    delivering: orders.filter(o => o.status === "delivering"),
+    served: orders.filter(o => o.status === "served"),
+    paying: orders.filter(o => o.status === "paying"),
+    completed: archivedOrders.filter(o => ["paid", "closed"].includes(o.status)),
+  };
 
-  // Combine active and archived orders for complete view
-  const allOrders = [...orders, ...archivedOrders];
-  const liveOrdersPage = pages.find(
-    (p) => p.slug === "live-orders" && p.status === "published",
+  const allTables = [...new Set([
+    ...orders.map(o => o.tableId),
+    ...archivedOrders.map(o => o.tableId)
+  ])].filter(Boolean).sort();
+
+  const filteredOrdersByStatus = Object.fromEntries(
+    Object.entries(ordersByStatus).map(([status, statusOrders]) => [
+      status,
+      statusOrders.filter(order => {
+        const matchesSearch = 
+          order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.tableId?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesTable = selectedTable === "all" || order.tableId === selectedTable;
+        return matchesSearch && matchesTable;
+      })
+    ])
   );
-  const hasCustomContent =
-    liveOrdersPage &&
-    liveOrdersPage.sections.length > 0 &&
-    liveOrdersPage.sections.some(
-      (s) => s.visible && s.props && Object.keys(s.props).length > 0,
-    );
 
-  if (customizationLoading || sessionLoading) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "placed": return "bg-yellow-500";
+      case "confirmed": return "bg-blue-500";
+      case "preparing": return "bg-orange-500";
+      case "ready": return "bg-green-500";
+      case "delivering": return "bg-purple-500";
+      case "served": return "bg-gray-500";
+      case "paying": return "bg-indigo-500";
+      case "paid": return "bg-emerald-500";
+      case "closed": return "bg-slate-500";
+      default: return "bg-gray-400";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "placed": return <Clock className="w-4 h-4" />;
+      case "confirmed": return <CheckCircle className="w-4 h-4" />;
+      case "preparing": return <ChefHat className="w-4 h-4" />;
+      case "ready": return <Package className="w-4 h-4" />;
+      case "delivering": return <Truck className="w-4 h-4" />;
+      case "served": return <CheckCircle className="w-4 h-4" />;
+      case "paying": return <CreditCard className="w-4 h-4" />;
+      case "paid": return <DollarSign className="w-4 h-4" />;
+      case "closed": return <Archive className="w-4 h-4" />;
+      default: return <Clock className="w-4 h-4" />;
+    }
+  };
+
+  const getDietaryIcons = (item: any) => {
+    const icons = [];
+    if (item.isVegan) icons.push(<Leaf key="vegan" className="w-3 h-3 text-green-600" aria-label="Vegan" />);
+    else if (item.isVegetarian) icons.push(<Leaf key="vegetarian" className="w-3 h-3 text-green-500" aria-label="Vegetarian" />);
+    
+    if (item.spicyLevel > 0) {
+      icons.push(
+        <div key="spicy" className="flex" aria-label={`Spicy Level: ${item.spicyLevel}`}>
+          {[...Array(item.spicyLevel)].map((_, i) => (
+            <Flame key={i} className="w-3 h-3 text-red-500" />
+          ))}
+        </div>
+      );
+    }
+    
+    return icons;
+  };
+
+  const formatElapsedTime = (placedAt: Date) => {
+    const minutes = Math.floor((Date.now() - placedAt.getTime()) / (1000 * 60));
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  };
+
+  const renderOrderCard = (order: any, isHighlighted = false) => (
+    <div
+      id={`order-${order.id}`}
+      key={order.id}
+      className={`bg-white rounded-xl shadow-lg border-l-4 p-6 hover:shadow-xl transition-all ${
+        isHighlighted ? "ring-4 ring-blue-500 ring-opacity-50" : ""
+      } ${
+        order.priority === "urgent" ? "border-red-500 bg-red-50" :
+        order.priority === "high" ? "border-orange-500 bg-orange-50" :
+        "border-gray-300"
+      }`}
+    >
+      {/* Order Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-3">
+          <div className={`w-10 h-10 rounded-lg ${getStatusColor(order.status)} flex items-center justify-center text-white`}>
+            {getStatusIcon(order.status)}
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">{order.orderNumber}</h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <MapPin className="w-3 h-3" />
+              <span>{order.tableId}</span>
+              <span>•</span>
+              <Users className="w-3 h-3" />
+              <span>Session #{order.sessionId.slice(-6)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-lg font-bold text-gray-900">
+            ${order.totalAmount.toFixed(2)}
+          </div>
+          <div className="text-sm text-gray-500">
+            {formatElapsedTime(order.placedAt)}
+          </div>
+        </div>
+      </div>
+
+      {/* Order Items */}
+      <div className="space-y-2 mb-4">
+        {order.items.map((item: any, index: number) => (
+          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-900">
+                {item.quantity}x {item.name}
+              </span>
+              <div className="flex items-center space-x-1">
+                {getDietaryIcons(item)}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">
+                ${(item.unitPrice * item.quantity).toFixed(2)}
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
+                item.status === "queued" ? "bg-gray-500" :
+                item.status === "in_progress" ? "bg-orange-500" :
+                item.status === "ready_item" ? "bg-green-500" :
+                item.status === "served_item" ? "bg-blue-500" :
+                "bg-gray-400"
+              }`}>
+                {item.status.replace("_", " ").toUpperCase()}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Special Instructions */}
+      {order.specialInstructions && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="text-sm text-yellow-800">
+            <strong>Special Instructions:</strong> {order.specialInstructions}
+          </div>
+        </div>
+      )}
+
+      {/* Order Timeline */}
+      <div className="text-xs text-gray-500 space-y-1">
+        <div>Placed: {format(order.placedAt, "HH:mm:ss")}</div>
+        {order.confirmedAt && (
+          <div>Confirmed: {format(order.confirmedAt, "HH:mm:ss")}</div>
+        )}
+        {order.readyAt && (
+          <div>Ready: {format(order.readyAt, "HH:mm:ss")}</div>
+        )}
+        {order.servedAt && (
+          <div>Served: {format(order.servedAt, "HH:mm:ss")}</div>
+        )}
+        {order.paidAt && (
+          <div>Paid: {format(order.paidAt, "HH:mm:ss")}</div>
+        )}
+      </div>
+
+      {/* Estimated Ready Time */}
+      {order.estimatedReadyAt && order.status !== "served" && order.status !== "paid" && (
+        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2 text-sm text-blue-800">
+            <Timer className="w-4 h-4" />
+            <span>Est. Ready: {format(order.estimatedReadyAt, "HH:mm")}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (loading) {
     return (
       <div className="min-h-screen">
         <Header />
@@ -76,104 +292,13 @@ export default function LiveOrders() {
     );
   }
 
-  // If tenant has customized the live orders page, render it dynamically
-  if (hasCustomContent) {
-    return (
-      <div className="min-h-screen">
-        <Header />
-        <DynamicPageRenderer page={liveOrdersPage} theme={theme} />
-        <Footer />
-      </div>
-    );
-  }
-
-  // Original beautiful live orders design (unchanged)
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "placed":
-        return "bg-yellow-500";
-      case "confirmed":
-        return "bg-blue-500";
-      case "preparing":
-        return "bg-orange-500";
-      case "ready":
-        return "bg-green-500";
-      case "served":
-        return "bg-gray-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "placed":
-        return "Order Placed";
-      case "confirmed":
-        return "Order Confirmed";
-      case "preparing":
-        return "Preparing";
-      case "ready":
-        return "Ready";
-      case "served":
-        return "Served";
-      default:
-        return status;
-    }
-  };
-
-  const getStatusDescription = (status: string) => {
-    switch (status) {
-      case "placed":
-        return "Waiting for confirmation";
-      case "confirmed":
-        return "Confirmed and sent to kitchen";
-      case "preparing":
-        return "Chef is working on your meal";
-      case "ready":
-        return "Order ready for service";
-      case "served":
-        return "Order has been served";
-      default:
-        return "";
-    }
-  };
-
-  const ordersByStatus = {
-    placed: allOrders.filter(
-      (o) => o.status === "placed" || o.status === "confirmed",
-    ),
-    confirmed: allOrders.filter((o) => o.status === "confirmed"),
-    preparing: allOrders.filter((o) => o.status === "preparing"),
-    ready: allOrders.filter((o) => o.status === "ready"),
-    served: allOrders.filter((o) => o.status === "served" || o.status === "delivering"),
-    paying: allOrders.filter((o) => o.status === "paying"),
-    paid: allOrders.filter((o) => o.status === "paid"),
-  };
-
-  console.log("Orders by status:", ordersByStatus);
-
-  const totalOrders = allOrders.filter(
-    (o) => o.status !== "paid" && o.status !== "closed",
-  ).length;
-  const activeOrders = allOrders.filter((o) =>
-    ["placed", "confirmed", "preparing", "ready"].includes(o.status),
-  ).length;
-
-  const mostSoldItems = [
-    { name: "Butter Chicken", orders: 15, trend: "+10%" },
-    { name: "Chicken Biryani", orders: 12, trend: "+8%" },
-    { name: "Garlic Naan", orders: 18, trend: "+15%" },
-    { name: "Paneer Tikka", orders: 9, trend: "+6%" },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <Header />
 
-      {/* Section 1: Hero Section */}
-      <section className="relative h-80 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/60"></div>
+      {/* Hero Section */}
+      <section className="relative h-64 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/50"></div>
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -181,982 +306,348 @@ export default function LiveOrders() {
               "url(https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1920)",
           }}
         ></div>
-        <div className="relative z-10 text-center text-white max-w-4xl mx-auto px-4">
+        <div className="relative z-10 text-center text-white">
           <h1 className="text-5xl font-bold mb-4">Live Orders</h1>
-          <p className="text-xl mb-2">Track your orders live here</p>
-          <p className="text-lg opacity-90">
-            Track your dine-in and takeaway orders in real-time with live
-            kitchen updates
-          </p>
+          <p className="text-xl">Real-time order tracking and updates</p>
+          <div className="mt-4 flex items-center justify-center space-x-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm">Live Updates - Refreshed Every 5 Seconds</span>
+          </div>
         </div>
       </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Tracking Order Highlight */}
-        {trackingOrder && (
-          <div className="mb-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-blue-900">
-                  Tracking Your Order
-                </h2>
-                <p className="text-blue-700">
-                  {trackingOrder.orderNumber} • Table {trackingOrder.tableId} •
-                  ${trackingOrder.totalAmount.toFixed(2)}
-                </p>
-              </div>
-              <div className="text-right">
-                <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white ${getStatusColor(trackingOrder.status)}`}
-                >
-                  {getStatusText(trackingOrder.status)}
-                </span>
-                <p className="text-sm text-blue-600 mt-1">
-                  {getStatusDescription(trackingOrder.status)}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Section 2: Order Status Columns */}
-        <div className="mb-16">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Placed Orders Column */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Order Placed
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Waiting for confirmation
-                    </p>
-                  </div>
-                </div>
-                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {ordersByStatus.placed.length}
-                </span>
+        {/* Controls */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search orders or tables..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
 
-              <div className="space-y-4">
-                {ordersByStatus.placed.map((order) => (
-                  <div key={order.id} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {order.tableId}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {order.placedAt.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <select
+                value={selectedTable}
+                onChange={(e) => setSelectedTable(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="all">All Tables</option>
+                {allTables.map(table => (
+                  <option key={table} value={table}>{table}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
-            {/* Confirmed Orders Column */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Confirmed
-                    </h3>
-                    <p className="text-sm text-gray-600">Sent to kitchen</p>
-                  </div>
-                </div>
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {ordersByStatus.confirmed.length}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {ordersByStatus.confirmed.map((order) => (
-                  <div key={order.id} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {order.tableId}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {order.placedAt.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Preparing Column */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Preparing
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Chef is working on your meal
-                    </p>
-                  </div>
-                </div>
-                <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {ordersByStatus.preparing.length}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {ordersByStatus.preparing.map((order) => (
-                  <div key={order.id} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {order.tableId}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {order.placedAt.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Ready Column */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Ready
-                    </h3>
-                    <p className="text-sm text-gray-600">Ready for service</p>
-                  </div>
-                </div>
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {ordersByStatus.ready.length}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {ordersByStatus.ready.map((order) => (
-                  <div
-                    key={order.id}
-                    className="bg-gray-50 rounded-xl p-4 relative"
-                  >
-                    {order.priority === "urgent" && (
-                      <div className="absolute top-2 right-2">
-                        <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                          URGENT
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {order.tableId}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {order.placedAt.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Delivered Column */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Delivered
-                    </h3>
-                    <p className="text-sm text-gray-600">Awaiting payment</p>
-                  </div>
-                </div>
-                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {ordersByStatus.served.length}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {ordersByStatus.served.map((order) => (
-                  <div key={order.id} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {order.tableId}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {(
-                            order.servedAt || order.placedAt
-                          ).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-700">• {item.name}</span>
-                          <span className="text-orange-600 font-medium">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-sm text-gray-700">Auto-refresh</span>
+              </label>
+              
+              <div className="flex items-center space-x-1 bg-green-100 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-green-800">Live</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Kitchen Insights Section */}
-        <div className="mt-8">
-          <div className="bg-gray-900 text-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold">Kitchen Insights</h2>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Online</span>
-                </div>
-                <select className="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700">
-                  <option>Kitchen 1</option>
-                  <option>Kitchen 2</option>
-                </select>
-              </div>
+        {/* Debug Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-8">
+          <h3 className="font-semibold text-blue-900 mb-2">🔍 Live Order Status</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">{ordersByStatus.placed.length}</div>
+              <div className="text-yellow-800">Placed</div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* Total Orders */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-2">Total Orders</h3>
-                <div className="text-5xl font-bold mb-4">26</div>
-              </div>
-
-              {/* Orders by Status */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-4">Orders by Status</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-20 h-2 bg-yellow-500 rounded-full"></div>
-                    <span className="text-sm">Preparing</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-16 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-sm">Ready</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Average Prep Time */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-2">
-                  Average Prep Time
-                </h3>
-                <div className="text-4xl font-bold">12m 30s</div>
-              </div>
-
-              {/* Longest Pending Order */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-2">
-                  Longest Pending Order
-                </h3>
-                <div className="text-2xl font-bold">
-                  #O-117 <span className="text-lg">18m</span>
-                </div>
-              </div>
-
-              {/* Top 5 Dishes */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-4">Top 5 Dishes</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Butter Chicken</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-16 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium">15</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Chicken Biryani</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-12 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium">10</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Dal Tadka</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-10 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium">8</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Paneer Tikka</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium">4</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Garlic Naan</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium">3</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Orders Service Type - Donut Chart */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-4">
-                  Orders' Service Type
-                </h3>
-                <div className="flex items-center space-x-4">
-                  <div className="relative w-20 h-20">
-                    <svg
-                      className="w-20 h-20 transform -rotate-90"
-                      viewBox="0 0 36 36"
-                    >
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#374151"
-                        strokeWidth="3"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#F59E0B"
-                        strokeWidth="3"
-                        strokeDasharray="60, 100"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#1F2937"
-                        strokeWidth="3"
-                        strokeDasharray="30, 100"
-                        strokeDashoffset="-60"
-                      />
-                    </svg>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm">Dine in</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
-                      <span className="text-sm">Takeaway</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-gray-600 rounded-full"></div>
-                      <span className="text-sm">Delivery</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{ordersByStatus.confirmed.length}</div>
+              <div className="text-blue-800">Confirmed</div>
             </div>
-
-            {/* Bottom Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-              {/* Chef Workload */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-4">Chef Workload</h3>
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium">FG</span>
-                  </div>
-                  <div>
-                    <div className="font-medium">Ford Garrison</div>
-                    <div className="text-2xl font-bold">6</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Cancelled Order Reasons */}
-              <div>
-                <h3 className="text-gray-400 text-sm mb-4">
-                  Cancelled Order Reasons
-                </h3>
-                <div className="flex items-center space-x-4">
-                  <div className="relative w-16 h-16">
-                    <svg
-                      className="w-16 h-16 transform -rotate-90"
-                      viewBox="0 0 36 36"
-                    >
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#374151"
-                        strokeWidth="3"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#F59E0B"
-                        strokeWidth="3"
-                        strokeDasharray="40, 100"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#D97706"
-                        strokeWidth="3"
-                        strokeDasharray="35, 100"
-                        strokeDashoffset="-40"
-                      />
-                    </svg>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm">Late</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
-                      <span className="text-sm">Wrong item</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-gray-600 rounded-full"></div>
-                      <span className="text-sm">Other</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{ordersByStatus.preparing.length}</div>
+              <div className="text-orange-800">Preparing</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{ordersByStatus.ready.length}</div>
+              <div className="text-green-800">Ready</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{ordersByStatus.delivering.length}</div>
+              <div className="text-purple-800">Delivering</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-600">{ordersByStatus.served.length}</div>
+              <div className="text-gray-800">Served</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-indigo-600">{ordersByStatus.paying.length}</div>
+              <div className="text-indigo-800">Paying</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600">{ordersByStatus.completed.length}</div>
+              <div className="text-emerald-800">Completed</div>
             </div>
           </div>
         </div>
-        {/* Section 3: Summary and Statistics */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">
-            Live Order Summary
-          </h2>
 
-          {/* Order Summary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+        {/* Order Status Sections */}
+        <div className="space-y-12">
+          {/* Order Placed */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Order Placed ({filteredOrdersByStatus.placed.length})
+              </h2>
+              <div className="text-sm text-gray-500">Awaiting confirmation</div>
+            </div>
+            
+            {filteredOrdersByStatus.placed.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No orders placed yet</p>
+                <p className="text-sm text-gray-500">New orders will appear here when customers place them</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.placed.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Confirmed */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Confirmed ({filteredOrdersByStatus.confirmed.length})
+              </h2>
+              <div className="text-sm text-gray-500">Sent to kitchen</div>
+            </div>
+            
+            {filteredOrdersByStatus.confirmed.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No confirmed orders</p>
+                <p className="text-sm text-gray-500">Confirmed orders will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.confirmed.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Preparing */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <ChefHat className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Preparing ({filteredOrdersByStatus.preparing.length})
+              </h2>
+              <div className="text-sm text-gray-500">Kitchen is cooking</div>
+            </div>
+            
+            {filteredOrdersByStatus.preparing.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <ChefHat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No orders being prepared</p>
+                <p className="text-sm text-gray-500">Orders being cooked will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.preparing.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Ready */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Ready ({filteredOrdersByStatus.ready.length})
+              </h2>
+              <div className="text-sm text-gray-500">Ready for pickup</div>
+            </div>
+            
+            {filteredOrdersByStatus.ready.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No orders ready</p>
+                <p className="text-sm text-gray-500">Ready orders will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.ready.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Delivering */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                <Truck className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Out for Delivery ({filteredOrdersByStatus.delivering.length})
+              </h2>
+              <div className="text-sm text-gray-500">Staff delivering</div>
+            </div>
+            
+            {filteredOrdersByStatus.delivering.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <Truck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No orders out for delivery</p>
+                <p className="text-sm text-gray-500">Orders being delivered will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.delivering.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Served */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Served ({filteredOrdersByStatus.served.length})
+              </h2>
+              <div className="text-sm text-gray-500">Delivered to table</div>
+            </div>
+            
+            {filteredOrdersByStatus.served.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No served orders</p>
+                <p className="text-sm text-gray-500">Served orders will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.served.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Payment Processing */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Payment Processing ({filteredOrdersByStatus.paying.length})
+              </h2>
+              <div className="text-sm text-gray-500">Processing payment</div>
+            </div>
+            
+            {filteredOrdersByStatus.paying.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No payments being processed</p>
+                <p className="text-sm text-gray-500">Payment processing orders will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.paying.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Completed Orders */}
+          <section>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                <Archive className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Completed ({filteredOrdersByStatus.completed.length})
+              </h2>
+              <div className="text-sm text-gray-500">Paid and closed</div>
+            </div>
+            
+            {filteredOrdersByStatus.completed.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No completed orders</p>
+                <p className="text-sm text-gray-500">Completed orders will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOrdersByStatus.completed.map(order => 
+                  renderOrderCard(order, order.id === highlightOrderId)
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Real-time Stats */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
+          <h2 className="text-2xl font-bold mb-6">Live Restaurant Stats</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-yellow-600 mb-2">
-                {ordersByStatus.placed.length}
-              </div>
-              <div className="text-sm text-gray-600">Placed</div>
+              <div className="text-3xl font-bold mb-2">{orders.length}</div>
+              <div className="text-blue-100">Active Orders</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">
-                {ordersByStatus.confirmed.length}
+              <div className="text-3xl font-bold mb-2">
+                {orders.filter(o => ["preparing", "ready"].includes(o.status)).length}
               </div>
-              <div className="text-sm text-gray-600">Confirmed</div>
+              <div className="text-blue-100">In Kitchen</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">
-                {ordersByStatus.preparing.length}
+              <div className="text-3xl font-bold mb-2">
+                ${orders.reduce((sum, o) => sum + o.totalAmount, 0).toFixed(0)}
               </div>
-              <div className="text-sm text-gray-600">Preparing</div>
+              <div className="text-blue-100">Active Revenue</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {ordersByStatus.ready.length}
+              <div className="text-3xl font-bold mb-2">
+                {Math.round(orders.length > 0 ? 
+                  orders.reduce((sum, o) => sum + (Date.now() - o.placedAt.getTime()), 0) / 
+                  (orders.length * 1000 * 60) : 0)}m
               </div>
-              <div className="text-sm text-gray-600">Ready</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">
-                {ordersByStatus.served.length}
-              </div>
-              <div className="text-sm text-gray-600">Delivered</div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Revenue Analytics */}
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <DollarSign className="w-5 h-5 text-green-500" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Revenue Analytics
-                </h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <DollarSign className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Today's Revenue
-                      </div>
-                      <div className="text-sm text-gray-500">Live tracking</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-green-600">
-                      $2,847
-                    </div>
-                    <div className="text-sm text-green-500">+12.5%</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Avg Order Value
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Per transaction
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">
-                      $18.25
-                    </div>
-                    <div className="text-sm text-red-500">-2.1%</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Peak Hour Revenue
-                      </div>
-                      <div className="text-sm text-gray-500">7-8 PM</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">$498</div>
-                    <div className="text-sm text-green-500">+8.3%</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Kitchen Performance */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <ChefHat className="w-5 h-5 text-blue-500" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Kitchen Performance
-                </h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Avg Prep Time
-                      </div>
-                      <div className="text-sm text-gray-500">All orders</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">
-                      12m 30s
-                    </div>
-                    <div className="text-sm text-green-500">-1.2m</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Order Accuracy
-                      </div>
-                      <div className="text-sm text-gray-500">Success rate</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">98.5%</div>
-                    <div className="text-sm text-green-500">+0.3%</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Users className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Kitchen Efficiency
-                      </div>
-                      <div className="text-sm text-gray-500">Orders/hour</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-gray-900">24.5</div>
-                    <div className="text-sm text-green-500">+2.1</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Most Sold Items */}
-            <div className="bg-gray-50 rounded-xl p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <TrendingUp className="w-5 h-5 text-green-500" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Most Sold Items
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {mostSoldItems.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium text-green-600">
-                          #{index + 1}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {item.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {item.orders} orders today
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-green-600">
-                        {item.trend}
-                      </div>
-                      <div className="text-xs text-gray-500">Trend</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Customer Insights */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <Users className="w-5 h-5 text-purple-500" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Customer Insights
-                </h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Users className="w-5 h-5 text-purple-500" />
-                    <span className="text-gray-700">Active Customers</span>
-                  </div>
-                  <span className="font-semibold text-gray-900">42</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Clock className="w-5 h-5 text-blue-500" />
-                    <span className="text-gray-700">Avg Wait Time</span>
-                  </div>
-                  <span className="font-semibold text-gray-900">8m 15s</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Star className="w-5 h-5 text-yellow-500" />
-                    <span className="text-gray-700">Satisfaction Score</span>
-                  </div>
-                  <span className="font-semibold text-gray-900">4.8/5</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <TrendingUp className="w-5 h-5 text-green-500" />
-                    <span className="text-gray-700">Repeat Customers</span>
-                  </div>
-                  <span className="font-semibold text-gray-900">68%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Premium Analytics Dashboard */}
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-8 text-white mb-8">
-            <h2 className="text-2xl font-bold mb-8 text-center">
-              Real-Time Business Intelligence
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-400 mb-2">
-                  $2,847
-                </div>
-                <div className="text-sm text-gray-300">Today's Revenue</div>
-                <div className="text-xs text-green-400">↗ +12.5%</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-400 mb-2">156</div>
-                <div className="text-sm text-gray-300">Orders Served</div>
-                <div className="text-xs text-blue-400">↗ +8.2%</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-400 mb-2">
-                  24/32
-                </div>
-                <div className="text-sm text-gray-300">Table Occupancy</div>
-                <div className="text-xs text-purple-400">75% Full</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-orange-400 mb-2">
-                  18m
-                </div>
-                <div className="text-sm text-gray-300">Avg Service Time</div>
-                <div className="text-xs text-green-400">↘ -2.1m</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  Peak Hours Analysis
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Lunch Rush (12-2 PM)</span>
-                    <span className="text-yellow-400">$892</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Dinner Peak (7-9 PM)</span>
-                    <span className="text-green-400">$1,245</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Late Night (9-11 PM)</span>
-                    <span className="text-blue-400">$710</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  Staff Performance
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Active Staff</span>
-                    <span className="text-green-400">8/10</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Efficiency Score</span>
-                    <span className="text-yellow-400">94%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Orders per Staff</span>
-                    <span className="text-blue-400">19.5</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Quality Metrics</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Order Accuracy</span>
-                    <span className="text-green-400">98.5%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Customer Returns</span>
-                    <span className="text-yellow-400">1.2%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Food Waste</span>
-                    <span className="text-green-400">3.1%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Order Type Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-blue-50 rounded-xl p-6 text-center">
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <MapPin className="w-6 h-6 text-blue-600" />
-                <h3 className="text-lg font-semibold text-blue-900">
-                  Active Orders
-                </h3>
-              </div>
-              <div className="text-4xl font-bold text-blue-600 mb-2">
-                {activeOrders}
-              </div>
-              <div className="text-sm text-blue-700">Active Orders</div>
-            </div>
-
-            <div className="bg-purple-50 rounded-xl p-6 text-center">
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <ShoppingBag className="w-6 h-6 text-purple-600" />
-                <h3 className="text-lg font-semibold text-purple-900">
-                  Total Orders
-                </h3>
-              </div>
-              <div className="text-4xl font-bold text-purple-600 mb-2">
-                {totalOrders}
-              </div>
-              <div className="text-sm text-purple-700">Today</div>
-            </div>
-          </div>
-
-          {/* Predictive Analytics */}
-          <div className="mt-8 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-              AI-Powered Predictions
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <TrendingUp className="w-8 h-8 text-indigo-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Next Hour Forecast
-                </h3>
-                <p className="text-3xl font-bold text-indigo-600 mb-1">
-                  28 Orders
-                </p>
-                <p className="text-sm text-gray-600">Expected revenue: $512</p>
-              </div>
-
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Optimal Staffing
-                </h3>
-                <p className="text-3xl font-bold text-green-600 mb-1">
-                  +2 Staff
-                </p>
-                <p className="text-sm text-gray-600">
-                  Recommended for dinner rush
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BarChart3 className="w-8 h-8 text-orange-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Inventory Alert
-                </h3>
-                <p className="text-3xl font-bold text-orange-600 mb-1">
-                  3 Items
-                </p>
-                <p className="text-sm text-gray-600">
-                  Running low, restock needed
-                </p>
-              </div>
+              <div className="text-blue-100">Avg Wait Time</div>
             </div>
           </div>
         </div>
