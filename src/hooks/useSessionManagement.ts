@@ -1233,8 +1233,7 @@ export function useSessionManagement({
   const getCartBySession = useCallback(
     (sessionId: string) => {
       const cart = carts.find((c) => c.sessionId === sessionId);
-      // Return safe cart with defaults if not found
-      return cart || { ...EMPTY_CART, sessionId };
+      return cart || null;
     },
     [carts],
   );

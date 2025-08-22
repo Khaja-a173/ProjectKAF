@@ -675,7 +675,7 @@ export default function OrderManagement() {
             <p className="text-gray-600">
               {showArchivedOrders
                 ? "Completed and paid orders will appear here after payment processing."
-                ? "No active orders have been placed yet. Orders will appear here when customers place them."
+                : "No active orders have been placed yet. Orders will appear here when customers place them."}
             </p>
           </div>
         )}

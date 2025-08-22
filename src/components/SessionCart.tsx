@@ -64,39 +64,7 @@ export default function SessionCartComponent({
   disabled = false,
 }: SessionCartProps) {
   const [showOrderReview, setShowOrderReview] = useState(false);
-
-  // Safe cart with defaults
-  const safeCart = cart || {
-    id: "",
-    sessionId: "",
-    tenantId: "",
-    locationId: "",
-    status: "active" as const,
-    items: [],
-    subtotalMinor: 0,
-    taxMinor: 0,
-    totalMinor: 0,
-    currency: "INR",
-    lastActivity: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  // Safe items array
-  const items = Array.isArray(safeCart.items) ? safeCart.items : [];
-
-  // Safe currency
-  const currency = safeCart.currency || "INR";
-
-  // Safe totals with fallbacks (using minor units)
-  const subtotalMinor = Number.isFinite(safeCart.subtotalMinor)
-    ? safeCart.subtotalMinor
-    : 0;
-  const taxMinor = Number.isFinite(safeCart.taxMinor) ? safeCart.taxMinor : 0;
-  const totalMinor = Number.isFinite(safeCart.totalMinor)
-    ? safeCart.totalMinor
-    : subtotalMinor + taxMinor;
-
+  
   if (!cart) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6 sticky top-4">
@@ -111,6 +79,16 @@ export default function SessionCartComponent({
     );
   }
 
+  // Safe items array
+  const items = Array.isArray(cart.items) ? cart.items : [];
+  
+  // Safe currency
+  const currency = cart.currency || "INR";
+  
+  // Safe totals with fallbacks (using minor units)
+  const subtotalMinor = Number.isFinite(cart.subtotalMinor) ? cart.subtotalMinor : 0;
+  const taxMinor = Number.isFinite(cart.taxMinor) ? cart.taxMinor : 0;
+  const totalMinor = Number.isFinite(cart.totalMinor) ? cart.totalMinor : subtotalMinor + taxMinor;
   const getDietaryIcons = (item: CartItem) => {
     const icons = [];
     if (item.isVegan)
@@ -185,7 +163,7 @@ export default function SessionCartComponent({
           <div className="flex items-center space-x-2">
             <ShoppingCart className="w-5 h-5 text-orange-500" />
             <span className="text-sm text-gray-600">{items.length} items</span>
-            {safeCart.status === "locked" && (
+            {cart.status === "locked" && (
               <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
                 Processing
               </span>
@@ -232,7 +210,7 @@ export default function SessionCartComponent({
                         onClick={() =>
                           onUpdateQuantity(item.id, (item.quantity || 1) - 1)
                         }
-                        disabled={disabled || safeCart.status === "locked"}
+                        disabled={disabled || cart.status === "locked"}
                         className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 disabled:opacity-50"
                       >
                         <Minus className="w-3 h-3" />
@@ -244,7 +222,7 @@ export default function SessionCartComponent({
                         onClick={() =>
                           onUpdateQuantity(item.id, (item.quantity || 0) + 1)
                         }
-                        disabled={disabled || safeCart.status === "locked"}
+                        disabled={disabled || cart.status === "locked"}
                         className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 disabled:opacity-50"
                       >
                         <Plus className="w-3 h-3" />
@@ -258,7 +236,7 @@ export default function SessionCartComponent({
                       {onEditItem && (
                         <button
                           onClick={() => onEditItem(item)}
-                          disabled={disabled || safeCart.status === "locked"}
+                          disabled={disabled || cart.status === "locked"}
                           className="p-1 text-gray-400 hover:text-orange-500 disabled:opacity-50"
                         >
                           <Edit className="w-3 h-3" />
@@ -266,7 +244,7 @@ export default function SessionCartComponent({
                       )}
                       <button
                         onClick={() => onRemoveItem(item.id)}
-                        disabled={disabled || safeCart.status === "locked"}
+                        disabled={disabled || cart.status === "locked"}
                         className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -302,16 +280,16 @@ export default function SessionCartComponent({
               <button
                 onClick={handlePlaceOrder}
                 disabled={
-                  disabled || safeCart.status === "locked" || items.length === 0 || !safeCart.id
+                  disabled || cart.status === "locked" || items.length === 0 || !cart.id
                 }
                 className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
-                {safeCart.status === "locked" ? (
+                {cart.status === "locked" ? (
                   <>
                     <Clock className="w-4 h-4" />
                     <span>Processing Order...</span>
                   </>
-                ) : !safeCart.id ? (
+                ) : !cart.id ? (
                   <span>Setting up session...</span>
                 ) : (
                   <span>Place Order</span>
