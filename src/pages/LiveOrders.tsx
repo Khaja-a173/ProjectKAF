@@ -76,13 +76,6 @@ export default function LiveOrders() {
 
   console.log("LiveOrders - Current orders:", orders.length);
   console.log("LiveOrders - Archived orders:", archivedOrders.length);
-  console.log("LiveOrders - All orders:", orders.map(o => ({
-    id: o.id,
-    number: o.orderNumber,
-    table: o.tableId,
-    status: o.status,
-    total: o.totalAmount
-  })));
 
   // Group orders by status
   const ordersByStatus = {
@@ -368,35 +361,35 @@ export default function LiveOrders() {
           <h3 className="font-semibold text-blue-900 mb-2">🔍 Live Order Status</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm">
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{ordersByStatus.placed.length}</div>
+              <div className="text-2xl font-bold text-yellow-600">{filteredOrdersByStatus.placed.length}</div>
               <div className="text-yellow-800">Placed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{ordersByStatus.confirmed.length}</div>
+              <div className="text-2xl font-bold text-blue-600">{filteredOrdersByStatus.confirmed.length}</div>
               <div className="text-blue-800">Confirmed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{ordersByStatus.preparing.length}</div>
+              <div className="text-2xl font-bold text-orange-600">{filteredOrdersByStatus.preparing.length}</div>
               <div className="text-orange-800">Preparing</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{ordersByStatus.ready.length}</div>
+              <div className="text-2xl font-bold text-green-600">{filteredOrdersByStatus.ready.length}</div>
               <div className="text-green-800">Ready</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{ordersByStatus.delivering.length}</div>
+              <div className="text-2xl font-bold text-purple-600">{filteredOrdersByStatus.delivering.length}</div>
               <div className="text-purple-800">Delivering</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-600">{ordersByStatus.served.length}</div>
+              <div className="text-2xl font-bold text-gray-600">{filteredOrdersByStatus.served.length}</div>
               <div className="text-gray-800">Served</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-indigo-600">{ordersByStatus.paying.length}</div>
+              <div className="text-2xl font-bold text-indigo-600">{filteredOrdersByStatus.paying.length}</div>
               <div className="text-indigo-800">Paying</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-600">{ordersByStatus.completed.length}</div>
+              <div className="text-2xl font-bold text-emerald-600">{filteredOrdersByStatus.completed.length}</div>
               <div className="text-emerald-800">Completed</div>
             </div>
           </div>

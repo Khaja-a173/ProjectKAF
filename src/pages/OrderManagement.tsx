@@ -19,6 +19,8 @@ import {
   Package,
   CreditCard,
   Truck,
+  UserPlus,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -39,9 +41,6 @@ export default function OrderManagement() {
     locationId: "location_456",
   });
 
-  console.log("OrderManagement - Current orders:", orders.length);
-  console.log("OrderManagement - Archived orders:", archivedOrders.length);
-  
   const [selectedStatus, setSelectedStatus] = useState("active");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [cancelReason, setCancelReason] = useState("");
@@ -352,6 +351,21 @@ export default function OrderManagement() {
           </div>
         </div>
 
+        {/* Debug Panel */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <h4 className="font-medium text-blue-900 mb-2">📊 Real-time Order Status</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm text-blue-800">
+            <div>Total: {orders.length}</div>
+            <div>Placed: {statusCounts.placed}</div>
+            <div>Confirmed: {statusCounts.confirmed}</div>
+            <div>Preparing: {statusCounts.preparing}</div>
+            <div>Ready: {statusCounts.ready}</div>
+            <div>Served: {statusCounts.served}</div>
+            <div>Paying: {statusCounts.paying}</div>
+            <div>Archived: {statusCounts.archived}</div>
+          </div>
+        </div>
+
         {/* Controls */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
@@ -416,17 +430,6 @@ export default function OrderManagement() {
             </div>
           </div>
         )}
-
-        {/* Debug Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-          <h4 className="font-medium text-blue-900 mb-2">📊 Order Management Debug</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-blue-800">
-            <div>Total Orders: {orders.length}</div>
-            <div>Archived Orders: {archivedOrders.length}</div>
-            <div>Filtered Orders: {filteredOrders.length}</div>
-            <div>Active Tab: {activeTab}</div>
-          </div>
-        </div>
 
         {/* Orders Grid */}
         <div className="space-y-6">
@@ -541,9 +544,10 @@ export default function OrderManagement() {
                               setSelectedOrderId(order.id);
                               setShowStaffAssignModal(true);
                             }}
-                            className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                            className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center space-x-1"
                           >
-                            Assign Staff
+                            <UserPlus className="w-4 h-4" />
+                            <span>Assign Staff</span>
                           </button>
                           <button
                             onClick={() => handleMarkForDelivery(order.id)}
