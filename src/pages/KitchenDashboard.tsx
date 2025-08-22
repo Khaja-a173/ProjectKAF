@@ -81,6 +81,7 @@ export default function KitchenDashboard() {
   })
   
   const [selectedStation, setSelectedStation] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'fullscreen'>('kanban')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [autoAdvance, setAutoAdvance] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -401,7 +402,7 @@ export default function KitchenDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" showUserSwitcher={true} />
+        <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
@@ -414,7 +415,7 @@ export default function KitchenDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" showUserSwitcher={true} />
+      <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation */}
@@ -471,6 +472,27 @@ export default function KitchenDashboard() {
                   <option key={station.id} value={station.id}>{station.name}</option>
                 ))}
               </select>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`p-2 rounded-lg ${viewMode === 'kanban' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('fullscreen')}
+                  className={`p-2 rounded-lg ${viewMode === 'fullscreen' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
+                >
+                  <Monitor className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -637,6 +659,7 @@ export default function KitchenDashboard() {
                 )}
               </div>
             </div>
+        </div>
 
         {/* AI Insights Band */}
         <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white">
