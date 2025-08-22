@@ -12,8 +12,10 @@ import { useMenuManagement } from "../hooks/useMenuManagement";
 export default function Menu() {
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
+  const source = searchParams.get("source"); // 'qr' or 'layout'
 
   const {
+    createTableSession,
     addToCart,
     updateCartQuantity,
     removeFromCart,
@@ -29,6 +31,8 @@ export default function Menu() {
   const [searchTerm, setSearchTerm] = useState("");
   const [placedOrder, setPlacedOrder] = useState<any>(null);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+  const [sessionCreated, setSessionCreated] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
 
   // Use real menu data from management system
   const { sections, loading } = useMenuManagement({
@@ -41,6 +45,30 @@ export default function Menu() {
   const currentCart = currentSession
     ? getCartBySession(currentSession.id)
     : null;
+
+  // Create session automatically when table is accessed
+  useEffect(() => {
+    const initializeSession = async () => {
+      if (tableId && !currentSession && !sessionCreated && !creatingSession) {
+        setCreatingSession(true);
+        try {
+          console.log(`🪑 Auto-creating session for table ${tableId} (source: ${source})`);
+          await createTableSession(tableId, {
+            customerName: "Guest",
+            partySize: 2,
+          });
+          setSessionCreated(true);
+          console.log(`✅ Session created for table ${tableId}`);
+        } catch (err) {
+          console.error("❌ Failed to create session:", err);
+        } finally {
+          setCreatingSession(false);
+        }
+      }
+    };
+
+    initializeSession();
+  }, [tableId, currentSession, sessionCreated, creatingSession, createTableSession, source]);
 
   const categories = [
     { id: "all", name: "All Items" },
@@ -64,8 +92,18 @@ export default function Menu() {
   });
 
   const handleAddToCart = async (item: any) => {
+    if (!tableId) {
+      alert("Please scan QR code or select a table first");
+      return;
+    }
+
+    if (creatingSession) {
+      alert("Setting up your session, please wait a moment...");
+      return;
+    }
+
     if (!currentSession) {
-      alert("Please book a table first by going to Book Table page");
+      alert("Session not ready yet, please try again in a moment");
       return;
     }
 
@@ -186,15 +224,45 @@ export default function Menu() {
         <div className="relative z-10 text-center text-white">
           <h1 className="text-5xl font-bold mb-4">Our Menu</h1>
           <p className="text-xl">Discover our culinary masterpieces</p>
+          
+          {/* Table Serving Message */}
+          {tableId && (
+            <div className="mt-6">
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4 inline-block">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-lg font-semibold">
+                    Now serving to Table {tableId}
+                  </span>
+                  {source === 'qr' && (
+                    <span className="bg-blue-500/80 text-white px-2 py-1 rounded-full text-xs">
+                      QR Scanned
+                    </span>
+                  )}
+                  {source === 'layout' && (
+                    <span className="bg-purple-500/80 text-white px-2 py-1 rounded-full text-xs">
+                      Table Selected
+                    </span>
+                  )}
+                </div>
+                {creatingSession && (
+                  <div className="mt-2 text-sm text-white/80">
+                    Setting up your dining session...
+                  </div>
+                )}
+                {currentSession && (
+                  <div className="mt-2 text-sm text-white/80">
+                    Session active • Ready to order
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="mt-4 flex items-center justify-center space-x-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm">Live Menu - Synced with Kitchen</span>
           </div>
-          {currentSession && (
-            <div className="mt-4">
-              <TableSessionBadge session={currentSession} />
-            </div>
-          )}
         </div>
       </section>
 
@@ -302,10 +370,14 @@ export default function Menu() {
 
                     <button
                       onClick={() => handleAddToCart(item)}
-                      disabled={!currentSession}
+                      disabled={!currentSession || creatingSession}
                       className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {currentSession ? "Add to Cart" : "Select Table First"}
+                      {creatingSession 
+                        ? "Setting up session..." 
+                        : currentSession 
+                          ? "Add to Cart" 
+                          : "Preparing table..."}
                     </button>
                   </div>
                 </div>
@@ -328,7 +400,7 @@ export default function Menu() {
               onUpdateQuantity={handleUpdateCartQuantity}
               onRemoveItem={handleRemoveFromCart}
               onPlaceOrder={handlePlaceOrder}
-              disabled={!currentSession}
+              disabled={!currentSession || creatingSession}
             />
           </div>
         </div>

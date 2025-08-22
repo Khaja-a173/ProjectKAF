@@ -80,15 +80,18 @@ export default function BookTable() {
     // Simulate QR scanning
     setTimeout(() => {
       setIsScanning(false);
-      setTableNumber("T07");
-      setActiveSection("table-layout");
+      const scannedTable = "T07"; // In real app, this would come from QR scan
+      setTableNumber(scannedTable);
+      // Immediately redirect to menu with QR scan indicator
+      window.location.href = `/menu?table=${scannedTable}&source=qr`;
     }, 2000);
   };
 
   const handleTableSelect = (tableId: string) => {
     setSelectedTable(tableId);
     setTableNumber(tableId);
-    handleCreateSession(tableId);
+    // Immediately redirect to menu with layout selection indicator
+    window.location.href = `/menu?table=${tableId}&source=layout`;
   };
 
   const handleCreateSession = async (tableId: string) => {

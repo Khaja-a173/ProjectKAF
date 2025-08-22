@@ -302,7 +302,7 @@ export default function SessionCartComponent({
               <button
                 onClick={handlePlaceOrder}
                 disabled={
-                  disabled || safeCart.status === "locked" || items.length === 0
+                  disabled || safeCart.status === "locked" || items.length === 0 || !safeCart.id
                 }
                 className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
@@ -311,6 +311,8 @@ export default function SessionCartComponent({
                     <Clock className="w-4 h-4" />
                     <span>Processing Order...</span>
                   </>
+                ) : !safeCart.id ? (
+                  <span>Setting up session...</span>
                 ) : (
                   <span>Place Order</span>
                 )}

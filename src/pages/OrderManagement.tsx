@@ -49,6 +49,7 @@ export default function OrderManagement() {
   >("card");
   const [selectedStaff, setSelectedStaff] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showArchivedOrders, setShowArchivedOrders] = useState(false);
 
   // Mock staff data
   const availableStaff = [
@@ -61,9 +62,9 @@ export default function OrderManagement() {
   const currentOrders = activeTab === "active" ? orders : archivedOrders;
 
   const statusCounts = {
-    active: orders.filter((o) => !["paid", "closed", "cancelled"].includes(o.status)).length,
-    placed: orders.filter((o) => o.status === "placed").length,
-    confirmed: orders.filter((o) => o.status === "confirmed").length,
+    active: orders.filter((o) => 
+      ["placed", "confirmed", "preparing", "ready", "served", "delivering", "paying"].includes(o.status)
+    ).length,
     preparing: orders.filter((o) => o.status === "preparing").length,
     ready: orders.filter((o) => o.status === "ready").length,
     served: orders.filter((o) => o.status === "served").length,
@@ -72,10 +73,12 @@ export default function OrderManagement() {
     archived: archivedOrders.length,
   };
 
-  const filteredOrders = currentOrders.filter((order) => {
+  const filteredOrders = (showArchivedOrders ? archivedOrders : orders).filter((order) => {
     const matchesStatus =
-      selectedStatus === "active" 
-        ? !["paid", "closed", "cancelled"].includes(order.status)
+      selectedStatus === "active"
+        ? showArchivedOrders 
+          ? ["paid", "closed"].includes(order.status)
+          : !["paid", "closed", "cancelled"].includes(order.status)
         : order.status === selectedStatus;
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -441,9 +444,12 @@ export default function OrderManagement() {
               {/* Tab Switcher */}
               <div className="flex space-x-2">
                 <button
-                  onClick={() => setActiveTab("active")}
+                  onClick={() => {
+                    setActiveTab("active");
+                    setShowArchivedOrders(false);
+                  }}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === "active"
+                    activeTab === "active" && !showArchivedOrders
                       ? "bg-blue-100 text-blue-700 border border-blue-200"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
@@ -451,14 +457,17 @@ export default function OrderManagement() {
                   Active Orders ({statusCounts.active})
                 </button>
                 <button
-                  onClick={() => setActiveTab("archived")}
+                  onClick={() => {
+                    setActiveTab("archived");
+                    setShowArchivedOrders(true);
+                  }}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === "archived"
+                    showArchivedOrders
                       ? "bg-blue-100 text-blue-700 border border-blue-200"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  Archived Orders ({statusCounts.archived})
+                  Archive Orders ({statusCounts.archived})
                 </button>
               </div>
               
@@ -477,7 +486,7 @@ export default function OrderManagement() {
         </div>
 
         {/* Status Filter */}
-        {activeTab === "active" && (
+        {!showArchivedOrders && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
             <div className="flex flex-wrap gap-4">
               {Object.entries(statusCounts)
@@ -620,7 +629,7 @@ export default function OrderManagement() {
                   {order.status === "served" && (
                     <button
                       onClick={() => handleInitiatePayment(order.id)}
-                      className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                      className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
                     >
                       Initiate Payment
                     </button>
@@ -643,6 +652,14 @@ export default function OrderManagement() {
                       Assigned: {availableStaff.find(s => s.id === order.assignedStaffId)?.name || "Unknown"}
                     </div>
                   )}
+                  
+                  {/* Archive section - show completed orders */}
+                  {showArchivedOrders && (order.status === "paid" || order.status === "closed") && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Completed: {order.paidAt ? format(order.paidAt, "HH:mm") : "N/A"}
+                      {order.closedAt && ` • Closed: ${format(order.closedAt, "HH:mm")}`}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -653,12 +670,12 @@ export default function OrderManagement() {
           <div className="text-center py-12">
             <ChefHat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {activeTab === "active" ? "No active orders found" : "No archived orders found"}
+              {showArchivedOrders ? "No archived orders found" : "No active orders found"}
             </h3>
             <p className="text-gray-600">
-              {activeTab === "active"
+              {showArchivedOrders
+                ? "Completed and paid orders will appear here after payment processing."
                 ? "No active orders have been placed yet. Orders will appear here when customers place them."
-                : "No completed orders yet. Paid orders will appear here after completion."}
             </p>
           </div>
         )}
