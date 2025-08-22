@@ -81,7 +81,6 @@ export default function KitchenDashboard() {
   })
   
   const [selectedStation, setSelectedStation] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'fullscreen'>('kanban')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [autoAdvance, setAutoAdvance] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -472,27 +471,6 @@ export default function KitchenDashboard() {
                   <option key={station.id} value={station.id}>{station.name}</option>
                 ))}
               </select>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setViewMode('kanban')}
-                  className={`p-2 rounded-lg ${viewMode === 'kanban' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('fullscreen')}
-                  className={`p-2 rounded-lg ${viewMode === 'fullscreen' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <Monitor className="w-4 h-4" />
-                </button>
-              </div>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -531,10 +509,9 @@ export default function KitchenDashboard() {
         </div>
 
         {/* Kitchen Queues (Vertical Layout) */}
-        {viewMode === 'kanban' && (
-          <div className="space-y-8 mb-8">
+        <div className="space-y-6 mb-8">
             {/* Order Placed */}
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="bg-white rounded-xl shadow-lg">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -552,14 +529,21 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
+                {ordersByStatus.confirmed.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No new orders</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
                   {ordersByStatus.confirmed.map(renderTicketCard)}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Preparing */}
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="bg-white rounded-xl shadow-lg">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -577,14 +561,21 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
+                {ordersByStatus.preparing.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <ChefHat className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No orders being prepared</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
                   {ordersByStatus.preparing.map(renderTicketCard)}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Ready */}
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="bg-white rounded-xl shadow-lg">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -602,14 +593,21 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
+                {ordersByStatus.ready.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No orders ready</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
                   {ordersByStatus.ready.map(renderTicketCard)}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Out for Delivery */}
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="bg-white rounded-xl shadow-lg">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -627,13 +625,18 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
+                {ordersByStatus.delivering.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No orders out for delivery</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
                   {ordersByStatus.delivering.map(renderTicketCard)}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
 
         {/* AI Insights Band */}
         <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white">

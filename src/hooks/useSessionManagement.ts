@@ -17,9 +17,9 @@ let globalSessionState: {
   payments: Payment[];
   archivedOrders: DineInOrder[];
 } = {
-  sessions: [],
-  carts: [],
-  orders: [],
+  sessions: [], // Start empty - will be created dynamically
+  carts: [], // Start empty - will be created dynamically  
+  orders: [], // Start empty - orders will be placed in real-time
   payments: [],
   archivedOrders: [],
 };
