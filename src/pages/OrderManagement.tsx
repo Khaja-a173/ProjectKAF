@@ -21,9 +21,14 @@ import { format } from "date-fns";
 export default function OrderManagement() {
   const {
     orders,
+    archivedOrders,
     confirmOrder,
     cancelOrder,
     markOrderServed,
+    assignStaffToOrder,
+    markOrderForDelivery,
+    initiatePayment,
+    markOrderPaid,
     processPayment,
     clearTable,
     loading,
@@ -32,31 +37,46 @@ export default function OrderManagement() {
     locationId: "location_456",
   });
 
-  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("active");
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showStaffAssignModal, setShowStaffAssignModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<
     "cash" | "card" | "digital"
   >("card");
+  const [selectedStaff, setSelectedStaff] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Mock staff data
+  const availableStaff = [
+    { id: "staff_1", name: "Sarah Johnson", role: "Waiter" },
+    { id: "staff_2", name: "Mike Chen", role: "Waiter" },
+    { id: "staff_3", name: "Emma Davis", role: "Runner" },
+    { id: "staff_4", name: "James Wilson", role: "Host" },
+  ];
+
+  const currentOrders = activeTab === "active" ? orders : archivedOrders;
+
   const statusCounts = {
-    all: orders.length,
+    active: orders.filter((o) => !["paid", "closed", "cancelled"].includes(o.status)).length,
     placed: orders.filter((o) => o.status === "placed").length,
     confirmed: orders.filter((o) => o.status === "confirmed").length,
     preparing: orders.filter((o) => o.status === "preparing").length,
     ready: orders.filter((o) => o.status === "ready").length,
     served: orders.filter((o) => o.status === "served").length,
-    paid: orders.filter((o) => o.status === "paid").length,
+    delivering: orders.filter((o) => o.status === "delivering").length,
     paying: orders.filter((o) => o.status === "paying").length,
-    cancelled: orders.filter((o) => o.status === "cancelled").length,
+    archived: archivedOrders.length,
   };
 
-  const filteredOrders = orders.filter((order) => {
+  const filteredOrders = currentOrders.filter((order) => {
     const matchesStatus =
-      selectedStatus === "all" || order.status === selectedStatus;
+      selectedStatus === "active" 
+        ? !["paid", "closed", "cancelled"].includes(order.status)
+        : order.status === selectedStatus;
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.tableId?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -138,6 +158,54 @@ export default function OrderManagement() {
       console.log("✅ Order marked as served");
     } catch (err) {
       alert("Failed to mark order as served");
+    }
+  };
+
+  const handleAssignStaff = async () => {
+    if (!selectedOrderId || !selectedStaff) return;
+
+    try {
+      const staff = availableStaff.find((s) => s.id === selectedStaff);
+      if (!staff) return;
+
+      await assignStaffToOrder(selectedOrderId, selectedStaff, staff.name);
+      setShowStaffAssignModal(false);
+      setSelectedOrderId(null);
+      setSelectedStaff("");
+      console.log("✅ Staff assigned successfully");
+    } catch (err) {
+      alert("Failed to assign staff");
+    }
+  };
+
+  const handleMarkForDelivery = async (orderId: string) => {
+    try {
+      await markOrderForDelivery(orderId, "staff_123");
+      console.log("✅ Order marked for delivery");
+    } catch (err) {
+      alert("Failed to mark for delivery");
+    }
+  };
+
+  const handleInitiatePayment = async (orderId: string) => {
+    try {
+      await initiatePayment(orderId, "manager_123");
+      console.log("✅ Payment initiated");
+    } catch (err) {
+      alert("Failed to initiate payment");
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    if (!selectedOrderId) return;
+
+    try {
+      await markOrderPaid(selectedOrderId, paymentMethod, "manager_123");
+      setShowPaymentModal(false);
+      setSelectedOrderId(null);
+      console.log("✅ Order marked as paid and archived");
+    } catch (err) {
+      alert("Failed to mark order as paid");
     }
   };
 
@@ -370,6 +438,30 @@ export default function OrderManagement() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="flex items-center space-x-4">
+              {/* Tab Switcher */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setActiveTab("active")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === "active"
+                      ? "bg-blue-100 text-blue-700 border border-blue-200"
+                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  Active Orders ({statusCounts.active})
+                </button>
+                <button
+                  onClick={() => setActiveTab("archived")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === "archived"
+                      ? "bg-blue-100 text-blue-700 border border-blue-200"
+                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  Archived Orders ({statusCounts.archived})
+                </button>
+              </div>
+              
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
@@ -385,23 +477,27 @@ export default function OrderManagement() {
         </div>
 
         {/* Status Filter */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(statusCounts).map(([status, count]) => (
-              <button
-                key={status}
-                onClick={() => setSelectedStatus(status)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  selectedStatus === status
-                    ? "bg-blue-100 text-blue-700 border border-blue-200"
-                    : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
-              </button>
-            ))}
+        {activeTab === "active" && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(statusCounts)
+                .filter(([status]) => !["archived"].includes(status))
+                .map(([status, count]) => (
+                  <button
+                    key={status}
+                    onClick={() => setSelectedStatus(status)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      selectedStatus === status
+                        ? "bg-blue-100 text-blue-700 border border-blue-200"
+                        : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
+                  </button>
+                ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Orders Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -495,31 +591,57 @@ export default function OrderManagement() {
                     </>
                   )}
                   {order.status === "ready" && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setShowStaffAssignModal(true);
+                        }}
+                        className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                      >
+                        Assign Staff
+                      </button>
+                      <button
+                        onClick={() => handleMarkForDelivery(order.id)}
+                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Mark for Delivery
+                      </button>
+                    </>
+                  )}
+                  {order.status === "delivering" && (
                     <button
                       onClick={() => handleServeOrder(order.id)}
-                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
                     >
-                      Mark Served
+                      Mark Delivered
                     </button>
                   )}
                   {order.status === "served" && (
+                    <button
+                      onClick={() => handleInitiatePayment(order.id)}
+                      className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                    >
+                      Initiate Payment
+                    </button>
+                  )}
+                  {order.status === "paying" && (
                     <button
                       onClick={() => {
                         setSelectedOrderId(order.id);
                         setShowPaymentModal(true);
                       }}
-                      className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
                     >
-                      Process Payment
+                      Mark Paid
                     </button>
                   )}
-                  {order.status === "paid" && (
-                    <button
-                      onClick={() => handleClearTable(order.tableId)}
-                      className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Clear Table {order.tableId}
-                    </button>
+                  
+                  {/* Show assigned staff info */}
+                  {order.assignedStaffId && (
+                    <div className="text-xs text-gray-500 mt-2">
+                      Assigned: {availableStaff.find(s => s.id === order.assignedStaffId)?.name || "Unknown"}
+                    </div>
                   )}
                 </div>
               </div>
@@ -531,12 +653,12 @@ export default function OrderManagement() {
           <div className="text-center py-12">
             <ChefHat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No orders found
+              {activeTab === "active" ? "No active orders found" : "No archived orders found"}
             </h3>
             <p className="text-gray-600">
-              {selectedStatus === "all"
-                ? "No orders have been placed yet. Orders will appear here when customers place them."
-                : `No orders match the "${selectedStatus}" status filter.`}
+              {activeTab === "active"
+                ? "No active orders have been placed yet. Orders will appear here when customers place them."
+                : "No completed orders yet. Paid orders will appear here after completion."}
             </p>
           </div>
         )}
@@ -592,7 +714,7 @@ export default function OrderManagement() {
           <div className="bg-white rounded-xl w-full max-w-md">
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Process Payment
+                Mark Order as Paid
               </h3>
 
               <div className="mb-4">
@@ -622,7 +744,7 @@ export default function OrderManagement() {
                     </span>
                     <span className="text-xl font-bold text-gray-900">
                       $
-                      {orders
+                      {currentOrders
                         .find((o) => o.id === selectedOrderId)
                         ?.totalAmount.toFixed(2)}
                     </span>
@@ -641,10 +763,61 @@ export default function OrderManagement() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleProcessPayment}
+                  onClick={handleMarkPaid}
                   className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
                 >
-                  Process Payment
+                  Mark as Paid
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Staff Assignment Modal */}
+      {showStaffAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Assign Staff Member
+              </h3>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Staff Member
+                </label>
+                <select
+                  value={selectedStaff}
+                  onChange={(e) => setSelectedStaff(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Choose staff member...</option>
+                  {availableStaff.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.name} ({staff.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowStaffAssignModal(false);
+                    setSelectedOrderId(null);
+                    setSelectedStaff("");
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssignStaff}
+                  disabled={!selectedStaff}
+                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  Assign Staff
                 </button>
               </div>
             </div>

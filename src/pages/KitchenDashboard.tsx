@@ -71,6 +71,7 @@ export default function KitchenDashboard() {
     startOrderItem, 
     markItemReady, 
     markOrderServed,
+    markOrderForDelivery,
     confirmOrder,
     loading 
   } = useSessionManagement({
@@ -124,9 +125,10 @@ export default function KitchenDashboard() {
   })
 
   const ordersByStatus = {
-    confirmed: filteredOrders.filter(o => o.status === 'confirmed' || o.status === 'placed'),
+    confirmed: filteredOrders.filter(o => o.status === 'confirmed'),
     preparing: filteredOrders.filter(o => o.status === 'preparing'),
-    ready: filteredOrders.filter(o => o.status === 'ready')
+    ready: filteredOrders.filter(o => o.status === 'ready'),
+    delivering: filteredOrders.filter(o => o.status === 'delivering')
   }
 
   const getStatusColor = (status: string) => {
@@ -194,8 +196,8 @@ export default function KitchenDashboard() {
             }
           }
           break
-        case 'served':
-          await markOrderServed(orderId, 'staff_123')
+        case 'deliver':
+          await markOrderForDelivery(orderId, 'staff_123')
           break
       }
     } catch (err) {
@@ -573,7 +575,7 @@ export default function KitchenDashboard() {
 
         {/* Kitchen Queues (Kanban View) */}
         {viewMode === 'kanban' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
             {/* New Orders */}
             <div className="bg-white rounded-xl shadow-sm">
               <div className="p-6 border-b border-gray-200">
@@ -640,6 +642,29 @@ export default function KitchenDashboard() {
               </div>
               <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
                 {ordersByStatus.ready.map(renderTicketCard)}
+              </div>
+            </div>
+
+            {/* Out for Delivery */}
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Out for Delivery</h3>
+                      <p className="text-sm text-gray-600">Staff delivering</p>
+                    </div>
+                  </div>
+                  <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {ordersByStatus.delivering.length}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+                {ordersByStatus.delivering.map(renderTicketCard)}
               </div>
             </div>
           </div>
@@ -872,12 +897,12 @@ export default function KitchenDashboard() {
                 {selectedOrder.status === 'ready' && (
                   <button
                     onClick={() => {
-                      handleOrderAction(selectedOrder.id, 'served')
+                      handleOrderAction(selectedOrder.id, 'deliver')
                       setSelectedOrder(null)
                     }}
                     className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
                   >
-                    Mark Served
+                    Mark for Delivery
                   </button>
                 )}
               </div>

@@ -136,7 +136,7 @@ export default function LiveOrders() {
     confirmed: orders.filter((o) => o.status === "confirmed"),
     preparing: orders.filter((o) => o.status === "preparing"),
     ready: orders.filter((o) => o.status === "ready"),
-    served: orders.filter((o) => o.status === "served"),
+    served: orders.filter((o) => o.status === "served" || o.status === "delivering"),
     paying: orders.filter((o) => o.status === "paying"),
     paid: orders.filter((o) => o.status === "paid"),
   };
@@ -209,7 +209,7 @@ export default function LiveOrders() {
 
         {/* Section 2: Order Status Columns */}
         <div className="mb-16">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Placed Orders Column */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
@@ -436,21 +436,21 @@ export default function LiveOrders() {
               </div>
             </div>
 
-            {/* Served Column */}
+            {/* Delivered Column */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      Served
+                      Delivered
                     </h3>
                     <p className="text-sm text-gray-600">Awaiting payment</p>
                   </div>
                 </div>
-                <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
                   {ordersByStatus.served.length}
                 </span>
               </div>
@@ -744,6 +744,12 @@ export default function LiveOrders() {
                 {ordersByStatus.ready.length}
               </div>
               <div className="text-sm text-gray-600">Ready</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600 mb-2">
+                {ordersByStatus.served.length}
+              </div>
+              <div className="text-sm text-gray-600">Delivered</div>
             </div>
           </div>
 
