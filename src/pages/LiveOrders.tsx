@@ -285,7 +285,7 @@ export default function LiveOrders() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
