@@ -14,11 +14,13 @@ let globalSessionState: {
   carts: SessionCart[];
   orders: DineInOrder[];
   payments: Payment[];
+  archivedOrders: DineInOrder[];
 } = {
   sessions: [],
   carts: [],
   orders: [],
   payments: [],
+  archivedOrders: [],
 };
 
 // Safe empty cart template
@@ -97,6 +99,7 @@ export function useSessionManagement({
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error] = useState<string | null>(null);
+  const [archivedOrders, setArchivedOrders] = useState<DineInOrder[]>([]);
 
   // Subscribe to global session changes
   useEffect(() => {
@@ -109,6 +112,7 @@ export function useSessionManagement({
       setCarts(newState.carts);
       setOrders(newState.orders);
       setPayments(newState.payments);
+      setArchivedOrders(newState.archivedOrders || []);
       setLoading(false);
     };
 
@@ -547,6 +551,192 @@ export function useSessionManagement({
     [tenantId, locationId],
   );
 
+  const assignStaffToOrder = useCallback(
+    async (orderId: string, staffId: string, staffName: string) => {
+      try {
+        console.log("👤 Assigning staff to order:", orderId, staffId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  assignedStaffId: staffId,
+                  updatedAt: new Date(),
+                }
+              : order,
+          ),
+        }));
+
+        // Broadcast staff assignment
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (order) {
+          broadcastEvent({
+            type: "order.assigned",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId,
+            data: { order, staffId, staffName },
+            timestamp: new Date(),
+          });
+        }
+
+        console.log("✅ Staff assigned successfully");
+      } catch (err) {
+        console.error("❌ Failed to assign staff:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const markOrderForDelivery = useCallback(
+    async (orderId: string, staffId: string) => {
+      try {
+        console.log("🚚 Marking order for delivery:", orderId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  status: "delivering" as const,
+                  assignedStaffId: staffId,
+                  updatedAt: new Date(),
+                }
+              : order,
+          ),
+        }));
+
+        // Broadcast delivery status
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (order) {
+          broadcastEvent({
+            type: "order.delivering",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId,
+            data: { order, staffId },
+            timestamp: new Date(),
+          });
+        }
+
+        console.log("✅ Order marked for delivery");
+      } catch (err) {
+        console.error("❌ Failed to mark for delivery:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const initiatePayment = useCallback(
+    async (orderId: string, staffId: string) => {
+      try {
+        console.log("💳 Initiating payment for order:", orderId);
+
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  status: "paying" as const,
+                  updatedAt: new Date(),
+                }
+              : order,
+          ),
+        }));
+
+        // Broadcast payment initiation
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (order) {
+          broadcastEvent({
+            type: "order.paying",
+            tenantId,
+            locationId,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            orderId,
+            data: { order, staffId },
+            timestamp: new Date(),
+          });
+        }
+
+        console.log("✅ Payment initiated");
+      } catch (err) {
+        console.error("❌ Failed to initiate payment:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
+
+  const markOrderPaid = useCallback(
+    async (orderId: string, paymentMethod: "cash" | "card" | "digital", staffId: string) => {
+      try {
+        console.log("✅ Marking order as paid:", orderId);
+
+        const order = globalSessionState.orders.find((o) => o.id === orderId);
+        if (!order) throw new Error("Order not found");
+
+        // Create payment record
+        const payment: Payment = {
+          id: `payment_${Date.now()}`,
+          orderId,
+          sessionId: order.sessionId,
+          tenantId,
+          amount: order.totalAmount,
+          method: paymentMethod,
+          status: "completed",
+          processedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Move order to archived and update status
+        updateGlobalSession((prev) => ({
+          ...prev,
+          orders: prev.orders.filter((o) => o.id !== orderId),
+          archivedOrders: [
+            ...prev.archivedOrders,
+            {
+              ...order,
+              status: "paid" as const,
+              paidAt: new Date(),
+              closedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+          payments: [...prev.payments, payment],
+        }));
+
+        // Broadcast order completion
+        broadcastEvent({
+          type: "order.paid",
+          tenantId,
+          locationId,
+          tableId: order.tableId,
+          sessionId: order.sessionId,
+          orderId,
+          data: { order, payment, staffId },
+          timestamp: new Date(),
+        });
+
+        console.log("✅ Order marked as paid and archived");
+      } catch (err) {
+        console.error("❌ Failed to mark order as paid:", err);
+        throw err;
+      }
+    },
+    [tenantId, locationId],
+  );
   const confirmOrder = useCallback(
     async (orderId: string, staffId: string) => {
       try {
@@ -1070,6 +1260,7 @@ export function useSessionManagement({
     sessions,
     carts,
     orders,
+    archivedOrders,
     payments,
     loading,
     error,
@@ -1083,6 +1274,10 @@ export function useSessionManagement({
     startOrderItem,
     markItemReady,
     markOrderServed,
+    assignStaffToOrder,
+    markOrderForDelivery,
+    initiatePayment,
+    markOrderPaid,
     processPayment,
     clearTable,
     getSessionByTable,

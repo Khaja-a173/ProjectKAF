@@ -99,7 +99,8 @@ export default function BookTable() {
       const existingSession = getSessionByTable(tableId);
       if (existingSession) {
         console.log("♻️ Using existing session for table:", tableId);
-        navigate(`/menu?table=${tableId}&session=${existingSession.id}`);
+        // Redirect to menu page immediately
+        window.location.href = `/menu?table=${tableId}&session=${existingSession.id}`;
         return;
       }
 
@@ -112,7 +113,8 @@ export default function BookTable() {
       });
 
       console.log("✅ Session created, navigating to menu");
-      navigate(`/menu?table=${tableId}&session=${session.id}`);
+      // Redirect to menu page immediately
+      window.location.href = `/menu?table=${tableId}&session=${session.id}`;
     } catch (err) {
       console.error("❌ Failed to create session:", err);
       alert(

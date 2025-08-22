@@ -115,6 +115,11 @@ export default function Menu() {
       setPlacedOrder(order);
       setShowOrderSuccess(true);
       console.log("✅ Order placed successfully:", order.orderNumber);
+      
+      // Auto-redirect to live orders after 3 seconds
+      setTimeout(() => {
+        window.location.href = `/live-orders?order=${order.id}`;
+      }, 3000);
     } catch (err) {
       console.error("❌ Failed to place order:", err);
       alert("Failed to place order. Please try again.");
