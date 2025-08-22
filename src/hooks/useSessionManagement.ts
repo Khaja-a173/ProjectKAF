@@ -478,7 +478,7 @@ export function useSessionManagement({
           tenantId,
           locationId,
           sessionId,
-          tableId: session.tableId,
+          tableId: session.tableId, // This will be the actual table from session
           status: "placed",
           items: cart.items.map((cartItem) => ({
             id: `orderitem_${Date.now()}_${cartItem.id}`,
@@ -514,6 +514,15 @@ export function useSessionManagement({
           updatedAt: new Date(),
         };
 
+        console.log("📝 ORDER DETAILS:", {
+          orderId: newOrder.id,
+          orderNumber: newOrder.orderNumber,
+          tableId: newOrder.tableId,
+          sessionId: newOrder.sessionId,
+          itemCount: newOrder.items.length,
+          totalAmount: newOrder.totalAmount
+        });
+
         // Lock cart and add order
         updateGlobalSession((prev) => ({
           ...prev,
@@ -530,12 +539,18 @@ export function useSessionManagement({
           ),
         }));
 
+        // Force immediate notification to all subscribers
+        setTimeout(() => {
+          console.log("🔔 FORCE NOTIFYING ALL SUBSCRIBERS");
+          notifySessionSubscribers();
+        }, 100);
+
         // Broadcast order placed event
         broadcastEvent({
           type: "order.placed",
           tenantId,
           locationId,
-          tableId: session.tableId,
+          tableId: newOrder.tableId,
           sessionId,
           orderId: newOrder.id,
           data: { order: newOrder },
@@ -547,7 +562,12 @@ export function useSessionManagement({
           },
         });
 
-        console.log("✅ Order placed successfully:", newOrder.orderNumber);
+        console.log("✅ ORDER PLACED SUCCESSFULLY:", {
+          orderNumber: newOrder.orderNumber,
+          tableId: newOrder.tableId,
+          totalOrders: globalSessionState.orders.length
+        });
+        
         return newOrder;
       } catch (err) {
         console.error("❌ Failed to place order:", err);

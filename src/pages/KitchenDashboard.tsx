@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useSessionManagement } from '../hooks/useSessionManagement'
+import DashboardHeader from '../components/DashboardHeader'
 import { OrderItem } from '../types/session'
 import { 
   ChefHat, 
@@ -401,20 +402,7 @@ export default function KitchenDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
-                <Link to="/dashboard" className="flex items-center space-x-4">
-                  <div className="w-8 h-8 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg flex items-center justify-center">
-                    <ChefHat className="w-5 h-5 text-white" />
-                  </div>
-                  <h1 className="text-xl font-semibold text-gray-900">Kitchen Dashboard</h1>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </header>
+        <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
@@ -427,38 +415,7 @@ export default function KitchenDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center space-x-4">
-                <div className="w-8 h-8 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg flex items-center justify-center">
-                  <ChefHat className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-semibold text-gray-900">Kitchen Dashboard</h1>
-              </Link>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1 bg-green-100 px-3 py-1 rounded-full">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-800">Live</span>
-              </div>
-              <button 
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`p-2 rounded-lg ${soundEnabled ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}
-              >
-                {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-              </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600 relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation */}
@@ -573,9 +530,9 @@ export default function KitchenDashboard() {
           ))}
         </div>
 
-        {/* Kitchen Queues (Kanban View) */}
+        {/* Kitchen Queues (Vertical Layout) */}
         {viewMode === 'kanban' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+          <div className="space-y-8 mb-8">
             {/* New Orders */}
             <div className="bg-white rounded-xl shadow-sm">
               <div className="p-6 border-b border-gray-200">
@@ -594,8 +551,10 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
               </div>
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {ordersByStatus.confirmed.map(renderTicketCard)}
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {ordersByStatus.confirmed.map(renderTicketCard)}
+                </div>
               </div>
             </div>
 
@@ -617,8 +576,10 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
               </div>
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {ordersByStatus.preparing.map(renderTicketCard)}
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {ordersByStatus.preparing.map(renderTicketCard)}
+                </div>
               </div>
             </div>
 
@@ -640,8 +601,10 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
               </div>
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {ordersByStatus.ready.map(renderTicketCard)}
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {ordersByStatus.ready.map(renderTicketCard)}
+                </div>
               </div>
             </div>
 
@@ -663,8 +626,10 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
               </div>
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {ordersByStatus.delivering.map(renderTicketCard)}
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {ordersByStatus.delivering.map(renderTicketCard)}
+                </div>
               </div>
             </div>
           </div>
