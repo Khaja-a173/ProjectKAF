@@ -80,7 +80,7 @@ export default function BookTable() {
     // Simulate QR scanning
     setTimeout(() => {
       setIsScanning(false);
-      const scannedTable = `T${String(Math.floor(Math.random() * 20) + 1).padStart(2, '0')}`; // Random table for demo
+      const scannedTable = `T${String(Math.floor(Math.random() * 20) + 1).padStart(2, '0')}`;
       setTableNumber(scannedTable);
       // Immediately redirect to menu with QR scan indicator
       window.location.href = `/menu?table=${scannedTable}&source=qr`;

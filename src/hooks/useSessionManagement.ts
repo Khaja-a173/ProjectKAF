@@ -19,46 +19,7 @@ let globalSessionState: {
 } = {
   sessions: [],
   carts: [],
-  orders: [
-    // Sample order for testing
-    {
-      id: "order_sample_1",
-      orderNumber: "#ORD-001",
-      tenantId: "tenant_123",
-      locationId: "location_456",
-      sessionId: "session_sample",
-      tableId: "T01",
-      status: "placed",
-      items: [
-        {
-          id: "item_1",
-          orderId: "order_sample_1",
-          menuItemId: "itm_1",
-          name: "Truffle Arancini",
-          quantity: 2,
-          unitPrice: 16.0,
-          totalPrice: 32.0,
-          status: "queued",
-          station: "hot",
-          allergens: ["dairy", "gluten"],
-          isVegetarian: true,
-          isVegan: false,
-          spicyLevel: 0,
-          preparationTime: 15,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ],
-      subtotal: 32.0,
-      taxAmount: 2.56,
-      tipAmount: 0,
-      totalAmount: 34.56,
-      priority: "normal",
-      placedAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-  ],
+  orders: [],
   payments: [],
   archivedOrders: [],
 };
@@ -478,7 +439,7 @@ export function useSessionManagement({
           tenantId,
           locationId,
           sessionId,
-          tableId: session.tableId, // This will be the actual table from session
+          tableId: session.tableId,
           status: "placed",
           items: cart.items.map((cartItem) => ({
             id: `orderitem_${Date.now()}_${cartItem.id}`,
@@ -514,15 +475,6 @@ export function useSessionManagement({
           updatedAt: new Date(),
         };
 
-        console.log("📝 ORDER DETAILS:", {
-          orderId: newOrder.id,
-          orderNumber: newOrder.orderNumber,
-          tableId: newOrder.tableId,
-          sessionId: newOrder.sessionId,
-          itemCount: newOrder.items.length,
-          totalAmount: newOrder.totalAmount
-        });
-
         // Lock cart and add order
         updateGlobalSession((prev) => ({
           ...prev,
@@ -539,11 +491,8 @@ export function useSessionManagement({
           ),
         }));
 
-        // Force immediate notification to all subscribers
-        setTimeout(() => {
-          console.log("🔔 FORCE NOTIFYING ALL SUBSCRIBERS");
-          notifySessionSubscribers();
-        }, 100);
+        // Immediate notification
+        notifySessionSubscribers();
 
         // Broadcast order placed event
         broadcastEvent({
@@ -562,12 +511,6 @@ export function useSessionManagement({
           },
         });
 
-        console.log("✅ ORDER PLACED SUCCESSFULLY:", {
-          orderNumber: newOrder.orderNumber,
-          tableId: newOrder.tableId,
-          totalOrders: globalSessionState.orders.length
-        });
-        
         return newOrder;
       } catch (err) {
         console.error("❌ Failed to place order:", err);

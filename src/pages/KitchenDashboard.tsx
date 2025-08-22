@@ -533,26 +533,26 @@ export default function KitchenDashboard() {
         {/* Kitchen Queues (Vertical Layout) */}
         {viewMode === 'kanban' && (
           <div className="space-y-8 mb-8">
-            {/* New Orders */}
+            {/* Order Placed */}
             <div className="bg-white rounded-xl shadow-sm">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
                       <Clock className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">New Orders</h3>
-                      <p className="text-sm text-gray-600">Awaiting kitchen start</p>
+                      <h3 className="text-lg font-semibold text-gray-900">Order Placed</h3>
+                      <p className="text-sm text-gray-600">New orders from customers</p>
                     </div>
                   </div>
-                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                  <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
                     {ordersByStatus.confirmed.length}
                   </span>
                 </div>
               </div>
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="space-y-4">
                   {ordersByStatus.confirmed.map(renderTicketCard)}
                 </div>
               </div>
@@ -577,13 +577,13 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="space-y-4">
                   {ordersByStatus.preparing.map(renderTicketCard)}
                 </div>
               </div>
             </div>
 
-            {/* Ready to Serve */}
+            {/* Ready */}
             <div className="bg-white rounded-xl shadow-sm">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -592,8 +592,8 @@ export default function KitchenDashboard() {
                       <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Ready to Serve</h3>
-                      <p className="text-sm text-gray-600">Awaiting pickup</p>
+                      <h3 className="text-lg font-semibold text-gray-900">Ready</h3>
+                      <p className="text-sm text-gray-600">Ready for pickup</p>
                     </div>
                   </div>
                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -602,7 +602,7 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="space-y-4">
                   {ordersByStatus.ready.map(renderTicketCard)}
                 </div>
               </div>
@@ -627,7 +627,7 @@ export default function KitchenDashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="space-y-4">
                   {ordersByStatus.delivering.map(renderTicketCard)}
                 </div>
               </div>

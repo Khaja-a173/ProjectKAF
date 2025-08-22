@@ -403,8 +403,7 @@ export default function OrderManagement() {
                 {activeTab === "active" ? "No active orders found" : "No archived orders found"}
               </h3>
               <p className="text-gray-600">
-                {activeTab === "active"
-                  ? "No active orders have been placed yet. Orders will appear here when customers place them."
+                  : "Completed and paid orders will appear here after payment processing."}
                   : "Completed and paid orders will appear here after payment processing."}
               </p>
             </div>
