@@ -515,7 +515,7 @@ export default function LiveOrders() {
   if (loading) {
     return (
       <div className="min-h-screen">
-        <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" />
+        <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
@@ -528,7 +528,7 @@ export default function LiveOrders() {
 
   return (
     <div className="min-h-screen">
-      <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" />
+      <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
 
       {/* Hero Section */}
       <section className="relative h-64 flex items-center justify-center">
