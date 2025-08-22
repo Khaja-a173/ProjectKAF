@@ -44,7 +44,9 @@ import {
   DollarSign, 
   Activity, 
   Coffee, 
-  Utensils 
+  Utensils,
+  Package,
+  Truck
 } from 'lucide-react'
 
 interface Station {
@@ -81,7 +83,6 @@ export default function KitchenDashboard() {
   })
   
   const [selectedStation, setSelectedStation] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'fullscreen'>('kanban')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [autoAdvance, setAutoAdvance] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -378,11 +379,11 @@ export default function KitchenDashboard() {
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                handleOrderAction(order.id, 'served')
+                handleOrderAction(order.id, 'deliver')
               }}
-              className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+              className="flex-1 bg-purple-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
             >
-              Mark Served
+              Send Out
             </button>
             <button
               onClick={(e) => {
@@ -402,7 +403,7 @@ export default function KitchenDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
+        <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" showUserSwitcher={true} />
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
@@ -415,7 +416,7 @@ export default function KitchenDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" />
+      <DashboardHeader title="Kitchen Dashboard" subtitle="Real-time Kitchen Operations" showUserSwitcher={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation */}
@@ -472,27 +473,6 @@ export default function KitchenDashboard() {
                   <option key={station.id} value={station.id}>{station.name}</option>
                 ))}
               </select>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setViewMode('kanban')}
-                  className={`p-2 rounded-lg ${viewMode === 'kanban' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('fullscreen')}
-                  className={`p-2 rounded-lg ${viewMode === 'fullscreen' ? 'bg-red-100 text-red-600' : 'text-gray-400'}`}
-                >
-                  <Monitor className="w-4 h-4" />
-                </button>
-              </div>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -514,7 +494,7 @@ export default function KitchenDashboard() {
         </div>
 
         {/* Station Status Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
           {stations.filter(s => s.id !== 'all').map(station => (
             <div key={station.id} className="bg-white rounded-xl shadow-sm p-4 text-center">
               <div className="flex items-center justify-center space-x-2 mb-2">
@@ -530,135 +510,135 @@ export default function KitchenDashboard() {
           ))}
         </div>
 
-        {/* Kitchen Queues (Vertical Layout) */}
-        <div className="space-y-6 mb-8">
-            {/* Order Placed */}
-            <div className="bg-white rounded-xl shadow-lg">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Order Placed</h3>
-                      <p className="text-sm text-gray-600">New orders from customers</p>
-                    </div>
+        {/* VERTICAL Kitchen Queues */}
+        <div className="space-y-8 mb-8">
+          {/* Order Placed */}
+          <div className="bg-white rounded-xl shadow-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-white" />
                   </div>
-                  <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.confirmed.length}
-                  </span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Order Placed</h3>
+                    <p className="text-sm text-gray-600">New orders from customers</p>
+                  </div>
                 </div>
+                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {ordersByStatus.confirmed.length}
+                </span>
               </div>
-              <div className="p-4">
-                {ordersByStatus.confirmed.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No new orders</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
+            </div>
+            <div className="p-4">
+              {ordersByStatus.confirmed.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No new orders</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
                   {ordersByStatus.confirmed.map(renderTicketCard)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Preparing */}
+          <div className="bg-white rounded-xl shadow-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <ChefHat className="w-5 h-5 text-white" />
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Preparing</h3>
+                    <p className="text-sm text-gray-600">Currently cooking</p>
+                  </div>
+                </div>
+                <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {ordersByStatus.preparing.length}
+                </span>
               </div>
             </div>
-
-            {/* Preparing */}
-            <div className="bg-white rounded-xl shadow-lg">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <ChefHat className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Preparing</h3>
-                      <p className="text-sm text-gray-600">Currently cooking</p>
-                    </div>
-                  </div>
-                  <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.preparing.length}
-                  </span>
+            <div className="p-4">
+              {ordersByStatus.preparing.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <ChefHat className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No orders being prepared</p>
                 </div>
-              </div>
-              <div className="p-4">
-                {ordersByStatus.preparing.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <ChefHat className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No orders being prepared</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
+              ) : (
+                <div className="space-y-4">
                   {ordersByStatus.preparing.map(renderTicketCard)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Ready */}
+          <div className="bg-white rounded-xl shadow-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                    <Package className="w-5 h-5 text-white" />
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Ready</h3>
+                    <p className="text-sm text-gray-600">Ready for pickup</p>
+                  </div>
+                </div>
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {ordersByStatus.ready.length}
+                </span>
               </div>
             </div>
-
-            {/* Ready */}
-            <div className="bg-white rounded-xl shadow-lg">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Ready</h3>
-                      <p className="text-sm text-gray-600">Ready for pickup</p>
-                    </div>
-                  </div>
-                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.ready.length}
-                  </span>
+            <div className="p-4">
+              {ordersByStatus.ready.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No orders ready</p>
                 </div>
-              </div>
-              <div className="p-4">
-                {ordersByStatus.ready.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No orders ready</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
+              ) : (
+                <div className="space-y-4">
                   {ordersByStatus.ready.map(renderTicketCard)}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Out for Delivery */}
-            <div className="bg-white rounded-xl shadow-lg">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Out for Delivery</h3>
-                      <p className="text-sm text-gray-600">Staff delivering</p>
-                    </div>
-                  </div>
-                  <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {ordersByStatus.delivering.length}
-                  </span>
                 </div>
-              </div>
-              <div className="p-4">
-                {ordersByStatus.delivering.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No orders out for delivery</p>
+              )}
+            </div>
+          </div>
+
+          {/* Out for Delivery */}
+          <div className="bg-white rounded-xl shadow-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <Truck className="w-5 h-5 text-white" />
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                  {ordersByStatus.delivering.map(renderTicketCard)}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Out for Delivery</h3>
+                    <p className="text-sm text-gray-600">Staff delivering</p>
                   </div>
-                )}
+                </div>
+                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {ordersByStatus.delivering.length}
+                </span>
               </div>
             </div>
+            <div className="p-4">
+              {ordersByStatus.delivering.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Truck className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No orders out for delivery</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {ordersByStatus.delivering.map(renderTicketCard)}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* AI Insights Band */}

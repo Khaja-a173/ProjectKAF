@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import DashboardHeader from "../components/DashboardHeader";
 import { useSessionManagement } from "../hooks/useSessionManagement";
 import { format } from "date-fns";
 import {
@@ -273,41 +274,20 @@ export default function LiveOrders() {
   if (loading) {
     return (
       <div className="min-h-screen">
-        <Header />
+        <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading live orders...</p>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen">
-      <Header />
-
-      {/* Hero Section */}
-      <section className="relative h-64 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/50"></div>
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url(https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1920)",
-          }}
-        ></div>
-        <div className="relative z-10 text-center text-white">
-          <h1 className="text-5xl font-bold mb-4">Live Orders</h1>
-          <p className="text-xl">Real-time order tracking and updates</p>
-          <div className="mt-4 flex items-center justify-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm">Live Updates - Refreshed Every 5 Seconds</span>
-          </div>
-        </div>
-      </section>
+      <DashboardHeader title="Live Orders" subtitle="Real-time order tracking and updates" showUserSwitcher={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Controls */}
@@ -395,7 +375,7 @@ export default function LiveOrders() {
           </div>
         </div>
 
-        {/* Order Status Sections */}
+        {/* VERTICAL Order Status Sections */}
         <div className="space-y-8">
           {/* Order Placed */}
           <section className="bg-white rounded-xl shadow-lg p-6">
@@ -505,7 +485,7 @@ export default function LiveOrders() {
             )}
           </section>
 
-          {/* Delivering */}
+          {/* Out for Delivery */}
           <section className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
@@ -645,8 +625,6 @@ export default function LiveOrders() {
           </div>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 }
