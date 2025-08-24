@@ -8,8 +8,8 @@ describe('ModePrompt', () => {
   it('disables dine-in when no table session', () => {
     const onSelect = vi.fn();
     render(<ModePrompt open hasTableSession={false} onSelect={onSelect} onClose={() => {}} />);
-    expect(dineBtn).toBeDisabled();
-    expect(dineBtn).toBeDisabled();
+    const dineBtn = screen.getByRole('button', { name: /choose-dinein/i });
+    expect((dineBtn as HTMLButtonElement).disabled).toBe(true);
     const takeBtn = screen.getByRole('button', { name: /choose-takeaway/i });
     fireEvent.click(takeBtn);
     expect(onSelect).toHaveBeenCalledWith('takeaway');
