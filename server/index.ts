@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import Fastify from 'fastify';
+import 'dotenv/config';
 import tableSessionRoutes from '../src/server/routes/table-session';
 
 const app = Fastify({ logger: false });
