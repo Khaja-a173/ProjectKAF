@@ -44,7 +44,7 @@ describe('Menu add guard', () => {
 
   it('allows add after choosing mode', () => {
     render(<FakeMenu hasTableSession={true} />);
-    fireEvent.click(screen.getByText('Add'));
+    fireEvent.click(screen.getAllByText('Add')[0]);
     expect((window as any).__opened).toBe(true);
     // choose dine-in
     fireEvent.click(screen.getByRole('button', { name: /dine-in/i }));
