@@ -12,15 +12,16 @@ export default defineConfig({
         name: 'api',
         include: ['tests/table-session.spec.ts', 'tests/orders.spec.ts'],
         environment: 'node',
-        setupFiles: ['tests/setupServer.ts']
-      }
+        setupFiles: ['tests/loadEnv.ts', 'tests/setupServer.ts'], // <-- add loadEnv
+      },
     },
     {
       test: {
         name: 'ui',
         include: ['tests/ui/**/*.spec.ts', 'tests/ui/**/*.spec.tsx'],
-        environment: 'jsdom'
-      }
-    }
-  ]
+        environment: 'jsdom',
+        setupFiles: ['tests/loadEnv.ts'], // <-- add loadEnv
+      },
+    },
+  ],
 });
