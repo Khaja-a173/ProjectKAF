@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   projects: [
     {
-      name: 'api',
+      name: 'api',            // <- exact name used by --project api
       test: {
         reporters: ['dot'],
         hookTimeout: 30_000,
@@ -17,7 +17,7 @@ export default defineConfig({
       },
     },
     {
-      name: 'ui',
+      name: 'ui',             // <- exact name used by --project ui
       test: {
         reporters: ['dot'],
         hookTimeout: 30_000,
