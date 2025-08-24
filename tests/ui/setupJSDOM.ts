@@ -1,4 +1,3 @@
-// tests/ui/setupJSDOM.ts
 const makeStorage = () => {
   const s = new Map<string, string>();
   return {
@@ -7,9 +6,7 @@ const makeStorage = () => {
     removeItem: (k: string) => s.delete(k),
     clear: () => s.clear(),
     key: (i: number) => Array.from(s.keys())[i] ?? null,
-    get length() {
-      return s.size;
-    },
+    get length() { return s.size; },
   } as Storage;
 };
 
