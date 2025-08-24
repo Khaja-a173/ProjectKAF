@@ -1,5 +1,5 @@
 {
-  "predev": "node scripts/checkEnv.mjs dotenv_config_path=.env",
+ "predev": "node scripts/checkEnv.mjs dotenv_config_path=.env",
   "check:env": "node scripts/checkEnv.mjs dotenv_config_path=.env",
   "dev": "vite",
   "build": "tsc && vite build",
