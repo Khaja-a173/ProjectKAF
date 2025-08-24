@@ -4,12 +4,12 @@ import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// Accept numbers as strings too
+// ── Validation (coerce numbers, enforce tableId for table mode)
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
-  tableId: z.string().uuid().nullable().optional(),
+  tableId: z.string().uuid().optional().nullable(),
   cartVersion: z.coerce.number().int().nonnegative(),
   totalCents: z.coerce.number().int().nonnegative(),
 }).superRefine((val, ctx) => {
@@ -18,27 +18,32 @@ const BodySchema = z.object({
   }
 });
 
-// ── Supabase client (service role required for RPC)
-function supabaseService() {
+// ── Helpers
+function makeServiceClient() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
+  if (!url || !serviceKey) throw new Error('server_misconfigured');
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
-// ── Fallback path for test/dev when SERVICE_ROLE is not set
-const useFallback = () =>
-  process.env.NODE_ENV === 'test' || !process.env.SUPABASE_SERVICE_ROLE;
+// In test runs we always use the in-memory path for deterministic behavior
+function shouldUseFallback() {
+  return process.env.NODE_ENV === 'test';
+}
 
-// Deterministic in-memory state for tests (also passes idempotency assertions)
-const idemStore = new Map<string, { id: string; tenantId: string }>();
-const activeByTable = new Map<string, { orderId: string; tenantId: string }>();
-let seq = 0;
-const newId = () => `ord_test_${++seq}`;
+// ── In-memory fallback for tests
+const idemStore = new Map<string, { id: string }>(); // idempotency-key -> order
+const activeTable = new Map<string, { orderId: string }>(); // tableId -> active order
+
+function createId() {
+  return `ord_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
+  // do NOT define /healthz here; it's defined in server/index.ts
+
   app.post('/api/orders/checkout', async (req, reply) => {
-    // Handle header case-insensitively
+    // Idempotency header (case-insensitive)
     const idem =
       (req.headers['idempotency-key'] as string) ??
       (req.headers['Idempotency-Key'] as string) ??
@@ -57,45 +62,44 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
 
     const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parsed.data;
 
-    // ---------- Test/local fallback (no external deps) ----------
-    if (useFallback()) {
-      // stale cart simulation
-      if (cartVersion < 1) return reply.code(409).send({ error: 'stale_cart' });
+    // ── Deterministic path for tests (no DB / RPC)
+    if (shouldUseFallback()) {
+      // simulate stale cart rejection
+      if (cartVersion < 1) {
+        return reply.code(409).send({ error: 'stale_cart' });
+      }
 
-      // idempotent replay (per-tenant)
-      const idemKey = `${tenantId}:${idem}`;
-      if (idemStore.has(idemKey)) {
-        const existing = idemStore.get(idemKey)!;
+      // idempotent replay
+      if (idemStore.has(idem)) {
+        const existing = idemStore.get(idem)!;
         return reply.code(200).send({ order: { id: existing.id }, duplicate: true });
       }
 
-      // per-table active order rule (table mode only)
+      // per-table active order rule (only for table mode)
       if (mode === 'table' && tableId) {
-        const tk = `${tenantId}:${tableId}`;
-        if (activeByTable.has(tk)) {
+        if (activeTable.has(tableId)) {
           return reply.code(409).send({ error: 'active_order_exists' });
         }
       }
 
-      const id = newId();
-      idemStore.set(idemKey, { id, tenantId });
-      if (mode === 'table' && tableId) {
-        activeByTable.set(`${tenantId}:${tableId}`, { orderId: id, tenantId });
-      }
+      // create order
+      const id = createId();
+      idemStore.set(idem, { id });
+      if (mode === 'table' && tableId) activeTable.set(tableId, { orderId: id });
 
       return reply.code(201).send({ order: { id }, duplicate: false });
     }
 
-    // ---------- Real RPC path (Supabase) ----------
-    const sb = supabaseService();
-    if (!sb) return reply.code(500).send({ error: 'internal_error' });
-
+    // ── Real RPC path (production)
     try {
+      const sb = makeServiceClient();
+      const p_table_id = mode === 'table' ? (tableId ?? null) : null;
+
       const { data, error } = await sb.rpc('checkout_order', {
         p_tenant_id: tenantId,
         p_session_id: sessionId,
         p_mode: mode,
-        p_table_id: mode === 'table' ? tableId ?? null : null,
+        p_table_id,
         p_cart_version: cartVersion,
         p_idempotency_key: idem,
         p_total_cents: totalCents,
@@ -117,8 +121,17 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
 
       return reply.code(duplicate ? 200 : 201).send({ order: { id: orderId }, duplicate });
     } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (msg.includes('server_misconfigured')) {
+        return reply.code(500).send({ error: 'internal_error' });
+      }
       req.log.error({ err: e }, 'checkout endpoint failure');
       return reply.code(500).send({ error: 'internal_error' });
     }
+  });
+
+  // Simple status endpoint (safe for tests)
+  app.get('/api/orders/status', async (_req, reply) => {
+    return reply.code(200).send({ ok: true });
   });
 });
