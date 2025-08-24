@@ -1,15 +1,14 @@
 // server/index.ts
 import 'dotenv/config';
-import Fastify, { FastifyInstance } from 'fastify';
-
+import Fastify from 'fastify';
 import healthDbRoutes from '../src/server/routes/health-db.js';
 import tableSessionRoutes from '../src/server/routes/table-session.js';
 import ordersRoutes from '../src/server/routes/orders.js';
 
-export function buildServer(): FastifyInstance {
+export function buildServer() {
   const app = Fastify({ logger: false });
 
-  // Health for readiness checks
+  // Single health endpoint defined only here
   app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
 
   app.register(healthDbRoutes);
@@ -27,17 +26,5 @@ export function buildServer(): FastifyInstance {
   return app;
 }
 
-// Allow `node server/index.ts` to run the server, but tests will just import buildServer()
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.PORT || 3001);
-  const app = buildServer();
-  app
-    .listen({ port, host: '0.0.0.0' })
-    .then(() => console.log(`[server] listening on :${port}`))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
-}
-
+// No app.listen() here – tests and dev runner will do that.
 export default buildServer;
