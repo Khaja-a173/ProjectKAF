@@ -9,7 +9,7 @@ const BodySchema = z.object({
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
   tableId: z.string().uuid().nullable().optional(),
-   cartVersion: z.coerce.number().int().nonnegative(),  // <-- changed
+  cartVersion: z.coerce.number().int().nonnegative(),  // <-- changed
   totalCents:  z.coerce.number().int().nonnegative(),  // <-- changed
 }).superRefine((val, ctx) => {
   if (val.mode === 'table' && (!val.tableId || val.tableId === null)) {
