@@ -47,7 +47,7 @@ describe('Menu add guard', () => {
     fireEvent.click(screen.getAllByText('Add')[0]);
     expect((window as any).__opened).toBe(true);
     // choose dine-in
-    fireEvent.click(screen.getByRole('button', { name: /choose-dinein/i }));
+    fireEvent.click(screen.getByRole('button', { name: /dine-in \(table\)/i }));
     // next add should succeed
     fireEvent.click(screen.getAllByText('Add')[0]);
     expect(cartStore.items[0].qty).toBe(1);
