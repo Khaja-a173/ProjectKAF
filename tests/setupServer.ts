@@ -1,4 +1,5 @@
 // tests/setupServer.ts
+import './setupServer';
 import { beforeAll, afterAll } from 'vitest';
 import { buildServer } from '../server/index.js'; // note `.js` if your tsconfig outputs ESM; use path that matches your project setup
 
