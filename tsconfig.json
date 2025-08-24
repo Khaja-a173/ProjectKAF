@@ -22,7 +22,8 @@
     "noEmitOnError": false
   },
   "include": [
-    "src"
+    "src",
+    "vitest.config.ts"
   ],
   "references": [
     {
