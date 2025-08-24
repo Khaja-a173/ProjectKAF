@@ -192,20 +192,21 @@ export default function Menu() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey
+          'Idempotency-Key': getCurrentAttemptKey() || 'fallback-key'
         },
         body: JSON.stringify({
           tenantId: "tenant_123",
           sessionId: currentSession.id,
           mode: "table",
           tableId: currentSession.tableId,
-          cartVersion: Date.now() % 1000, // Increment for each attempt
+          cartVersion: 1, // Simple version for now
           items: currentCart.items.map(item => ({
             id: item.menuItemId,
             name: item.name,
-            price_cents: Math.round(item.price * 100),
+            price_cents: Math.round((item.price || 0) * 100),
             qty: item.quantity
-          }))
+          })),
+          totalCents: Math.round((currentCart.totalMinor || 0))
         })
       });
 

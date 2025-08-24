@@ -32,12 +32,14 @@ const BodySchema = z.object({
 function makeServiceClient() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!url || !serviceKey) throw new Error('server_misconfigured');
+  if (!url || !serviceKey) {
+    throw new Error('server_misconfigured');
+  }
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
-function shouldUseFallback() {
-  // Use fallback in tests or when service key isn't configured
+function shouldUseInMemory() {
+  // Use fallback in tests or when service key not present
   return process.env.NODE_ENV === 'test' || !process.env.SUPABASE_SERVICE_ROLE;
 }
 
@@ -85,7 +87,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     });
 
     // ── Test/Local fallback (deterministic responses for testing)
-    if (shouldUseFallback()) {
+    if (shouldUseInMemory()) {
       console.log('🧪 Using in-memory fallback for tests');
 
       // Check cart version (optimistic locking)
@@ -133,7 +135,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
         order: { 
           id: orderId,
           orderNumber: `#${orderId.slice(-6).toUpperCase()}`,
-          status: 'placed',
+          status: 'pending', // Use existing enum value
           tableId: normalizedTableId,
           totalAmount: totalCents / 100
         }, 
@@ -190,7 +192,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
         order: { 
           id: orderId,
           orderNumber: row?.order_number,
-          status: row?.status || 'placed'
+          status: row?.status || 'pending' // Use existing enum value
         }, 
         duplicate 
       });
@@ -213,12 +215,12 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     const { orderId } = req.params as { orderId: string };
     const tenantId = req.query as any;
     
-    if (shouldUseFallback()) {
+    if (shouldUseInMemory()) {
       // Simple test response
       return reply.code(200).send({ 
         order: { 
           id: orderId, 
-          status: 'placed',
+          status: 'pending', // Use existing enum value
           tableId: 'T01'
         } 
       });
