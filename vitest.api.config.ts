@@ -7,12 +7,14 @@ export default defineConfig({
     reporters: ['dot'],
     hookTimeout: 30_000,
     testTimeout: 30_000,
-    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
+    include: ['tests/table-session.spec.ts', 'tests/orders.spec.ts'],
     environment: 'node',
+    // IMPORTANT: start server once for the whole project
     globalSetup: ['tests/globalServer.ts'],
+    // DO NOT also start server from setupFiles
     setupFiles: ['tests/loadEnv.ts'],
-    isolate: true,
+    threads: false,         // avoid spawning multiple workers that would re-start server
+    isolate: false,         // keep global server alive across tests
     clearMocks: true,
-    threads: false, // keep single worker: one server
   },
 });

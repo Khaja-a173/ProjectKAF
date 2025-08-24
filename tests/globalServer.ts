@@ -24,6 +24,7 @@ async function waitHealth(maxMs = 30000) {
 }
 
 export default async function () {
+  // If something already listens on 3001, reuse it (don't spawn another)
   if (await isUp()) {
     weSpawned = false;
   } else {
@@ -31,6 +32,8 @@ export default async function () {
     weSpawned = true;
     await waitHealth();
   }
+
+  // Teardown: only kill if we started it
   return async () => {
     if (weSpawned && ps) {
       try { ps.kill(); } catch {}
