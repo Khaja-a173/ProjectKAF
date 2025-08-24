@@ -20,7 +20,6 @@ async function waitHealth(retries = 60) {
 }
 
 beforeAll(async () => {
-  // Start one in-process instance (no child process → no EADDRINUSE)
   app = buildServer();
   await app.listen({ port: PORT, host: HOST });
   await waitHealth();
