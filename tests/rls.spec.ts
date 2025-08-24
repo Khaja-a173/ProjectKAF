@@ -47,6 +47,7 @@ describe.skip('RLS: tenant isolation', () => {
   // @ts-ignore
   return (globalThis.crypto?.randomUUID?.() ?? require('crypto').randomUUID());
 }
+)
 
 describe.skip('RLS: tenant isolation', () => {
   const dbA = clientForTenant(TENANT_A);
