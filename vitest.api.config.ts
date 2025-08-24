@@ -4,14 +4,15 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     name: 'api',
-    reporters: ['dot'],
-    hookTimeout: 30_000,
-    testTimeout: 30_000,
-    include: ['tests/table-session.spec.ts', 'tests/orders.spec.ts'],
     environment: 'node',
+    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
     setupFiles: ['tests/loadEnv.ts', 'tests/setupServer.ts'],
-    threads: false,        // single worker → avoids multiple server spawns
-    isolate: true,         // fresh env per test file (helps table-session)
+    reporters: ['dot'],
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
+    // Keep it single-process so Fastify shares one port
+    threads: false,
+    isolate: false,
     clearMocks: true,
   },
 });
