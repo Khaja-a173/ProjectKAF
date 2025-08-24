@@ -1,6 +1,7 @@
 // server/index.ts
 import 'dotenv/config';
 import Fastify, { FastifyInstance } from 'fastify';
+
 import healthDbRoutes from '../src/server/routes/health-db.js';
 import tableSessionRoutes from '../src/server/routes/table-session.js';
 import ordersRoutes from '../src/server/routes/orders.js';
@@ -8,7 +9,7 @@ import ordersRoutes from '../src/server/routes/orders.js';
 export function buildServer(): FastifyInstance {
   const app = Fastify({ logger: false });
 
-  // Health for tests
+  // Health for readiness checks
   app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
 
   app.register(healthDbRoutes);
@@ -26,7 +27,7 @@ export function buildServer(): FastifyInstance {
   return app;
 }
 
-// Optional: only start when run directly (NOT during tests)
+// Allow `node server/index.ts` to run the server, but tests will just import buildServer()
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT || 3001);
   const app = buildServer();
@@ -38,4 +39,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.exit(1);
     });
 }
+
 export default buildServer;
