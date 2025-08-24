@@ -38,42 +38,36 @@ function FakeMenu({ hasTableSession }: { hasTableSession: boolean }) {
 
 describe('Menu add guard', () => {
   beforeEach(() => {
-    // ensure no persisted mode from previous runs
     localStorage.clear();
-
-    // give the store a scope so keys/persistence resolve
-    // (adjust if your store uses different API names)
     cartStore.setContext?.('t1', 's1');
     cartStore.clearMode?.();
-
     (window as any).__opened = false;
   });
 
   it('opens prompt on first add until mode selected', () => {
     render(<FakeMenu hasTableSession={true} />);
-    fireEvent.click(screen.getByText('Add'));
+    // Choose the first "Add" button explicitly
+    fireEvent.click(screen.getAllByText('Add')[0]);
     expect((window as any).__opened).toBe(true);
   });
 
   it('allows add after choosing mode', async () => {
     render(<FakeMenu hasTableSession={true} />);
 
-    // Open the mode prompt
-    fireEvent.click(screen.getByText('Add'));
+    // Open the mode prompt — click the first "Add"
+    fireEvent.click(screen.getAllByText('Add')[0]);
 
     // Wait until the guard reports it opened
     await waitFor(() => expect((window as any).__opened).toBe(true));
 
-    // Don’t rely on heading text; match the modal by its accessible controls
-    // Your earlier DOM dump showed aria-labels: "choose-dinein" and "choose-takeaway"
+    // Find and click the Dine-in button by accessible name
     const dineBtn =
       (await screen.findByRole('button', { name: /choose-dinein/i })) ??
       (await screen.findByLabelText(/choose-dinein/i));
-
     fireEvent.click(dineBtn);
 
     // Next add should NOT re-open the prompt
-    fireEvent.click(screen.getByText('Add'));
+    fireEvent.click(screen.getAllByText('Add')[0]);
     expect((window as any).__opened).toBe(false);
   });
 });
