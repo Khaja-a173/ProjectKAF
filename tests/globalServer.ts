@@ -24,23 +24,13 @@ async function waitHealth(maxMs = 30000) {
 }
 
 export default async function () {
-  // If something is already listening, reuse it (don’t spawn again).
   if (await isUp()) {
     weSpawned = false;
   } else {
     ps = spawn('npm', ['run', 'server'], { stdio: 'inherit' });
     weSpawned = true;
-    try {
-      await waitHealth();
-    } catch (e) {
-      try { ps?.kill(); } catch {}
-      ps = null;
-      weSpawned = false;
-      throw e;
-    }
+    await waitHealth();
   }
-
-  // Teardown only what we spawned
   return async () => {
     if (weSpawned && ps) {
       try { ps.kill(); } catch {}
