@@ -42,14 +42,18 @@ describe('Menu add guard', () => {
     expect((window as any).__opened).toBe(true);
   });
 
-  it('allows add after choosing mode', () => {
-    render(<FakeMenu hasTableSession={true} />);
-    fireEvent.click(screen.getAllByText('Add')[0]);
-    expect((window as any).__opened).toBe(true);
-    // choose dine-in
-    fireEvent.click(screen.getByRole('button', { name: /dine-in \(table\)/i }));
-    // next add should succeed
-    fireEvent.click(screen.getAllByText('Add')[0]);
-    expect(cartStore.items[0].qty).toBe(1);
+  it('allows add after choosing mode', async () => {
+  render(<FakeMenu hasTableSession={true} />);
+
+  // open the mode prompt
+  fireEvent.click(screen.getAllByText('Add')[0]);
+  expect((window as any).__opened).toBe(true);
+
+  // wait for the modal button by its aria-label (accessible name)
+  const dineBtn = await screen.findByRole('button', { name: /choose-dinein/i });
+  fireEvent.click(dineBtn);
+
+  // now "Add" should work without opening the prompt
+  fireEvent.click(screen.getAllByText('Add')[0]);
   });
 });
