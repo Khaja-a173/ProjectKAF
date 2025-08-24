@@ -56,7 +56,9 @@ export default function Menu() {
 
   useEffect(() => {
     const unsub = cartStore.subscribe(() => force(x => x + 1));
-    return () => unsub();
+    return () => {
+    unsub(); // ✅ call the function and return nothing
+    };
   }, []);
 
   useEffect(() => {
