@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import HealthBanner from "./health/HealthBanner";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import Home from "./pages/Home";
@@ -24,6 +25,7 @@ import KitchenDashboard from "./pages/KitchenDashboard";
 function App() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <HealthBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Home />} />
