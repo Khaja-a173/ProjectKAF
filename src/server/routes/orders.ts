@@ -3,14 +3,37 @@ import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
+// ---- helpers: normalize request body (snake_case → camelCase, coerce numbers) ----
+function normalizeBody(input: any) {
+  const b = typeof input === 'string' ? JSON.parse(input) : (input ?? {});
+  // accept both camelCase and snake_case keys
+  const tenantId     = b.tenantId ?? b.tenant_id ?? b.tenantID;
+  const sessionId    = b.sessionId ?? b.session_id ?? b.sessionID;
+  const mode         = b.mode;
+  const tableId      = (b.tableId ?? b.table_id ?? null) || null;
+
+  // coerce numbers that may arrive as strings
+  const cartVersion  = b.cartVersion ?? b.cart_version ?? b.cartVer ?? b.cart_ver;
+  const totalCents   = b.totalCents ?? b.total_cents ?? b.amount_cents ?? b.amountCents;
+
+  return {
+    tenantId,
+    sessionId,
+    mode,
+    tableId,
+    cartVersion,
+    totalCents,
+  };
+}
+
 // Body schema: coerce numeric fields; require tableId only for table mode
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
   tableId: z.string().uuid().nullable().optional(),
-  cartVersion: z.coerce.number().int().nonnegative(), // <-- coerce
-  totalCents: z.coerce.number().int().nonnegative(),  // <-- coerce
+  cartVersion: z.coerce.number().int().nonnegative(), // coerce "0" → 0
+  totalCents: z.coerce.number().int().nonnegative(),  // coerce "1000" → 1000
 }).superRefine((val, ctx) => {
   if (val.mode === 'table' && (!val.tableId || val.tableId === null)) {
     ctx.addIssue({
@@ -34,13 +57,13 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     const idem = (req.headers['idempotency-key'] ||
       req.headers['Idempotency-Key'] ||
       req.headers['IDEMPOTENCY-KEY']) as string | undefined;
-
     if (!idem || idem.trim() === '') {
       return reply.code(400).send({ error: 'idempotency_required' });
     }
 
-    // 2) Validate body (with helpful hint in test env)
-    const parsed = BodySchema.safeParse(req.body);
+    // 2) Normalize + validate body
+    const normalized = normalizeBody(req.body);
+    const parsed = BodySchema.safeParse(normalized);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       const msg = first?.message === 'table_required' ? 'table_required' : 'bad_request';
@@ -67,9 +90,9 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       // 4) Map RPC/DB errors → precise HTTP codes
       if (error) {
         const msg = (error.message || '').toLowerCase();
-        if (msg.includes('stale_cart'))         return reply.code(409).send({ error: 'stale_cart' });
-        if (msg.includes('active_order_exists')) return reply.code(409).send({ error: 'active_order_exists' });
-        if (msg.includes('forbidden'))           return reply.code(403).send({ error: 'forbidden' });
+        if (msg.includes('stale_cart'))          return reply.code(409).send({ error: 'stale_cart' });
+        if (msg.includes('active_order_exists'))  return reply.code(409).send({ error: 'active_order_exists' });
+        if (msg.includes('forbidden'))            return reply.code(403).send({ error: 'forbidden' });
         req.log.error({ err: error }, 'checkout_order rpc failed');
         return reply.code(500).send({ error: 'internal_error' });
       }
