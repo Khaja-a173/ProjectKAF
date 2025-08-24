@@ -1,3 +1,4 @@
+import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import FastifyPlugin from 'fastify-plugin';
 import { verifyQr } from '../../lib/qr/verify';
