@@ -42,7 +42,7 @@ function createId() {
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
   // Health check for test harness
-  app.get('/healthz', async () => ({ ok: true }));
+  //app.get('/healthz', async () => ({ ok: true }));
 
   app.post('/api/orders/checkout', async (req, reply) => {
     // Idempotency header (case-insensitive)
