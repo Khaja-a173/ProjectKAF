@@ -1,5 +1,5 @@
 // tests/ui/setupJSDOM.ts
-const makeMemoryStorage = () => {
+const memoryStorage = () => {
   const s = new Map<string, string>();
   return {
     getItem: k => (s.has(k) ? s.get(k)! : null),
@@ -13,9 +13,9 @@ const makeMemoryStorage = () => {
 
 if (typeof window !== 'undefined' && !('localStorage' in window)) {
   // @ts-ignore
-  window.localStorage = makeMemoryStorage();
+  window.localStorage = memoryStorage();
 }
-if (typeof global !== 'undefined' && !(global as any).localStorage) {
+if (typeof globalThis !== 'undefined' && !(globalThis as any).localStorage) {
   // @ts-ignore
-  (global as any).localStorage = (global as any).window?.localStorage ?? makeMemoryStorage();
+  (globalThis as any).localStorage = (globalThis as any).window?.localStorage ?? memoryStorage();
 }

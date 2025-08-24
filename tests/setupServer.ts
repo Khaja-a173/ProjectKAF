@@ -1,40 +1,32 @@
 // tests/setupServer.ts
 import { beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
-import http from 'node:http';
+import { setTimeout as wait } from 'node:timers/promises';
+import { request } from 'undici';
 
-let proc: any;
+let child: ReturnType<typeof spawn> | null = null;
 
-function waitForReady(url: string, timeoutMs = 10_000) {
-  const started = Date.now();
-  return new Promise<void>((resolve, reject) => {
-    const tryOnce = () => {
-      const req = http.get(url, res => {
-        res.resume();
-        resolve();
-      });
-      req.on('error', () => {
-        if (Date.now() - started > timeoutMs) return reject(new Error('server did not start'));
-        setTimeout(tryOnce, 250);
-      });
-    };
-    tryOnce();
-  });
+async function waitForHealthz() {
+  for (let i = 0; i < 20; i++) {
+    try {
+      const res = await request('http://127.0.0.1:3001/healthz', { method: 'GET' });
+      if (res.statusCode === 200) return;
+    } catch { /* not ready yet */ }
+    await wait(500);
+  }
+  throw new Error('Server not ready on :3001');
 }
 
 beforeAll(async () => {
-  // start once per test project
-  proc = spawn('npm', ['run', 'server'], {
-    stdio: 'inherit',
-    env: { ...process.env, PORT: process.env.PORT || '3001' },
-  });
-  const base = `http://127.0.0.1:${process.env.PORT || '3001'}`;
-  (globalThis as any).__API_BASE__ = base;
-  await waitForReady(`${base}/healthz`, 15_000);
+  // prevent double start if already running in watch mode
+  if (child) return;
+  child = spawn('npm', ['run', 'server'], { stdio: 'inherit', env: process.env });
+  await waitForHealthz();
 });
 
 afterAll(async () => {
-  if (proc && !proc.killed) {
-    proc.kill('SIGINT');
+  if (child && !child.killed) {
+    child.kill();
+    child = null;
   }
 });
