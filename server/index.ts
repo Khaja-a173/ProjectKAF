@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import tableSessionRoutes from '../src/server/routes/table-session'; // adjust if your folder layout differs
+import healthDbRoutes from '../src/server/routes/health-db';
 
 const app = Fastify({ logger: false });
 
@@ -10,12 +11,15 @@ app.get('/', async (_req, reply) => {
   return reply.code(200).send({
     status: 'ok',
     service: 'api',
-    routes: ['/healthz', '/api/table-session/*']
+    routes: ['/healthz', '/api/health/db', '/api/table-session/*']
   });
 });
 
 // Health check
 app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
+
+// Register health DB route
+app.register(healthDbRoutes);
 
 // Register table-session API
 app.register(tableSessionRoutes);

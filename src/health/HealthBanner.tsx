@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { checkMenuHealth } from './supabaseHealth';
 
 export default function HealthBanner() {
   const [ok, setOk] = useState<boolean | null>(null);
-  
+
   useEffect(() => {
-    checkMenuHealth().then(setOk).catch(() => setOk(false));
+    fetch('/api/health/db')
+      .then((r) => r.json())
+      .then((j) => setOk(!!j.ok))
+      .catch(() => setOk(false));
   }, []);
-  
+
   if (ok === null) return null;
-  
   return (
     <div style={{
       padding: 8,
