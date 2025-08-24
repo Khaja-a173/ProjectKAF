@@ -92,7 +92,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
         if (blob.includes('active_order_exists')) {
           return reply.code(409).send({ error: 'active_order_exists' });
         }
-        if (msg.includes('forbidden')) {
+        if (blob.includes('forbidden')) {
           return reply.code(403).send({ error: 'forbidden' });
         }
         req.log.error({ err: error }, 'checkout_order rpc failed');
