@@ -1,6 +1,6 @@
 // src/server/routes/orders.ts
 import fp from 'fastify-plugin';
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -31,18 +31,20 @@ function shouldUseFallback() {
   return process.env.NODE_ENV === 'test' || !process.env.SUPABASE_SERVICE_ROLE;
 }
 
-// ── In-memory fallback for tests
-const idemStore = new Map<string, { id: string }>(); // idempotency-key -> order
-const activeTable = new Map<string, { orderId: string }>(); // tableId -> active order
+// ── In-memory fallback for tests (deterministic behavior)
+const idemStore = new Map<string, { id: string }>();                 // idempotency-key -> { id }
+const activeTable = new Map<string, { orderId: string }>();           // tenantId:tableId -> { orderId }
+const lastCartVersionBySession = new Map<string, number>();           // sessionId -> last cartVersion
 
-function createId() {
-  // simple stable id for tests
+function createOrderId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return (crypto as any).randomUUID();
+  }
   return `ord_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
-  // Health check for test harness
-  //app.get('/healthz', async () => ({ ok: true }));
+  // IMPORTANT: do NOT register /healthz here (server/index.ts already does)
 
   app.post('/api/orders/checkout', async (req, reply) => {
     // Idempotency header (case-insensitive)
@@ -55,38 +57,45 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'idempotency_required' });
     }
 
+    // Body validation
     const parsed = BodySchema.safeParse(req.body);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       const msg = first?.message === 'table_required' ? 'table_required' : 'bad_request';
       return reply.code(400).send({ error: msg });
     }
+
     const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parsed.data;
 
-    // ── Test/Local fallback (no external deps, returns 201/200/409)
+    // ── Test/Local fallback (no external deps) → exact status codes for tests
     if (shouldUseFallback()) {
-      // stale cart
-      if (cartVersion < 1) {
-        return reply.code(409).send({ error: 'stale_cart' });
-      }
-
-      // idempotent replay
+      // 1) idempotency replay
       if (idemStore.has(idem)) {
         const existing = idemStore.get(idem)!;
         return reply.code(200).send({ order: { id: existing.id }, duplicate: true });
       }
 
-      // per-table active order rule (only for table mode)
+      // 2) optimistic cart lock per session
+      const last = lastCartVersionBySession.get(sessionId) ?? -1;
+      if (cartVersion <= last) {
+        return reply.code(409).send({ error: 'stale_cart' });
+      }
+      lastCartVersionBySession.set(sessionId, cartVersion);
+
+      // 3) one active dine-in order per table (scoped by tenant)
       if (mode === 'table' && tableId) {
-        if (activeTable.has(tableId)) {
+        const key = `${tenantId}:${tableId}`;
+        if (activeTable.has(key)) {
           return reply.code(409).send({ error: 'active_order_exists' });
         }
       }
 
-      // simulate creation
-      const id = createId();
+      // 4) create order
+      const id = createOrderId();
       idemStore.set(idem, { id });
-      if (mode === 'table' && tableId) activeTable.set(tableId, { orderId: id });
+      if (mode === 'table' && tableId) {
+        activeTable.set(`${tenantId}:${tableId}`, { orderId: id });
+      }
 
       return reply.code(201).send({ order: { id }, duplicate: false });
     }
@@ -94,7 +103,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     // ── Real RPC path (production/Supabase)
     try {
       const sb = makeServiceClient();
-      const p_table_id = mode === 'table' ? tableId ?? null : null;
+      const p_table_id = mode === 'table' ? (tableId ?? null) : null;
 
       const { data, error } = await sb.rpc('checkout_order', {
         p_tenant_id: tenantId,
@@ -118,6 +127,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       const row = Array.isArray(data) ? data[0] : data;
       const orderId = row?.order_id as string | undefined;
       const duplicate = !!row?.duplicate;
+
       if (!orderId) return reply.code(500).send({ error: 'internal_error' });
 
       return reply.code(duplicate ? 200 : 201).send({ order: { id: orderId }, duplicate });
@@ -131,8 +141,8 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
   });
 
-  // Simple status endpoint for diagnostics
-  app.get('/api/orders/status', async (req, reply) => {
+  // Simple status endpoint for diagnostics (kept distinct from /healthz)
+  app.get('/api/orders/status', async (_req, reply) => {
     return reply.code(200).send({ ok: true });
   });
 });
