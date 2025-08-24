@@ -1,4 +1,3 @@
-// tests/setupServer.ts
 import { beforeAll, afterAll } from 'vitest';
 
 const PORT = Number(process.env.PORT || 3001);
@@ -7,7 +6,7 @@ let child: import('child_process').ChildProcess | null = null;
 async function waitForHealthz(url: string, tries = 30) {
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { method: 'GET' });
+      const res = await fetch(url);
       if (res.ok) return;
     } catch {}
     await new Promise(r => setTimeout(r, 200));
@@ -16,7 +15,6 @@ async function waitForHealthz(url: string, tries = 30) {
 }
 
 beforeAll(async () => {
-  // If a server is already listening, skip spawn
   try {
     const res = await fetch(`http://127.0.0.1:${PORT}/healthz`);
     if (res.ok) return;
@@ -27,17 +25,12 @@ beforeAll(async () => {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(PORT) },
   });
-
-  // Optional: echo server output to help debugging
   child.stdout?.on('data', d => process.stdout.write(`[server] ${d}`));
   child.stderr?.on('data', d => process.stderr.write(`[server-err] ${d}`));
 
-  // Wait until /healthz is ready
   await waitForHealthz(`http://127.0.0.1:${PORT}/healthz`);
 });
 
 afterAll(async () => {
-  if (child && !child.killed) {
-    child.kill(); // polite; tsx will exit
-  }
+  if (child && !child.killed) child.kill();
 });
