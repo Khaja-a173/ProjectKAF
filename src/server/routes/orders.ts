@@ -3,14 +3,14 @@ import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// Zod schema: matches what tests send and enforces table vs takeaway rules.
+// Body schema: coerce numeric fields; require tableId only for table mode
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
   tableId: z.string().uuid().nullable().optional(),
-  cartVersion: z.number().int().nonnegative(),
-  totalCents: z.number().int().nonnegative(),
+  cartVersion: z.coerce.number().int().nonnegative(), // <-- coerce
+  totalCents: z.coerce.number().int().nonnegative(),  // <-- coerce
 }).superRefine((val, ctx) => {
   if (val.mode === 'table' && (!val.tableId || val.tableId === null)) {
     ctx.addIssue({
@@ -24,9 +24,7 @@ const BodySchema = z.object({
 function makeServiceClient() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!url || !serviceKey) {
-    throw new Error('server_misconfigured'); // tests will show 500 if this happens
-  }
+  if (!url || !serviceKey) throw new Error('server_misconfigured');
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
@@ -41,19 +39,18 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'idempotency_required' });
     }
 
-    // 2) Validate body
-    const parse = BodySchema.safeParse(req.body);
-    if (!parse.success) {
-      // Map custom/table errors to 400 with specific error code when possible
-      const first = parse.error.issues[0];
+    // 2) Validate body (with helpful hint in test env)
+    const parsed = BodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
       const msg = first?.message === 'table_required' ? 'table_required' : 'bad_request';
-      return reply.code(400).send({ error: msg });
+      const hint = process.env.NODE_ENV === 'test' ? { hint: first?.message || first?.code } : {};
+      return reply.code(400).send({ error: msg, ...hint });
     }
-    const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parse.data;
+    const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parsed.data;
 
     // 3) Call transactional RPC
     const sb = makeServiceClient();
-    // IMPORTANT: pass null for tableId on takeaway so RPC arg type matches (uuid | null)
     const p_table_id = mode === 'table' ? tableId! : null;
 
     try {
@@ -67,19 +64,12 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
         p_total_cents: totalCents,
       });
 
-      // 4) Map RPC/DB errors to precise HTTP codes
+      // 4) Map RPC/DB errors → precise HTTP codes
       if (error) {
         const msg = (error.message || '').toLowerCase();
-        if (msg.includes('stale_cart')) {
-          return reply.code(409).send({ error: 'stale_cart' });
-        }
-        if (msg.includes('active_order_exists')) {
-          return reply.code(409).send({ error: 'active_order_exists' });
-        }
-        if (msg.includes('forbidden')) {
-          return reply.code(403).send({ error: 'forbidden' });
-        }
-        // Unhandled DB error → 500
+        if (msg.includes('stale_cart'))         return reply.code(409).send({ error: 'stale_cart' });
+        if (msg.includes('active_order_exists')) return reply.code(409).send({ error: 'active_order_exists' });
+        if (msg.includes('forbidden'))           return reply.code(403).send({ error: 'forbidden' });
         req.log.error({ err: error }, 'checkout_order rpc failed');
         return reply.code(500).send({ error: 'internal_error' });
       }
@@ -89,15 +79,10 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       const orderId = row?.order_id as string | undefined;
       const duplicate = !!row?.duplicate;
 
-      if (!orderId) {
-        // Shouldn't happen; guard
-        return reply.code(500).send({ error: 'internal_error' });
-      }
+      if (!orderId) return reply.code(500).send({ error: 'internal_error' });
 
-      // 5) Return correct status codes for duplicate/new
-      if (duplicate) {
-        return reply.code(200).send({ order: { id: orderId }, duplicate: true });
-      }
+      // 5) Status by duplicate/new
+      if (duplicate) return reply.code(200).send({ order: { id: orderId }, duplicate: true });
       return reply.code(201).send({ order: { id: orderId }, duplicate: false });
     } catch (e: any) {
       const msg = String(e?.message || '');
