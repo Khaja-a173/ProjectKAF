@@ -39,15 +39,14 @@ const TABLES = [
   'restaurant_tables'
 ].filter(Boolean);
 
-const TENANT_A = cryptoRandomUUID();
-const TENANT_B = cryptoRandomUUID();
-
-describe.skip('RLS: tenant isolation', () => {
+function cryptoRandomUUID() {
   // Node 18+ has crypto.randomUUID; fallback for TS environments.
   // @ts-ignore
   return (globalThis.crypto?.randomUUID?.() ?? require('crypto').randomUUID());
 }
-)
+
+const TENANT_A = cryptoRandomUUID();
+const TENANT_B = cryptoRandomUUID();
 
 describe.skip('RLS: tenant isolation', () => {
   const dbA = clientForTenant(TENANT_A);
