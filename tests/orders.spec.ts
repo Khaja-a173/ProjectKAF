@@ -58,16 +58,25 @@ describe('Idempotent Order Placement', () => {
     const payload = {
       tenantId: TENANT, sessionId: SESSION, mode: 'table', tableId: TABLE,
       cartVersion: 0,
-      items: [{ id: 'm1', name: 'Burger', price_cents: 1000, qty: 1 }],
-      idempotencyKey: key
+      totalCents: 1000
     };
 
     const [r1, r2] = await Promise.allSettled([
       fetch('http://127.0.0.1:3001/api/orders/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', 
+        headers: { 
+          'content-type': 'application/json',
+          'Idempotency-Key': key
+        }, 
+        body: JSON.stringify(payload)
       }),
       fetch('http://127.0.0.1:3001/api/orders/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', 
+        headers: { 
+          'content-type': 'application/json',
+          'Idempotency-Key': key
+        }, 
+        body: JSON.stringify(payload)
       })
     ]);
 
@@ -87,12 +96,14 @@ describe('Idempotent Order Placement', () => {
     const key = idem();
     const res = await fetch('http://127.0.0.1:3001/api/orders/checkout', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 
+        'content-type': 'application/json',
+        'Idempotency-Key': key
+      },
       body: JSON.stringify({
         tenantId: TENANT, sessionId: SESSION, mode: 'table', tableId: TABLE,
         cartVersion: 0, // stale
-        items: [{ id: 'm1', name: 'Burger', price_cents: 1000, qty: 1 }],
-        idempotencyKey: key
+        totalCents: 1000
       })
     });
     expect(res.status).toBe(409);
@@ -107,10 +118,14 @@ describe('Idempotent Order Placement', () => {
     // First order (cartVersion=1)
     const k1 = idem();
     let r1 = await fetch('http://127.0.0.1:3001/api/orders/checkout', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', 
+      headers: { 
+        'content-type': 'application/json',
+        'Idempotency-Key': k1
+      },
       body: JSON.stringify({
         tenantId: TENANT, sessionId: SESSION, mode: 'table', tableId: TABLE,
-        cartVersion: 1, items: [{ id:'m1', name:'Burger', price_cents:1000, qty:1 }], idempotencyKey: k1
+        cartVersion: 1, totalCents: 1000
       })
     });
     expect([200,201]).toContain(r1.status);
@@ -118,10 +133,14 @@ describe('Idempotent Order Placement', () => {
     // Second order attempt with new idempotency key should conflict due to active per table
     const k2 = idem();
     let r2 = await fetch('http://127.0.0.1:3001/api/orders/checkout', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', 
+      headers: { 
+        'content-type': 'application/json',
+        'Idempotency-Key': k2
+      },
       body: JSON.stringify({
         tenantId: TENANT, sessionId: SESSION, mode: 'table', tableId: TABLE,
-        cartVersion: 2, items: [{ id:'m2', name:'Fries', price_cents:500, qty:1 }], idempotencyKey: k2
+        cartVersion: 2, totalCents: 500
       })
     });
     expect(r2.status).toBe(409);
@@ -135,12 +154,15 @@ describe('Idempotent Order Placement', () => {
     await sb.from('table_sessions').upsert([{ id: 'sess-take-1', tenant_id: TENANT, table_id: null, status: 'active', cart_version: 0 }], { onConflict: 'id' });
 
     const res = await fetch('http://127.0.0.1:3001/api/orders/checkout', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', 
+      headers: { 
+        'content-type': 'application/json',
+        'Idempotency-Key': k3
+      },
       body: JSON.stringify({
         tenantId: TENANT, sessionId: 'sess-take-1', mode: 'takeaway',
         cartVersion: 0,
-        items: [{ id:'m3', name:'Salad', price_cents:700, qty:1 }],
-        idempotencyKey: k3
+        totalCents: 700
       })
     });
     expect([200,201]).toContain(res.status);

@@ -1,1 +1,0 @@
-"test:secret": "vitest run tests/secret-shipping.spec.ts --reporter=dot"

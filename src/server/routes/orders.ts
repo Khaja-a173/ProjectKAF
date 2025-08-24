@@ -120,4 +120,15 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'internal_error' });
     }
   });
+
+  // Fetch order status by id (handy for tests)
+  app.get('/api/orders/status', async (req, reply) => {
+    const id = (req.query as any)?.id as string | undefined;
+    const tenantId = (req.query as any)?.tenantId as string | undefined;
+    if (!id || !tenantId) return reply.code(400).send({ error: 'missing_params' });
+    const sb = makeServiceClient();
+    const { data, error } = await sb.from('orders').select('*').eq('tenant_id', tenantId).eq('id', id).limit(1);
+    if (error) return reply.code(500).send({ error: 'db_error', detail: error.message });
+    return reply.code(200).send({ order: data?.[0] ?? null });
+  });
 });

@@ -1,3 +1,4 @@
+// tests/ui/setupJSDOM.ts
 const makeMemoryStorage = () => {
   const s = new Map<string, string>();
   return {
