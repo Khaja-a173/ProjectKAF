@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config';
 
 const SB_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE!;
