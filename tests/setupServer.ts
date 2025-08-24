@@ -1,36 +1,40 @@
+// tests/setupServer.ts
 import { beforeAll, afterAll } from 'vitest';
+import { spawn } from 'node:child_process';
+import http from 'node:http';
 
-const PORT = Number(process.env.PORT || 3001);
-let child: import('child_process').ChildProcess | null = null;
+let proc: any;
 
-async function waitForHealthz(url: string, tries = 30) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch {}
-    await new Promise(r => setTimeout(r, 200));
-  }
-  throw new Error(`Server did not become healthy at ${url}`);
+function waitForReady(url: string, timeoutMs = 10_000) {
+  const started = Date.now();
+  return new Promise<void>((resolve, reject) => {
+    const tryOnce = () => {
+      const req = http.get(url, res => {
+        res.resume();
+        resolve();
+      });
+      req.on('error', () => {
+        if (Date.now() - started > timeoutMs) return reject(new Error('server did not start'));
+        setTimeout(tryOnce, 250);
+      });
+    };
+    tryOnce();
+  });
 }
 
 beforeAll(async () => {
-  try {
-    const res = await fetch(`http://127.0.0.1:${PORT}/healthz`);
-    if (res.ok) return;
-  } catch {}
-
-  const { spawn } = await import('child_process');
-  child = spawn('npm', ['run', 'server'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PORT: String(PORT) },
+  // start once per test project
+  proc = spawn('npm', ['run', 'server'], {
+    stdio: 'inherit',
+    env: { ...process.env, PORT: process.env.PORT || '3001' },
   });
-  child.stdout?.on('data', d => process.stdout.write(`[server] ${d}`));
-  child.stderr?.on('data', d => process.stderr.write(`[server-err] ${d}`));
-
-  await waitForHealthz(`http://127.0.0.1:${PORT}/healthz`);
+  const base = `http://127.0.0.1:${process.env.PORT || '3001'}`;
+  (globalThis as any).__API_BASE__ = base;
+  await waitForReady(`${base}/healthz`, 15_000);
 });
 
 afterAll(async () => {
-  if (child && !child.killed) child.kill();
+  if (proc && !proc.killed) {
+    proc.kill('SIGINT');
+  }
 });
