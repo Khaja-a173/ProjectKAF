@@ -1,6 +1,5 @@
 // tests/ui/setupJSDOM.ts
-// Ensures localStorage exists even if a module touches it very early.
-// In normal Vitest jsdom this is already present, but this keeps things robust.
+// Make sure jsdom has a URL (set in vitest config), and guarantee localStorage.
 
 const makeMemoryStorage = () => {
   const store = new Map<string, string>();
@@ -11,12 +10,14 @@ const makeMemoryStorage = () => {
     clear: () => { store.clear(); },
     key: (i: number) => Array.from(store.keys())[i] ?? null,
     get length() { return store.size; },
-  };
+  } as Storage;
 };
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !('localStorage' in window)) {
   // @ts-ignore
-  if (!window.localStorage) window.localStorage = makeMemoryStorage();
+  window.localStorage = makeMemoryStorage();
 }
-// @ts-ignore
-if (typeof global !== 'undefined' && !global.localStorage) global.localStorage = (global as any).window?.localStorage ?? makeMemoryStorage();
+if (typeof global !== 'undefined' && !(global as any).localStorage) {
+  // @ts-ignore
+  (global as any).localStorage = (global as any).window?.localStorage ?? makeMemoryStorage();
+}
