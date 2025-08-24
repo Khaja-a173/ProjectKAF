@@ -3,22 +3,34 @@ import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// ---- helpers: normalize request body (snake_case → camelCase, coerce numbers) ----
+// ---- normalize helpers ------------------------------------------------------
+function toLowerSafe(x: any) {
+  return typeof x === 'string' ? x.toLowerCase() : x;
+}
+function normalizeMode(raw: any): 'table' | 'takeaway' | undefined {
+  const m = toLowerSafe(raw);
+  if (m === 'table') return 'table';
+  if (m === 'takeaway') return 'takeaway';
+  // tolerate synonyms that some clients/tests may send
+  if (m === 'dine-in' || m === 'dinein' || m === 'dine_in') return 'table';
+  return undefined;
+}
 function normalizeBody(input: any) {
   const b = typeof input === 'string' ? JSON.parse(input) : (input ?? {});
-  // accept both camelCase and snake_case keys
-  const tenantId     = b.tenantId ?? b.tenant_id ?? b.tenantID;
-  const sessionId    = b.sessionId ?? b.session_id ?? b.sessionID;
-  const mode         = b.mode;
-  const tableId      = (b.tableId ?? b.table_id ?? null) || null;
+  const tenantId    = b.tenantId ?? b.tenant_id ?? b.tenantID;
+  // coerce sessionId to string; tolerate numbers
+  const sessionId   = b.sessionId ?? b.session_id ?? b.sessionID;
+  const modeRaw     = b.mode;
+  const mode        = normalizeMode(modeRaw);
+  const tableId     = (b.tableId ?? b.table_id ?? null) || null;
 
-  // coerce numbers that may arrive as strings
-  const cartVersion  = b.cartVersion ?? b.cart_version ?? b.cartVer ?? b.cart_ver;
-  const totalCents   = b.totalCents ?? b.total_cents ?? b.amount_cents ?? b.amountCents;
+  // coerce numbers + accept multiple aliases; default cartVersion to 0 if missing
+  const cartVersion = b.cartVersion ?? b.cart_version ?? b.cartVer ?? b.cart_ver ?? 0;
+  const totalCents  = b.totalCents ?? b.total_cents ?? b.amount_cents ?? b.amountCents;
 
   return {
     tenantId,
-    sessionId,
+    sessionId: sessionId != null ? String(sessionId) : sessionId,
     mode,
     tableId,
     cartVersion,
@@ -26,14 +38,14 @@ function normalizeBody(input: any) {
   };
 }
 
-// Body schema: coerce numeric fields; require tableId only for table mode
+// ---- validation schema ------------------------------------------------------
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
-  sessionId: z.string().min(1),
-  mode: z.enum(['table', 'takeaway']),
+  sessionId: z.coerce.string().min(1),                 // coerce to string
+  mode: z.enum(['table', 'takeaway']),                 // after normalizeMode
   tableId: z.string().uuid().nullable().optional(),
-  cartVersion: z.coerce.number().int().nonnegative(), // coerce "0" → 0
-  totalCents: z.coerce.number().int().nonnegative(),  // coerce "1000" → 1000
+  cartVersion: z.coerce.number().int().nonnegative().default(0), // default 0
+  totalCents: z.coerce.number().int().nonnegative(),   // coerce "1000" → 1000
 }).superRefine((val, ctx) => {
   if (val.mode === 'table' && (!val.tableId || val.tableId === null)) {
     ctx.addIssue({
@@ -57,18 +69,19 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     const idem = (req.headers['idempotency-key'] ||
       req.headers['Idempotency-Key'] ||
       req.headers['IDEMPOTENCY-KEY']) as string | undefined;
+
     if (!idem || idem.trim() === '') {
       return reply.code(400).send({ error: 'idempotency_required' });
     }
 
-    // 2) Normalize + validate body
+    // 2) Normalize + validate body (emit hint during tests)
     const normalized = normalizeBody(req.body);
     const parsed = BodySchema.safeParse(normalized);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       const msg = first?.message === 'table_required' ? 'table_required' : 'bad_request';
       const hint = process.env.NODE_ENV === 'test' ? { hint: first?.message || first?.code } : {};
-      return reply.code(400).send({ error: msg, ...hint });
+      return reply.code(400).send({ error: msg, ...hint, debug: process.env.NODE_ENV === 'test' ? { normalized } : undefined });
     }
     const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parsed.data;
 
