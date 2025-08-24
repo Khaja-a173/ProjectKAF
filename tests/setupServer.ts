@@ -1,4 +1,6 @@
 // tests/setupServer.ts
+// tests/setupServer.ts
+import { beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
