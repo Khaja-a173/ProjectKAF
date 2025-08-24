@@ -19,9 +19,8 @@ async function isPortBusy(): Promise<boolean> {
 
 async function waitHealthz(timeoutMs = 30_000) {
   const start = Date.now();
-  // small delay to allow Fastify to bind the port
+  // Give Fastify a brief moment to bind the port, then poll
   await new Promise(r => setTimeout(r, 100));
-  // then poll
   while (Date.now() - start < timeoutMs) {
     try {
       const r = await fetch(`http://${HOST}:${PORT}/healthz`);
@@ -33,17 +32,16 @@ async function waitHealthz(timeoutMs = 30_000) {
 }
 
 beforeAll(async () => {
-  // Force test-mode fallback in routes (prevents 400 -> 409 confusion and avoids RPCs)
+  // Force deterministic in-memory behavior in the orders route
   process.env.NODE_ENV = 'test';
 
-  // If something is already listening (dev server or previous run), reuse it
+  // If a server is already running (dev or prior run), reuse it
   if (await isPortBusy()) {
     startedHere = false;
     return;
   }
 
-  // Avoid double-start if this setup file is included twice
-  // (Vitest can reuse the same module in multiple spec collections)
+  // Avoid double-start if setup gets evaluated more than once
   // @ts-ignore
   if ((globalThis as any).__apiServerStarted) {
     await waitHealthz();
