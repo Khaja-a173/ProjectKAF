@@ -1,3 +1,4 @@
+// vitest.api.config.ts
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -6,7 +7,7 @@ export default defineConfig({
     reporters: ['dot'],
     hookTimeout: 30_000,
     testTimeout: 30_000,
-    include: ['tests/table-session.spec.ts', 'tests/orders.spec.ts'],
+    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
     environment: 'node',
     setupFiles: ['tests/loadEnv.ts', 'tests/setupServer.ts'],
     isolate: true,
