@@ -1,15 +1,12 @@
-// tests/ui/setupJSDOM.ts
-// Make sure jsdom has a URL (set in vitest config), and guarantee localStorage.
-
 const makeMemoryStorage = () => {
-  const store = new Map<string, string>();
+  const s = new Map<string, string>();
   return {
-    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-    setItem: (k: string, v: string) => { store.set(k, String(v)); },
-    removeItem: (k: string) => { store.delete(k); },
-    clear: () => { store.clear(); },
-    key: (i: number) => Array.from(store.keys())[i] ?? null,
-    get length() { return store.size; },
+    getItem: k => (s.has(k) ? s.get(k)! : null),
+    setItem: (k, v) => s.set(k, String(v)),
+    removeItem: k => s.delete(k),
+    clear: () => s.clear(),
+    key: i => Array.from(s.keys())[i] ?? null,
+    get length() { return s.size; },
   } as Storage;
 };
 
