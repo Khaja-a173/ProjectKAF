@@ -309,6 +309,9 @@ describe('Signed QR + Table Lock + Join-PIN', () => {
       if (typeof updateStatus === 'number') {
         expect([401, 403]).toContain(updateStatus);
       }
+      if (typeof updateStatus === 'number') {
+        expect([401, 403]).toContain(updateStatus);
+      }
     });
   });
 

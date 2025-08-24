@@ -1,11 +1,12 @@
-import { useEffect } from "react";
-import { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SessionCartComponent from "../components/SessionCart";
 import OrderSuccessModal from "../components/OrderSuccessModal";
 import TableSessionBadge from "../components/TableSessionBadge";
+import ModePrompt from "../components/ModePrompt";
+import { cartStore, Mode, ModeRequiredError, ContextRequiredError } from "../state/cartStore";
 import { useSessionManagement } from "../hooks/useSessionManagement";
 import { Search, Star, Clock, Leaf, Flame } from "lucide-react";
 import { useMenuManagement } from "../hooks/useMenuManagement";
@@ -34,6 +35,9 @@ export default function Menu() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [sessionCreated, setSessionCreated] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [hasTableSession, setHasTableSession] = useState(false);
+  const [_, force] = useState(0); // re-render when store changes
 
   // Use real menu data from management system
   const { sections, loading } = useMenuManagement({
@@ -41,6 +45,42 @@ export default function Menu() {
     locationId: "location_456",
   });
 
+  // resolve context
+  const { tenantId, sessionIdFromUrl } = useMemo(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const tid = sp.get('tid') || localStorage.getItem('tenant_id') || 'tenant_123';
+    const sid = sp.get('sid') || localStorage.getItem('session_id') || '';
+    return { tenantId: tid, sessionIdFromUrl: sid };
+  }, []);
+
+  useEffect(() => {
+    const unsub = cartStore.subscribe(() => force(x => x + 1));
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (tenantId) {
+      cartStore.setContext(tenantId, sessionIdFromUrl || undefined);
+      setHasTableSession(!!sessionIdFromUrl || !!localStorage.getItem('session_id') || !!tableId);
+    }
+  }, [tenantId, sessionIdFromUrl, tableId]);
+
+  function requireModeOrOpenPrompt(): boolean {
+    if (!cartStore.mode) {
+      setPromptOpen(true);
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSelectMode(mode: Mode) {
+    try {
+      cartStore.setMode(mode);
+      setPromptOpen(false);
+    } catch (e) {
+      console.error(e);
+    }
+  }
   // Get current session and cart
   const currentSession = tableId ? getSessionByTable(tableId) : null;
   const currentCart = currentSession
@@ -93,30 +133,21 @@ export default function Menu() {
   });
 
   const handleAddToCart = async (item: any) => {
-    if (!tableId) {
-      alert("Please scan QR code or select a table first");
-      return;
-    }
-
-    if (creatingSession) {
-      alert("Setting up your session, please wait a moment...");
-      return;
-    }
-
-    if (!currentSession) {
-      alert("Session not ready yet, please try again in a moment");
-      return;
-    }
-
     try {
-      await addToCart(currentSession.id, item.id, 1);
+      if (!requireModeOrOpenPrompt()) return;
+      cartStore.add({ id: item.id, name: item.name, price: item.price }, 1);
       console.log("✅ Item added to cart:", item.name);
-    } catch (err) {
-      console.error("❌ Failed to add to cart:", err);
-      alert(
-        "Failed to add item to cart: " +
-          (err instanceof Error ? err.message : "Unknown error"),
-      );
+    } catch (e) {
+      if (e instanceof ModeRequiredError) {
+        setPromptOpen(true);
+        return;
+      }
+      if (e instanceof ContextRequiredError) {
+        alert('Please scan the table QR or select Takeaway to start.');
+        return;
+      }
+      console.error("❌ Failed to add to cart:", e);
+      alert("Failed to add item to cart");
     }
   };
 
@@ -377,14 +408,9 @@ export default function Menu() {
 
                     <button
                       onClick={() => handleAddToCart(item)}
-                      disabled={!currentSession || creatingSession}
                       className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {creatingSession 
-                        ? "Setting up session..." 
-                        : currentSession 
-                          ? "Add to Cart" 
-                          : "Preparing table..."}
+                      Add to Cart
                     </button>
                   </div>
                 </div>
@@ -413,6 +439,13 @@ export default function Menu() {
         </div>
       </div>
 
+      {/* Mode Selection Modal */}
+      <ModePrompt
+        open={promptOpen}
+        hasTableSession={hasTableSession}
+        onSelect={handleSelectMode}
+        onClose={() => setPromptOpen(false)}
+      />
       {/* Order Success Modal */}
       <OrderSuccessModal
         order={placedOrder}
