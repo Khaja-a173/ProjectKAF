@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 
 const base64urlToBuf = (s: string) => {
@@ -27,7 +27,7 @@ export function verifyQr(token: string): QrPayload {
   const secret = getSecret();
   const expected = createHmac('sha256', secret).update(b64p).digest();
   const given = base64urlToBuf(b64s);
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
     throw new Error('Invalid QR signature');
   }
   const payload = JSON.parse(base64urlToBuf(b64p).toString('utf8'));
