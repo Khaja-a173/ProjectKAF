@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node -r dotenv/config scripts/checkEnv.mjs dotenv_config_path=.env",
-    "check:env": "node -r dotenv/config scripts/checkEnv.mjs dotenv_config_path=.env",
+    "predev": "node scripts/checkEnv.mjs dotenv_config_path=.env",
+    "check:env": "node scripts/checkEnv.mjs dotenv_config_path=.env"
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
