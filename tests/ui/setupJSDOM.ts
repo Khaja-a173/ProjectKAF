@@ -1,5 +1,5 @@
-// tests/ui/setupJSDOM.ts
-const memoryStorage = () => {
+// Minimal in-memory localStorage for jsdom
+const makeStorage = () => {
   const s = new Map<string, string>();
   return {
     getItem: k => (s.has(k) ? s.get(k)! : null),
@@ -11,11 +11,10 @@ const memoryStorage = () => {
   } as Storage;
 };
 
-if (typeof window !== 'undefined' && !('localStorage' in window)) {
-  // @ts-ignore
-  window.localStorage = memoryStorage();
+// attach to both window and global
+if (typeof window !== 'undefined' && !(window as any).localStorage) {
+  (window as any).localStorage = makeStorage();
 }
-if (typeof globalThis !== 'undefined' && !(globalThis as any).localStorage) {
-  // @ts-ignore
-  (globalThis as any).localStorage = (globalThis as any).window?.localStorage ?? memoryStorage();
+if (!(globalThis as any).localStorage) {
+  (globalThis as any).localStorage = (globalThis as any).window?.localStorage ?? makeStorage();
 }

@@ -1,32 +1,34 @@
-// tests/setupServer.ts
 import { beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
-import { setTimeout as wait } from 'node:timers/promises';
-import { request } from 'undici';
+import { setTimeout as delay } from 'node:timers/promises';
 
-let child: ReturnType<typeof spawn> | null = null;
+let ps: ReturnType<typeof spawn> | null = null;
 
-async function waitForHealthz() {
-  for (let i = 0; i < 20; i++) {
+async function waitHealth() {
+  const url = 'http://127.0.0.1:3001/healthz';
+  for (let i = 0; i < 30; i++) {
     try {
-      const res = await request('http://127.0.0.1:3001/healthz', { method: 'GET' });
-      if (res.statusCode === 200) return;
-    } catch { /* not ready yet */ }
-    await wait(500);
+      const res = await fetch(url);
+      if (res.ok) return;
+    } catch {}
+    await delay(250);
   }
-  throw new Error('Server not ready on :3001');
+  throw new Error('Server not ready on /healthz');
 }
 
-beforeAll(async () => {
-  // prevent double start if already running in watch mode
-  if (child) return;
-  child = spawn('npm', ['run', 'server'], { stdio: 'inherit', env: process.env });
-  await waitForHealthz();
-});
+export async function setup() {
+  if (ps) return;
+  ps = spawn('npm', ['run', 'server'], { stdio: 'inherit' });
+  await waitHealth();
+}
 
-afterAll(async () => {
-  if (child && !child.killed) {
-    child.kill();
-    child = null;
+export async function teardown() {
+  if (ps) {
+    ps.kill();
+    ps = null;
   }
-});
+}
+
+// Vitest auto-hooks
+beforeAll(async () => { await setup(); }, 60_000);
+afterAll(async () => { await teardown(); }, 10_000);
