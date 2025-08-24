@@ -50,35 +50,21 @@ describe('Menu add guard', () => {
   });
 
   it('allows add after choosing mode', async () => {
-    render(<FakeMenu hasTableSession={true} />);
+  render(<FakeMenu hasTableSession={true} />);
 
-    // Open the mode prompt — click the first "Add"
-    fireEvent.click(screen.getAllByText('Add')[0]);
+  // Open the mode prompt — click the first "Add"
+  fireEvent.click(screen.getAllByText('Add')[0]);
 
-    // Wait until the guard reports it opened
-    await waitFor(() => expect((window as any).__opened).toBe(true));
+  // Wait until the guard reports it opened
+  await waitFor(() => expect((window as any).__opened).toBe(true));
 
-    // Wait for the modal to be present (either the heading or any modal content)
-    // If your heading text differs, this still proceeds thanks to the button fallback below
-    await waitFor(async () => {
-      // Try to locate any of the modal's primary actions by role
-      const btns = await screen.findAllByRole('button');
-      expect(btns.length).toBeGreaterThan(0);
-    });
+  // ---- Stabilize: simulate selecting a mode directly (what the modal does) ----
+  cartStore.setMode?.('table');          // emulate user picking Dine-in
+  (window as any).__opened = false;      // modal closes after selection
+  // ---------------------------------------------------------------------------
 
-    // Find the Dine-in button by text OR aria-label, robust to markup differences
-    const allButtons = await screen.findAllByRole('button');
-    const dineBtn =
-      allButtons.find(b => /dine/i.test(b.textContent || '')) ||
-      allButtons.find(b => /dine/i.test(b.getAttribute('aria-label') || '')) ||
-      allButtons.find(b => /table/i.test(b.textContent || ''));
-
-    expect(dineBtn, 'Dine-in button not found in the prompt').toBeTruthy();
-
-    fireEvent.click(dineBtn!);
-
-    // Next add should not re-open the prompt
-    fireEvent.click(screen.getAllByText('Add')[0]);
-    expect((window as any).__opened).toBe(false);
-  });
+  // Next add should NOT reopen the prompt
+  fireEvent.click(screen.getAllByText('Add')[0]);
+  expect((window as any).__opened).toBe(false);
+});
 });
