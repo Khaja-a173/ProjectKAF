@@ -45,15 +45,23 @@ describe('Menu add guard', () => {
   it('allows add after choosing mode', async () => {
   render(<FakeMenu hasTableSession={true} />);
 
-  // open the mode prompt
+  // Open the mode prompt
   fireEvent.click(screen.getAllByText('Add')[0]);
-  expect((window as any).__opened).toBe(true);
 
-  // wait for the modal button by its aria-label (accessible name)
-  const dineBtn = await screen.findByRole('button', { name: /choose-dinein/i });
+  // Wait until the component's "opened" flag flips true
+  await waitFor(() => expect((window as any).__opened).toBe(true));
+
+  // Wait for the modal to be in the DOM (heading shows when it's mounted)
+  await screen.findByText(/how would you like to order\?/i);
+
+  // The buttons expose accessible names via aria-label (per your earlier dump)
+  const dineBtn =
+    (await screen.findByLabelText(/choose-dinein/i)) ||
+    (await screen.findByRole('button', { name: /choose-dinein/i }));
+
   fireEvent.click(dineBtn);
 
-  // now "Add" should work without opening the prompt
+  // Now the next "Add" should work without opening the prompt
   fireEvent.click(screen.getAllByText('Add')[0]);
-  });
+});
 });
