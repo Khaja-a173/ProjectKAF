@@ -3,8 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   projects: [
     {
+      name: 'api',  // <-- Move name here
       test: {
-        name: 'api',
         include: [
           'tests/table-session.spec.ts',
           'tests/orders.spec.ts'
@@ -22,8 +22,8 @@ export default defineConfig({
       },
     },
     {
+      name: 'ui',   // <-- and here
       test: {
-        name: 'ui',
         include: [
           'tests/ui/**/*.spec.ts',
           'tests/ui/**/*.spec.tsx'
