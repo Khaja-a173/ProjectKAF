@@ -1,15 +1,11 @@
 // vitest.config.ts
-import { defineConfig } from 'vitest/config';
+import { defineConfig, defineProject } from 'vitest/config';
 
 export default defineConfig({
-  test: {
-    reporters: ['dot'],
-  },
   projects: [
-    // ---------- API (server) ----------
-    {
+    defineProject({
+      name: 'api',                      // <-- name is TOP-LEVEL
       test: {
-        name: 'api',
         reporters: ['dot'],
         hookTimeout: 30_000,
         testTimeout: 30_000,
@@ -19,23 +15,20 @@ export default defineConfig({
         isolate: true,
         clearMocks: true,
       },
-    },
-    // ---------- UI (browser/jsdom) ----------
-    {
+    }),
+    defineProject({
+      name: 'ui',                       // <-- name is TOP-LEVEL
       test: {
-        name: 'ui',
         reporters: ['dot'],
         hookTimeout: 30_000,
         testTimeout: 30_000,
         include: ['tests/ui/**/*.spec.ts', 'tests/ui/**/*.spec.tsx'],
         environment: 'jsdom',
-        environmentOptions: {
-          jsdom: { url: 'http://localhost' }, // enables localStorage origin
-        },
+        environmentOptions: { jsdom: { url: 'http://localhost' } },
         setupFiles: ['tests/loadEnv.ts', 'tests/ui/setupJSDOM.ts'],
         isolate: true,
         clearMocks: true,
       },
-    },
+    }),
   ],
 });
