@@ -5,14 +5,13 @@ export default defineConfig({
   test: {
     name: 'api',
     environment: 'node',
-    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
-    setupFiles: ['tests/loadEnv.ts', 'tests/setupServer.ts'],
-    reporters: ['dot'],
+    threads: false,          // single process => one Fastify instance
+    isolate: false,          // keep globals (server) alive across files
     hookTimeout: 60_000,
     testTimeout: 60_000,
-    // Keep it single-process so Fastify shares one port
-    threads: false,
-    isolate: false,
+    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
+    setupFiles: ['tests/loadEnv.ts'], // maps VITE_* -> Node env for Supabase
+    reporters: ['dot'],
     clearMocks: true,
   },
 });
