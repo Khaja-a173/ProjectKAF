@@ -1,15 +1,14 @@
-// src/server/routes/orders.ts
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// Accept both string and number for numeric fields, enforce table rule.
+// Zod schema with refined validation logic
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
-  tableId: z.string().uuid().nullable().optional(),
+  tableId: z.string().uuid().optional().nullable(),
   cartVersion: z.coerce.number().int().nonnegative(),
   totalCents: z.coerce.number().int().nonnegative(),
 }).superRefine((val, ctx) => {
@@ -22,6 +21,7 @@ const BodySchema = z.object({
   }
 });
 
+// Helper to instantiate Supabase service client
 function makeServiceClient() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
@@ -33,7 +33,7 @@ function makeServiceClient() {
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
   app.post('/api/orders/checkout', async (req, reply) => {
-    // Explicit Idempotency-Key required (accept common casing variations)
+    // Handle idempotency key (case-insensitive)
     const idem =
       (req.headers['idempotency-key'] as string) ??
       (req.headers['Idempotency-Key'] as string) ??
@@ -43,7 +43,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'idempotency_required' });
     }
 
-    // Body validation
+    // Parse and validate body
     const parsed = BodySchema.safeParse(req.body);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
@@ -95,6 +95,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       if (duplicate) {
         return reply.code(200).send({ order: { id: orderId }, duplicate: true });
       }
+
       return reply.code(201).send({ order: { id: orderId }, duplicate: false });
     } catch (e: any) {
       const msg = String(e?.message || '');
@@ -106,14 +107,26 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
   });
 
-  // Fetch order status by id (handy for tests)
+  // Order status fetch endpoint (useful for tests)
   app.get('/api/orders/status', async (req, reply) => {
     const id = (req.query as any)?.id as string | undefined;
     const tenantId = (req.query as any)?.tenantId as string | undefined;
-    if (!id || !tenantId) return reply.code(400).send({ error: 'missing_params' });
+    if (!id || !tenantId) {
+      return reply.code(400).send({ error: 'missing_params' });
+    }
+
     const sb = makeServiceClient();
-    const { data, error } = await sb.from('orders').select('*').eq('tenant_id', tenantId).eq('id', id).limit(1);
-    if (error) return reply.code(500).send({ error: 'db_error', detail: error.message });
+    const { data, error } = await sb
+      .from('orders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('id', id)
+      .limit(1);
+
+    if (error) {
+      return reply.code(500).send({ error: 'db_error', detail: error.message });
+    }
+
     return reply.code(200).send({ order: data?.[0] ?? null });
   });
 });
