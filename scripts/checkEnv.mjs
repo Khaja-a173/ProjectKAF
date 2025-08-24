@@ -5,6 +5,8 @@ const required = [
   'STRIPE_SECRET_KEY',
   'QR_SECRET',
   'SUPABASE_SERVICE_ROLE'
+  'QR_SECRET',
+  'SUPABASE_SERVICE_ROLE'
 ];
 const missing = required.filter(k => !process.env[k]);
 if (missing.length) {
