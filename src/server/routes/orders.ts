@@ -9,8 +9,8 @@ const BodySchema = z.object({
   sessionId: z.string().min(1),
   mode: z.enum(['table', 'takeaway']),
   tableId: z.string().uuid().nullable().optional(),
-  cartVersion: z.number().int().nonnegative(),
-  totalCents: z.number().int().nonnegative(),
+  cartVersion: z.coerce.number().int().nonnegative(),
+  totalCents: z.coerce.number().int().nonnegative(),
 }).superRefine((val, ctx) => {
   if (val.mode === 'table' && (!val.tableId || val.tableId === null)) {
     ctx.addIssue({
@@ -85,11 +85,11 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
 
       // 4) Map RPC/DB errors
       if (error) {
-        const msg = (error.message || '').toLowerCase();
-        if (msg.includes('stale_cart')) {
+        const blob = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+        if (blob.includes('stale_cart')) {
           return reply.code(409).send({ error: 'stale_cart' });
         }
-        if (msg.includes('active_order_exists')) {
+        if (blob.includes('active_order_exists')) {
           return reply.code(409).send({ error: 'active_order_exists' });
         }
         if (msg.includes('forbidden')) {
