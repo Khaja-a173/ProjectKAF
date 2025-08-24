@@ -4,23 +4,31 @@ export function generateIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
   }
-  // Fallback
+  // Fallback for older environments
   const arr = new Uint8Array(16);
-  (typeof window !== 'undefined' && window.crypto?.getRandomValues)
-    ? window.crypto.getRandomValues(arr)
-    : require('crypto').randomFillSync(arr);
-  return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join('');
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(arr);
+  } else {
+    require('crypto').randomFillSync(arr);
+  }
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// UI checkout attempt tracking
+// UI checkout attempt tracking to prevent double-clicks
 let _attemptKey: string | null = null;
 
 export function beginCheckoutAttempt(): string {
   if (_attemptKey) return _attemptKey;
   _attemptKey = generateIdempotencyKey();
+  console.log('🔑 Starting checkout attempt:', _attemptKey);
   return _attemptKey;
 }
 
 export function endCheckoutAttempt() {
+  console.log('✅ Ending checkout attempt:', _attemptKey);
   _attemptKey = null;
+}
+
+export function getCurrentAttemptKey(): string | null {
+  return _attemptKey;
 }

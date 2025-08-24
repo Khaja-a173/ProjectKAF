@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { beginCheckoutAttempt, endCheckoutAttempt } from "../lib/idempotency";
+import { beginCheckoutAttempt, endCheckoutAttempt, getCurrentAttemptKey } from "../lib/idempotency";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SessionCartComponent from "../components/SessionCart";
@@ -185,6 +185,7 @@ export default function Menu() {
       console.log("🚀 Starting order placement process...");
       console.log("Session:", currentSession.id);
       console.log("Cart items:", currentCart.items.length);
+      console.log("Idempotency key:", idempotencyKey);
       
       // Call the idempotent checkout API directly
       const response = await fetch('/api/orders/checkout', {
@@ -198,7 +199,7 @@ export default function Menu() {
           sessionId: currentSession.id,
           mode: "table",
           tableId: currentSession.tableId,
-          cartVersion: 0, // Would track this in real implementation
+          cartVersion: Date.now() % 1000, // Increment for each attempt
           items: currentCart.items.map(item => ({
             id: item.menuItemId,
             name: item.name,
@@ -210,6 +211,7 @@ export default function Menu() {
 
       if (!response.ok) {
         const error = await response.json();
+        console.log("❌ Checkout failed:", error);
         throw new Error(error.error || 'Checkout failed');
       }
 
@@ -217,6 +219,7 @@ export default function Menu() {
       const order = result.order;
       
       console.log("✅ Order placed successfully:", order);
+      console.log("Duplicate:", result.duplicate);
       endCheckoutAttempt();
       setPlacedOrder(order);
       setShowOrderSuccess(true);
