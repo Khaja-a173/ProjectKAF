@@ -1,19 +1,17 @@
+// vitest.api.config.ts
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
     name: 'api',
-    environment: 'node',
     reporters: ['dot'],
     hookTimeout: 30_000,
     testTimeout: 30_000,
-    // one server for the whole project:
-    globalSetup: ['./tests/globalServer.ts'],
-    // important: no per-test setup that also spawns the server
-    setupFiles: ['./tests/loadEnv.ts'],
-    threads: false,
-    isolate: false,
-    include: ['tests/orders.spec.ts', 'tests/table-session.spec.ts'],
+    include: ['tests/table-session.spec.ts', 'tests/orders.spec.ts'],
+    environment: 'node',
+    setupFiles: ['tests/loadEnv.ts', 'tests/setupServer.ts'],
+    threads: false,        // single worker → avoids multiple server spawns
+    isolate: true,         // fresh env per test file (helps table-session)
     clearMocks: true,
   },
 });
