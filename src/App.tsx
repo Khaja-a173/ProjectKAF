@@ -1,5 +1,7 @@
 import { Routes, Route } from "react-router-dom";
+import { useEffect, useState } from 'react';
 import HealthBanner from "./health/HealthBanner";
+import JoinPinModal from "./components/JoinPinModal";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import Home from "./pages/Home";
@@ -23,9 +25,54 @@ import ApplicationCustomization from "./pages/ApplicationCustomization";
 import KitchenDashboard from "./pages/KitchenDashboard";
 
 function App() {
+  const [token, setToken] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
+  const [firstPin, setFirstPin] = useState<string | null>(null); // show once to first device
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const t = url.searchParams.get('token');
+    if (t) {
+      setToken(t);
+      fetch('/api/table-session/open', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ token: t })
+      }).then(async (r)=>{
+        if (r.status === 201) {
+          const { pin } = await r.json();
+          setFirstPin(pin); // display once to first joiner (e.g., toast)
+        } else if (r.status === 409) {
+          setShowPin(true);
+        } else {
+          const j = await r.json().catch(()=>({}));
+          alert(`QR invalid: ${j.error ?? r.statusText}`);
+        }
+      });
+    }
+  }, []);
+
+  async function handleJoin(pin: string) {
+    if (!token) throw new Error('missing token');
+    const r = await fetch('/api/table-session/join', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token, pin })
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(()=>({}));
+      throw new Error(j.error ?? 'bad_pin');
+    }
+    setShowPin(false);
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <HealthBanner />
+      {firstPin && (
+        <div style={{padding:8, background:'#e7f7ee', color:'#0a6b3d'}}>
+          Session locked. Share PIN with others: <b>{firstPin}</b>
+        </div>
+      )}
+      <JoinPinModal open={showPin} onSubmit={handleJoin} onClose={()=>setShowPin(false)} />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Home />} />
