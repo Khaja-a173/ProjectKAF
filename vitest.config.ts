@@ -1,10 +1,9 @@
-// vitest.config.ts
 import { defineConfig, defineProject } from 'vitest/config';
 
 export default defineConfig({
   projects: [
     defineProject({
-      name: 'api',                      // <-- name is TOP-LEVEL
+      name: 'api',
       test: {
         reporters: ['dot'],
         hookTimeout: 30_000,
@@ -17,7 +16,7 @@ export default defineConfig({
       },
     }),
     defineProject({
-      name: 'ui',                       // <-- name is TOP-LEVEL
+      name: 'ui',
       test: {
         reporters: ['dot'],
         hookTimeout: 30_000,
