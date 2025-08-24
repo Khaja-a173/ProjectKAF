@@ -1,24 +1,22 @@
-{
-  "name": "restaurantos",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "predev": "node scripts/checkEnv.mjs dotenv_config_path=.env",
-    "check:env": "node scripts/checkEnv.mjs dotenv_config_path=.env",
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "tsx server/index.ts",
-    "healthz": "tsx server/index.ts",
-    "test": "vitest run --reporter=dot",
-    "test:watch": "vitest",
-    "test:rls": "vitest run tests/rls.spec.ts --reporter=dot",
-    "test:table": "vitest run --project api --reporter=dot",
-    "test:ui": "vitest run tests/ui/**/*.spec.ts tests/ui/**/*.spec.tsx --reporter=dot",
-    "test:orders": "vitest run tests/orders.spec.ts --reporter=dot",
-    "test:secret": "vitest run tests/secret-shipping.spec.ts --reporter=dot",
-    "test:all": "vitest run --reporter=dot"
-  },
+"scripts": {
+  "predev": "node scripts/checkEnv.mjs dotenv_config_path=.env",
+  "check:env": "node scripts/checkEnv.mjs dotenv_config_path=.env",
+  "dev": "vite",
+  "build": "tsc && vite build",
+  "preview": "vite preview",
+  "server": "tsx server/index.ts",
+  "healthz": "tsx server/index.ts",
+  "start": "node dist/server/index.js",
+
+  "test": "vitest run --reporter=dot",
+  "test:watch": "vitest",
+  "test:api": "vitest run --project api --reporter=dot",
+  "test:ui": "vitest run --project ui --reporter=dot",
+  "test:table": "vitest run tests/table-session.spec.ts --reporter=dot",
+  "test:orders": "vitest run tests/orders.spec.ts --reporter=dot",
+  "test:secret": "vitest run tests/secret-shipping.spec.ts --reporter=dot",
+  "test:all": "vitest run --reporter=dot"
+},
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",
     "bcryptjs": "^3.0.2",
