@@ -1,23 +1,35 @@
+// server/index.ts
 import 'dotenv/config';
 import Fastify from 'fastify';
+
+// keep your existing route modules (extensions as in your project)
 import healthDbRoutes from '../src/server/routes/health-db.js';
 import tableSessionRoutes from '../src/server/routes/table-session.js';
 import ordersRoutes from '../src/server/routes/orders.js';
 
-const app = Fastify({ logger: false });
+export function buildServer() {
+  const app = Fastify({ logger: false });
 
-app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
-app.register(healthDbRoutes);
-app.register(tableSessionRoutes);
-app.register(ordersRoutes);
+  // health endpoint used by test harness
+  app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
 
-app.get('/', async (_req, reply) =>
-  reply.send({ status: 'ok', service: 'api', routes: ['/healthz','/api/health/db','/api/table-session/*','/api/orders/*'] })
-);
+  // register your feature routes
+  app.register(healthDbRoutes);
+  app.register(tableSessionRoutes);
+  app.register(ordersRoutes);
 
-const port = Number(process.env.PORT || 3001);
-app.listen({ port, host: '0.0.0.0' }).then(() => {
-  console.log(`[server] listening on :${port}`);
-}).catch(err => { console.error(err); process.exit(1); });
+  // optional root
+  app.get('/', async (_req, reply) =>
+    reply.send({
+      status: 'ok',
+      service: 'api',
+      routes: ['/healthz', '/api/health/db', '/api/table-session/*', '/api/orders/*'],
+    })
+  );
 
-export default app;
+  return app;
+}
+
+// IMPORTANT: do NOT auto-listen here.
+// Tests (and dev runner if you add one) will call buildServer().listen(...)
+export default buildServer;
