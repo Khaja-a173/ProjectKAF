@@ -17,8 +17,7 @@
     "test:ui": "vitest run --project ui --reporter=dot",
     "test:orders": "vitest run tests/orders.spec.ts --reporter=dot",
     "test:secret": "vitest run tests/secret-shipping.spec.ts --reporter=dot",
-    "test:all": "vitest run --reporter=dot",
-    "test:ui": "vitest run tests/ui/ --reporter=dot"
+    "test:all": "vitest run --reporter=dot"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",
