@@ -7,6 +7,7 @@ if (!process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL) {
 if (!process.env.SUPABASE_ANON_KEY && process.env.VITE_SUPABASE_ANON_KEY) {
   process.env.SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 }
-if (!process.env.SUPABASE_SERVICE_ROLE && process.env.VITE_SUPABASE_SERVICE_ROLE) {
-  process.env.SUPABASE_SERVICE_ROLE = process.env.VITE_SUPABASE_SERVICE_ROLE;
-}
+
+// If you DON’T want to hit Supabase during tests, leave SUPABASE_SERVICE_ROLE unset.
+// The orders route below will use an in-memory fallback when SERVICE_ROLE is missing
+// or NODE_ENV === 'test'.
