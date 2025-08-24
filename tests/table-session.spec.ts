@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { signQr } from '../src/lib/qr/sign';
 import { verifyQr } from '../src/lib/qr/verify';
 import 'dotenv/config';
+import './setupServer';   
 
 // ENV required for tests
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL!;
