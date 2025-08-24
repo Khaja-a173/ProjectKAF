@@ -1,50 +1,34 @@
 // tests/setupServer.ts
-import './setupServer';
 import { beforeAll, afterAll } from 'vitest';
-import { buildServer } from '../server/index.js'; // note `.js` if your tsconfig outputs ESM; use path that matches your project setup
+import { buildServer } from '../server/index';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const PORT = Number(process.env.PORT || 3001);
-const BASE = `http://127.0.0.1:${PORT}`;
+const HOST = '127.0.0.1';
 
-let startedHere = false;
-let app: import('fastify').FastifyInstance | null = null;
+let app: ReturnType<typeof buildServer> | null = null;
 
-async function isUp(): Promise<boolean> {
-  try {
-    const r = await fetch(`${BASE}/healthz`);
-    return r.ok;
-  } catch {
-    return false;
+async function waitHealth(retries = 60) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(`http://${HOST}:${PORT}/healthz`);
+      if (r.ok) return;
+    } catch {}
+    await delay(250);
   }
-}
-
-async function waitForHealth(timeoutMs = 20_000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (await isUp()) return;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error('Server did not become healthy on /healthz');
+  throw new Error('Server /healthz not ready');
 }
 
 beforeAll(async () => {
-  // Reuse if something is already listening (e.g., dev run)
-  if (await isUp()) {
-    startedHere = false;
-    return;
-  }
-
-  // Start our own in-process instance (no child process = no EADDRINUSE)
+  // Start one in-process instance (no child process → no EADDRINUSE)
   app = buildServer();
-  await app.listen({ port: PORT, host: '127.0.0.1' });
-  startedHere = true;
-  await waitForHealth();
+  await app.listen({ port: PORT, host: HOST });
+  await waitHealth();
 }, 60_000);
 
 afterAll(async () => {
-  // Only close if we started it (don’t kill a dev server)
-  if (startedHere && app) {
+  if (app) {
     await app.close();
     app = null;
   }
-}, 20_000);
+}, 30_000);
