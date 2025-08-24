@@ -286,20 +286,29 @@ describe('Signed QR + Table Lock + Join-PIN', () => {
       });
       
       // Tenant A cannot see tenant B sessions
-      const { data: crossTenantData } = await clientA
+      const { data: crossTenantData, error: crossTenantErr, status: crossTenantStatus } = await clientA
         .from('table_sessions')
-        .select('*')
+        .select('id, tenant_id')
         .eq('tenant_id', TENANT_B);
       
-      expect(crossTenantData).toEqual([]);
+      // RLS denial should return data=null and a permission error (often 401)
+      expect(crossTenantData ?? []).toEqual([]);
+      expect(crossTenantErr).toBeTruthy();
+      // Be tolerant to provider differences but ensure it's unauthorized/forbidden
+      if (typeof crossTenantStatus === 'number') {
+        expect([401, 403]).toContain(crossTenantStatus);
+      }
       
       // Tenant B cannot update tenant A sessions
-      const { error: updateError } = await clientB
+      const { error: updateError, status: updateStatus } = await clientB
         .from('table_sessions')
         .update({ status: 'closed' })
         .eq('tenant_id', TENANT_A);
       
       expect(updateError).not.toBeNull();
+      if (typeof updateStatus === 'number') {
+        expect([401, 403]).toContain(updateStatus);
+      }
     });
   });
 
