@@ -1,4 +1,5 @@
 // tests/globalServer.ts
+process.env.NODE_ENV = 'test';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
