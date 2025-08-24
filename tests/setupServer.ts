@@ -1,13 +1,14 @@
+// tests/setupServer.ts
 import { beforeAll, afterAll } from 'vitest';
-import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
+import { buildServer } from '../server/index.js'; // note `.js` if your tsconfig outputs ESM; use path that matches your project setup
 
 const PORT = Number(process.env.PORT || 3001);
 const BASE = `http://127.0.0.1:${PORT}`;
 
-let ps: ReturnType<typeof spawn> | null = null;
+let startedHere = false;
+let app: import('fastify').FastifyInstance | null = null;
 
-async function isUp() {
+async function isUp(): Promise<boolean> {
   try {
     const r = await fetch(`${BASE}/healthz`);
     return r.ok;
@@ -16,27 +17,33 @@ async function isUp() {
   }
 }
 
-beforeAll(async () => {
-  if (await isUp()) {
-    // Reuse existing server (dev or previously started by another worker)
-    return;
-  }
-  // Start a single instance for this test process
-  ps = spawn('npm', ['run', 'server'], { stdio: 'inherit' });
-
-  // Wait up to ~20s
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
+async function waitForHealth(timeoutMs = 20_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
     if (await isUp()) return;
-    await delay(250);
+    await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error('Server did not become healthy on /healthz');
+}
+
+beforeAll(async () => {
+  // Reuse if something is already listening (e.g., dev run)
+  if (await isUp()) {
+    startedHere = false;
+    return;
+  }
+
+  // Start our own in-process instance (no child process = no EADDRINUSE)
+  app = buildServer();
+  await app.listen({ port: PORT, host: '127.0.0.1' });
+  startedHere = true;
+  await waitForHealth();
 }, 60_000);
 
 afterAll(async () => {
-  // Only kill if we started it
-  if (ps) {
-    ps.kill();
-    ps = null;
+  // Only close if we started it (don’t kill a dev server)
+  if (startedHere && app) {
+    await app.close();
+    app = null;
   }
-}, 10_000);
+}, 20_000);
