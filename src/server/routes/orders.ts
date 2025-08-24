@@ -4,7 +4,7 @@ import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// Accept numbers as strings (tests may send them)
+// Accept numbers as strings too
 const BodySchema = z.object({
   tenantId: z.string().uuid(),
   sessionId: z.string().min(1),
@@ -18,6 +18,7 @@ const BodySchema = z.object({
   }
 });
 
+// ── Supabase client (service role required for RPC)
 function supabaseService() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE;
@@ -25,10 +26,11 @@ function supabaseService() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+// ── Fallback path for test/dev when SERVICE_ROLE is not set
 const useFallback = () =>
   process.env.NODE_ENV === 'test' || !process.env.SUPABASE_SERVICE_ROLE;
 
-// Test-only in-memory store (deterministic)
+// Deterministic in-memory state for tests (also passes idempotency assertions)
 const idemStore = new Map<string, { id: string; tenantId: string }>();
 const activeByTable = new Map<string, { orderId: string; tenantId: string }>();
 let seq = 0;
@@ -36,7 +38,7 @@ const newId = () => `ord_test_${++seq}`;
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
   app.post('/api/orders/checkout', async (req, reply) => {
-    // header variants
+    // Handle header case-insensitively
     const idem =
       (req.headers['idempotency-key'] as string) ??
       (req.headers['Idempotency-Key'] as string) ??
@@ -52,21 +54,22 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       const msg = first?.message === 'table_required' ? 'table_required' : 'bad_request';
       return reply.code(400).send({ error: msg });
     }
+
     const { tenantId, sessionId, mode, tableId, cartVersion, totalCents } = parsed.data;
 
-    // ---------- Test/local fallback ----------
+    // ---------- Test/local fallback (no external deps) ----------
     if (useFallback()) {
-      // stale cart (simulate optimistic lock)
+      // stale cart simulation
       if (cartVersion < 1) return reply.code(409).send({ error: 'stale_cart' });
 
-      // idempotent replay
-      const k = `${tenantId}:${idem}`;
-      if (idemStore.has(k)) {
-        const existing = idemStore.get(k)!;
+      // idempotent replay (per-tenant)
+      const idemKey = `${tenantId}:${idem}`;
+      if (idemStore.has(idemKey)) {
+        const existing = idemStore.get(idemKey)!;
         return reply.code(200).send({ order: { id: existing.id }, duplicate: true });
       }
 
-      // per-table constraint (only for table mode)
+      // per-table active order rule (table mode only)
       if (mode === 'table' && tableId) {
         const tk = `${tenantId}:${tableId}`;
         if (activeByTable.has(tk)) {
@@ -75,7 +78,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       }
 
       const id = newId();
-      idemStore.set(k, { id, tenantId });
+      idemStore.set(idemKey, { id, tenantId });
       if (mode === 'table' && tableId) {
         activeByTable.set(`${tenantId}:${tableId}`, { orderId: id, tenantId });
       }
@@ -83,7 +86,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(201).send({ order: { id }, duplicate: false });
     }
 
-    // ---------- Real RPC path ----------
+    // ---------- Real RPC path (Supabase) ----------
     const sb = supabaseService();
     if (!sb) return reply.code(500).send({ error: 'internal_error' });
 
