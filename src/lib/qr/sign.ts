@@ -1,3 +1,7 @@
+// top of src/lib/qr/sign.ts
+if (typeof window !== 'undefined') {
+  throw new Error('signQr must only run on the server (QR_SECRET).');
+}
 import { createHmac, randomBytes } from 'crypto';
 
 const base64url = (buf: Buffer) =>
