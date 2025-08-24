@@ -5,10 +5,14 @@ import healthDbRoutes from '../src/server/routes/health-db.js';
 import tableSessionRoutes from '../src/server/routes/table-session.js';
 import ordersRoutes from '../src/server/routes/orders.js';
 
+/**
+ * Build (but do not start) the Fastify app.
+ * Tests and dev runner are responsible for app.listen().
+ */
 export function buildServer() {
   const app = Fastify({ logger: false });
 
-  // Single health endpoint defined only here
+  // Define healthz ONLY here to avoid duplicate-route errors
   app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
 
   app.register(healthDbRoutes);
@@ -26,5 +30,4 @@ export function buildServer() {
   return app;
 }
 
-// No app.listen() here – tests and dev runner will do that.
 export default buildServer;
