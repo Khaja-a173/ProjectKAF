@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   projects: [
     {
-      name: 'api',  // <-- Move name here
+      name: 'api',          // name here
       test: {
         include: [
           'tests/table-session.spec.ts',
@@ -22,7 +22,7 @@ export default defineConfig({
       },
     },
     {
-      name: 'ui',   // <-- and here
+      name: 'ui',           // and here
       test: {
         include: [
           'tests/ui/**/*.spec.ts',
@@ -36,6 +36,6 @@ export default defineConfig({
         isolate: true,
         clearMocks: true,
       },
-    }
-  ]
+    },
+  ],
 });
