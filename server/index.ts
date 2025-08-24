@@ -3,6 +3,7 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import tableSessionRoutes from '../src/server/routes/table-session'; // adjust if your folder layout differs
 import healthDbRoutes from '../src/server/routes/health-db';
+import ordersRoutes from '../src/server/routes/orders';
 
 const app = Fastify({ logger: false });
 
@@ -23,6 +24,7 @@ app.register(healthDbRoutes);
 
 // Register table-session API
 app.register(tableSessionRoutes);
+app.register(ordersRoutes);
 
 const port = Number(process.env.PORT || 3001);
 app
