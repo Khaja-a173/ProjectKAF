@@ -1,3 +1,4 @@
+// src/server/routes/orders.ts
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
