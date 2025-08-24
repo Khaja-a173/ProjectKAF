@@ -11,3 +11,16 @@ export function generateIdempotencyKey(): string {
     : require('crypto').randomFillSync(arr);
   return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join('');
 }
+
+// UI checkout attempt tracking
+let _attemptKey: string | null = null;
+
+export function beginCheckoutAttempt(): string {
+  if (_attemptKey) return _attemptKey;
+  _attemptKey = generateIdempotencyKey();
+  return _attemptKey;
+}
+
+export function endCheckoutAttempt() {
+  _attemptKey = null;
+}

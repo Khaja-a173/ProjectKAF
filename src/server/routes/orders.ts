@@ -42,83 +42,32 @@ export default fp(async (app: FastifyInstance) => {
 
       const sb = supabaseAdmin();
 
-      // 1) Optimistic lock: bump cart_version only if matches client version
-      const { data: bump, error: bumpErr } = await sb
-        .from('table_sessions')
-        .update({ cart_version: (cartVersion + 1) })
-        .eq('tenant_id', tenantId)
-        .eq('id', sessionId)
-        .eq('cart_version', cartVersion)
-        .select('id')
-        .limit(1);
-
-      if (bumpErr) {
-        return reply.code(500).send({ error: 'cart_version_update_failed', detail: bumpErr.message });
-      }
-      if (!bump || bump.length === 0) {
-        return reply.code(409).send({ error: 'stale_cart' }); // Someone already checked out
-      }
-
-      // 2) Pre-check: existing active order for same table (dine-in)
-      if (mode === 'table' && tableId) {
-        const { data: active, error: activeErr } = await sb
-          .from('orders')
-          .select('id,status')
-          .eq('tenant_id', tenantId)
-          .eq('table_id', tableId)
-          .in('status', ['pending', 'processing'])
-          .limit(1);
-        if (activeErr) {
-          return reply.code(500).send({ error: 'active_check_failed', detail: activeErr.message });
-        }
-        if (active && active.length > 0) {
-          return reply.code(409).send({ error: 'active_order_exists', order_id: active[0].id });
-        }
-      }
-
-      // 3) Compute total
       const total_cents = items.reduce((sum, i) => sum + i.price_cents * i.qty, 0);
-
-      // 4) Insert order with idempotency key (unique)
-      const { data: inserted, error: insertErr } = await sb
-        .from('orders')
-        .insert([{
-          tenant_id: tenantId,
-          session_id: sessionId,
-          table_id: mode === 'table' ? tableId! : null,
-          mode,
-          status: 'pending',
-          total_cents,
-          idempotency_key: idempotencyKey,
-        }])
-        .select('id, status, total_cents')
-        .limit(1);
-
-      if (insertErr) {
-        // Handle duplicate idempotency (unique constraint)
-        // 23505 = unique_violation
-        if (insertErr.code === '23505') {
-          const { data: existing } = await sb
-            .from('orders')
-            .select('id, status, total_cents')
-            .eq('tenant_id', tenantId)
-            .eq('idempotency_key', idempotencyKey)
-            .limit(1);
-          return reply.code(200).send({ duplicate: true, order: existing?.[0] ?? null });
-        }
-        // Handle unique partial index hit for active order (race)
-        if (insertErr.message?.includes('ux_orders_active_per_table')) {
-          return reply.code(409).send({ error: 'active_order_exists' });
-        }
-        return reply.code(500).send({ error: 'order_insert_failed', detail: insertErr.message });
+      const { data: rpc, error: rpcErr } = await sb.rpc('app.checkout_order', {
+        p_tenant_id: tenantId,
+        p_session_id: sessionId,
+        p_mode: mode,
+        p_table_id: tableId ?? null,
+        p_cart_version: cartVersion,
+        p_idempotency_key: idempotencyKey,
+        p_total_cents: total_cents
+      });
+      if (rpcErr) {
+        const msg = rpcErr.message || '';
+        if (msg.includes('stale_cart')) return reply.code(409).send({ error: 'stale_cart' });
+        if (msg.includes('active_order_exists')) return reply.code(409).send({ error: 'active_order_exists' });
+        if (msg.includes('forbidden')) return reply.code(403).send({ error: 'forbidden' });
+        // unique violation is handled inside function; but guard anyway
+        return reply.code(500).send({ error: 'order_tx_failed', detail: msg });
+      }
+      const row = rpc?.[0];
+      if (!row) return reply.code(500).send({ error: 'order_tx_empty' });
+      if (row.duplicate) {
+        // Return existing order (id-only ok for tests)
+        return reply.code(200).send({ duplicate: true, order: { id: row.order_id } });
       }
 
-      const order = inserted![0];
-
-      // 5) (Optional) Place external charge here. In tests we skip real charge.
-      // If success, you could set status='processing' or 'paid' accordingly.
-
-      return reply.code(201).send({ order });
+      return reply.code(201).send({ order: { id: row.order_id, total_cents } });
     } catch (e: any) {
       return reply.code(400).send({ error: 'bad_request', detail: e?.message });
     }

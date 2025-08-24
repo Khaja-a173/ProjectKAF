@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { beginCheckoutAttempt, endCheckoutAttempt } from "../lib/idempotency";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SessionCartComponent from "../components/SessionCart";
@@ -178,16 +179,43 @@ export default function Menu() {
     if (!currentSession || !currentCart) return;
 
     try {
+      const idempotencyKey = beginCheckoutAttempt();
       console.log("🚀 Starting order placement process...");
       console.log("Session:", currentSession.id);
       console.log("Cart items:", currentCart.items.length);
       
-      const order = await placeOrder(
-        currentSession.id,
-        "Customer order from menu",
-      );
+      // Call the idempotent checkout API directly
+      const response = await fetch('/api/orders/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey
+        },
+        body: JSON.stringify({
+          tenantId: "tenant_123",
+          sessionId: currentSession.id,
+          mode: "table",
+          tableId: currentSession.tableId,
+          cartVersion: 0, // Would track this in real implementation
+          items: currentCart.items.map(item => ({
+            id: item.menuItemId,
+            name: item.name,
+            price_cents: Math.round(item.price * 100),
+            qty: item.quantity
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Checkout failed');
+      }
+
+      const result = await response.json();
+      const order = result.order;
       
       console.log("✅ Order placed successfully:", order);
+      endCheckoutAttempt();
       setPlacedOrder(order);
       setShowOrderSuccess(true);
       
@@ -197,6 +225,7 @@ export default function Menu() {
         window.location.href = `/live-orders?order=${order.id}`;
       }, 3000);
     } catch (err) {
+      endCheckoutAttempt();
       console.error("❌ Failed to place order:", err);
       alert("Failed to place order: " + (err instanceof Error ? err.message : "Please try again."));
     }
