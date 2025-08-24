@@ -1,3 +1,6 @@
+
+import 'dotenv/config';     // ensure SUPABASE vars load
+import './setupServer';     // start the API server & wait
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
