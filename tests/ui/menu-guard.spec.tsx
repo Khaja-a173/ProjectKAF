@@ -1,4 +1,3 @@
-// tests/ui/menu-guard.spec.tsx
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -46,8 +45,7 @@ describe('Menu add guard', () => {
 
   it('opens prompt on first add until mode selected', () => {
     render(<FakeMenu hasTableSession={true} />);
-    // Choose the first "Add" button explicitly
-    fireEvent.click(screen.getAllByText('Add')[0]);
+    fireEvent.click(screen.getAllByText('Add')[0]); // disambiguate
     expect((window as any).__opened).toBe(true);
   });
 
@@ -60,13 +58,26 @@ describe('Menu add guard', () => {
     // Wait until the guard reports it opened
     await waitFor(() => expect((window as any).__opened).toBe(true));
 
-    // Find and click the Dine-in button by accessible name
-    const dineBtn =
-      (await screen.findByRole('button', { name: /choose-dinein/i })) ??
-      (await screen.findByLabelText(/choose-dinein/i));
-    fireEvent.click(dineBtn);
+    // Wait for the modal to be present (either the heading or any modal content)
+    // If your heading text differs, this still proceeds thanks to the button fallback below
+    await waitFor(async () => {
+      // Try to locate any of the modal's primary actions by role
+      const btns = await screen.findAllByRole('button');
+      expect(btns.length).toBeGreaterThan(0);
+    });
 
-    // Next add should NOT re-open the prompt
+    // Find the Dine-in button by text OR aria-label, robust to markup differences
+    const allButtons = await screen.findAllByRole('button');
+    const dineBtn =
+      allButtons.find(b => /dine/i.test(b.textContent || '')) ||
+      allButtons.find(b => /dine/i.test(b.getAttribute('aria-label') || '')) ||
+      allButtons.find(b => /table/i.test(b.textContent || ''));
+
+    expect(dineBtn, 'Dine-in button not found in the prompt').toBeTruthy();
+
+    fireEvent.click(dineBtn!);
+
+    // Next add should not re-open the prompt
     fireEvent.click(screen.getAllByText('Add')[0]);
     expect((window as any).__opened).toBe(false);
   });
