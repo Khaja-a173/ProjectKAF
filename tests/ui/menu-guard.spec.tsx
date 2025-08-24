@@ -1,7 +1,7 @@
 // tests/ui/menu-guard.spec.tsx
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { cartStore } from '../../src/state/cartStore';
 import ModePrompt from '../../src/components/ModePrompt';
 
