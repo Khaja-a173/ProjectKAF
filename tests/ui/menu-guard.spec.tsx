@@ -66,5 +66,5 @@ describe('Menu add guard', () => {
   // Next add should NOT reopen the prompt
   fireEvent.click(screen.getAllByText('Add')[0]);
   expect((window as any).__opened).toBe(false);
-});
+  });
 });
