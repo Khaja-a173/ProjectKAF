@@ -1,6 +1,7 @@
 // server/src/services/tenant.service.ts
 import type { FastifyInstance } from 'fastify';
-
+import { createSlug } from '../lib/slug';                // 👈 add this util (see below)
+import { generateTenantCode } from '../lib/codegen'; 
 export class TenantService {
   constructor(private app: FastifyInstance) {}
 
