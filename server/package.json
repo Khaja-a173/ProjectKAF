@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^8.5.0",
+    "@fastify/sensible": "^6.0.3",
     "@supabase/supabase-js": "^2.45.0",
     "dotenv": "^17.2.1",
     "fastify": "^4.28.1",
