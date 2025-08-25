@@ -4,7 +4,7 @@ import supabasePlugin from './plugins/supabase.js';
 import tenantRoutes from './routes/tenants.js';
 
 const app = Fastify({ logger: true });
-await app.register(fastifyCors, { origin: true, credentials: true });
+await app.register(fastifyCors, { origin: '*', credentials: true });
 await app.register(supabasePlugin);
 await app.register(tenantRoutes);
 
