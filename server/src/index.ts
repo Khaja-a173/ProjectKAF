@@ -1,26 +1,36 @@
-import * as path from 'path';
-import dotenv from 'dotenv';
-
-
-console.log('DEBUG SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Loaded' : '❌ Missing');
-console.log('DEBUG SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE ? '✅ Loaded' : '❌ Missing');
+// server/src/index.ts
 
 import Fastify from 'fastify';
-import fastifyCors from '@fastify/cors';
-import supabasePlugin from './plugins/supabase.js';
-import tenantRoutes from './routes/tenants.js';
+import cors from '@fastify/cors';
+
+// Keep extension-less imports; tsx resolves .ts at runtime
+import supabasePlugin from './plugins/supabase';
+import tenantRoutes from './routes/tenants';
 
 const app = Fastify({ logger: true });
-await app.register(fastifyCors, { origin: true, credentials: true });
+
+// Single, namespaced health endpoint (avoid collisions)
+app.get('/_health', async () => ({ ok: true }));
+
+// Plugins
+await app.register(cors, { origin: true, credentials: true });
 await app.register(supabasePlugin);
 await app.register(tenantRoutes);
 
-app.get('/health', async () => ({ ok: true }));
+// Print all routes at startup so we can see what's registered
+app.ready(err => {
+  if (err) {
+    app.log.error('app.ready error:', err);
+    return;
+  }
+  app.log.info('--- ROUTES ---\n' + app.printRoutes());
+});
 
+// Listen
 const port = Number(process.env.PORT ?? 8080);
-// Health route (add this near your other routes)
-app.get('/_health', async () => ({ ok: true }));
-app.listen({ port, host: '0.0.0.0' }).catch((err) => {
+const host = process.env.HOST ?? '0.0.0.0';
+
+app.listen({ port, host }).catch((err) => {
   app.log.error(err);
   process.exit(1);
 });
