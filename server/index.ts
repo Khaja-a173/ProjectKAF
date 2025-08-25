@@ -1,43 +1,34 @@
-// server/index.ts
-// ESM-safe .env loader (no reliance on CLI flags)
+// ESM-safe .env loader
 import { config as loadEnv } from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 loadEnv({ path: path.resolve(__dirname, '../.env') });
-import 'dotenv/config';
+
 import Fastify from 'fastify';
-import healthDbRoutes from '../src/server/routes/health-db.js';
-import tableSessionRoutes from '../src/server/routes/table-session.js';
-import ordersRoutes from '../src/server/routes/orders.js';
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE in server/.env');
-}
-/**
- * Build (but do not start) the Fastify app.
- * Tests and dev runner are responsible for app.listen().
- */
-export function buildServer() {
-  const app = Fastify({ logger: false });
+import cors from '@fastify/cors';          // ✅ v4-compatible plugin (installed as @fastify/cors@8)
+import sensible from '@fastify/sensible';  // ✅ v4-compatible plugin (installed as @fastify/sensible@5)
 
-  // Define healthz ONLY here to avoid duplicate-route errors
-  app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok' }));
+import supabasePlugin from './plugins/supabase';
+import tenantRoutes from './routes/tenants';
 
-  app.register(healthDbRoutes);
-  app.register(tableSessionRoutes);
-  app.register(ordersRoutes);
+const app = Fastify({ logger: true });
 
-  app.get('/', async (_req, reply) =>
-    reply.send({
-      status: 'ok',
-      service: 'api',
-      routes: ['/healthz', '/api/health/db', '/api/table-session/*', '/api/orders/*'],
-    })
-  );
+// health (namespaced to avoid collisions)
+app.get('/_health', async () => ({ ok: true }));
 
-  return app;
-}
+await app.register(cors, { origin: true, credentials: true });
+await app.register(sensible);
+await app.register(supabasePlugin);
+await app.register(tenantRoutes);
 
-export default buildServer;
+// optional: print routes
+app.ready(err => {
+  if (err) { app.log.error(err); return; }
+  app.log.info('--- ROUTES ---\n' + app.printRoutes());
+});
+
+const port = Number(process.env.PORT ?? 8080);
+const host = process.env.HOST ?? '0.0.0.0';
+app.listen({ port, host }).catch(err => { app.log.error(err); process.exit(1); });
