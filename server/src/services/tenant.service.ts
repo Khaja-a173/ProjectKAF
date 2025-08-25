@@ -1,31 +1,40 @@
+// server/src/services/tenant.service.ts
 import type { FastifyInstance } from 'fastify';
-import { generateRestaurantCode } from '../lib/codegen.js';
 
 export class TenantService {
   constructor(private app: FastifyInstance) {}
 
-  async createTenant(name: string, plan = 'basic') {
-    const { supabase } = this.app;
-    for (let i = 0; i < 5; i++) {
-      const code = generateRestaurantCode();
-      const { data, error } = await supabase
-        .from('tenants')
-        .insert({ name, plan, code })
-        .select()
-        .single();
-      if (!error) return data;
-      if ((error as any).code !== '23505') throw error; // not unique_violation
+  async createTenant(name: string, plan?: string) {
+    // Map API 'plan' to DB 'subscription_plan'
+    const payload = {
+      name,
+      subscription_plan: plan ?? 'basic', // 👈 key fix
+      // keep any existing fields you were setting (e.g., code) as-is
+      // code: generate4CharCode() ... if your current code already sets it
+    };
+
+    const { data, error } = await this.app.supabase
+      .from('tenants')
+      .insert(payload)
+      .select('id, name, code, slug')
+      .single();
+
+    if (error) {
+      throw this.app.httpErrors.internalServerError(error.message);
     }
-    throw new Error('Failed to generate unique 4-char code after retries');
+    return data;
   }
 
   async getTenantByCode(code: string) {
     const { data, error } = await this.app.supabase
       .from('tenants')
-      .select('*')
+      .select('id, name, code, slug')
       .eq('code', code)
-      .maybeSingle();
-    if (error) throw error;
-    return data;
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // not found
+      throw this.app.httpErrors.internalServerError(error.message);
+    }
+    return data ?? null;
   }
 }
