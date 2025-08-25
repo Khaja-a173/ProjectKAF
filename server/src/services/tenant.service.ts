@@ -1,7 +1,25 @@
 // server/src/services/tenant.service.ts
 import type { FastifyInstance } from 'fastify';
-import { createSlug } from '../lib/slug';                // 👈 add this util (see below)
-import { generateTenantCode } from '../lib/codegen';     // 👈 already in your project per Bolt output
+
+/** Create a URL-safe slug from a name */
+function createSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')   // strip diacritics
+    .replace(/[^a-z0-9]+/g, '-')       // non-alnum → hyphen
+    .replace(/^-+|-+$/g, '')           // trim hyphens
+    .replace(/-{2,}/g, '-')            // collapse
+    .slice(0, 60);
+}
+
+/** Generate a 4-char uppercase code (avoids confusing chars) */
+function generateCode4(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
 
 export class TenantService {
   constructor(private app: FastifyInstance) {}
@@ -25,9 +43,9 @@ export class TenantService {
     // 4) Insert
     const payload = {
       name,
-      slug,                               // 👈 REQUIRED by DB (NOT NULL)
-      code,                               // 👈 4-char unique
-      subscription_plan: plan ?? 'basic', // 👈 map "plan" → "subscription_plan"
+      slug,                               // REQUIRED (NOT NULL)
+      code,                               // 4-char unique
+      subscription_plan: plan ?? 'basic', // map API "plan" → DB "subscription_plan"
     };
 
     const { data, error } = await this.app.supabase
@@ -36,14 +54,7 @@ export class TenantService {
       .select('id, name, code, slug')
       .single();
 
-    if (error) {
-      // use sensible if registered, otherwise Error fallback
-      if ((this.app as any).httpErrors?.internalServerError) {
-        throw this.app.httpErrors.internalServerError(error.message);
-      }
-      throw new Error(error.message);
-    }
-
+    if (error) this.throwHttp500(error.message);
     return data!;
   }
 
@@ -54,11 +65,9 @@ export class TenantService {
       .eq('code', code)
       .single();
 
+    // PGRST116 = No rows
     if (error && (error as any).code !== 'PGRST116') {
-      if ((this.app as any).httpErrors?.internalServerError) {
-        throw this.app.httpErrors.internalServerError(error.message);
-      }
-      throw new Error(error.message);
+      this.throwHttp500(error.message);
     }
     return data ?? null;
   }
@@ -68,7 +77,7 @@ export class TenantService {
   private async ensureUniqueSlug(base: string): Promise<string> {
     let candidate = base;
     let n = 1;
-    // try up to a reasonable number of suffixes
+
     while (true) {
       const { data, error } = await this.app.supabase
         .from('tenants')
@@ -76,42 +85,36 @@ export class TenantService {
         .eq('slug', candidate)
         .maybeSingle();
 
-      if (error) {
-        // break on read error to avoid infinite loop; surface error
-        if ((this.app as any).httpErrors?.internalServerError) {
-          throw this.app.httpErrors.internalServerError(error.message);
-        }
-        throw new Error(error.message);
-      }
-
+      if (error) this.throwHttp500(error.message);
       if (!data) return candidate; // unique
+
       n += 1;
       candidate = `${base}-${n}`;
     }
   }
 
   private async ensureUniqueCode(): Promise<string> {
-    // loop until code is free
     for (let i = 0; i < 50; i++) {
-      const code = generateTenantCode(); // e.g., 4-char alphanumeric from your codegen.ts
+      const code = generateCode4();
       const { data, error } = await this.app.supabase
         .from('tenants')
         .select('id')
         .eq('code', code)
         .maybeSingle();
 
-      if (error) {
-        if ((this.app as any).httpErrors?.internalServerError) {
-          throw this.app.httpErrors.internalServerError(error.message);
-        }
-        throw new Error(error.message);
-      }
+      if (error) this.throwHttp500(error.message);
+      if (!data) return code; // unique
+    }
+    this.throwHttp500('Failed to generate unique tenant code after multiple attempts');
+    return 'UNREACHABLE';
+  }
 
-      if (!data) return code; // not taken
+  private throwHttp500(message: string): never {
+    // Use @fastify/sensible if present; otherwise fall back to Error
+    const anyApp = this.app as any;
+    if (anyApp.httpErrors?.internalServerError) {
+      throw anyApp.httpErrors.internalServerError(message);
     }
-    if ((this.app as any).httpErrors?.internalServerError) {
-      throw this.app.httpErrors.internalServerError('Failed to generate unique tenant code after multiple attempts');
-    }
-    throw new Error('Failed to generate unique tenant code after multiple attempts');
+    throw new Error(message);
   }
 }
