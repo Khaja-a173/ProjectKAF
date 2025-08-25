@@ -2,7 +2,6 @@
   "name": "projectkaf-server",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "dev": "tsx --env-file=.env watch src/index.ts"
