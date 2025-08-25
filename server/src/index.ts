@@ -2,6 +2,7 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import sensible from '@fastify/sensible';   // ✅ add this
 
 // Keep extension-less imports; tsx resolves .ts at runtime
 import supabasePlugin from './plugins/supabase';
