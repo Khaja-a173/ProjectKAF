@@ -14,6 +14,7 @@ app.get('/_health', async () => ({ ok: true }));
 
 // Plugins
 await app.register(cors, { origin: true, credentials: true });
+await app.register(sensible); 
 await app.register(supabasePlugin);
 await app.register(tenantRoutes);
 
