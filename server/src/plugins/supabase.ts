@@ -8,6 +8,9 @@ export default fp(async (app) => {
   app.decorate('supabase', supabase);
 });
 
+console.log('DEBUG SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('DEBUG SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE ? '***SET***' : 'MISSING');
+
 declare module 'fastify' {
   interface FastifyInstance {
     supabase: ReturnType<typeof createClient>;
