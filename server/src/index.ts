@@ -1,8 +1,6 @@
 import * as path from 'path';
 import dotenv from 'dotenv';
 
-// ✅ Explicitly load .env from /home/project/server
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 console.log('DEBUG SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Loaded' : '❌ Missing');
 console.log('DEBUG SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE ? '✅ Loaded' : '❌ Missing');
