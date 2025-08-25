@@ -1,4 +1,12 @@
 // server/index.ts
+// ESM-safe .env loader (no reliance on CLI flags)
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+loadEnv({ path: path.resolve(__dirname, '../.env') });
 import 'dotenv/config';
 import Fastify from 'fastify';
 import healthDbRoutes from '../src/server/routes/health-db.js';
