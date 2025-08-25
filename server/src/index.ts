@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import cors from 'fastify-cors';
+import fastifyCors from '@fastify/cors';
 import supabasePlugin from './plugins/supabase.js';
 import tenantRoutes from './routes/tenants.js';
 
