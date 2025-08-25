@@ -4,7 +4,9 @@ import Fastify from 'fastify';
 import healthDbRoutes from '../src/server/routes/health-db.js';
 import tableSessionRoutes from '../src/server/routes/table-session.js';
 import ordersRoutes from '../src/server/routes/orders.js';
-
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE in server/.env');
+}
 /**
  * Build (but do not start) the Fastify app.
  * Tests and dev runner are responsible for app.listen().
