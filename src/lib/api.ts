@@ -102,3 +102,100 @@ export function getTopItems(window = '30d', limit = 10) {
 export function getWhoAmI() {
   return apiRequest('/auth/whoami', {}, { requireAuth: false });
 }
+
+/** Orders APIs */
+export function getOrders(params?: { status?: string; since?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.since) searchParams.set('since', params.since);
+  const query = searchParams.toString();
+  return apiRequest(`/orders${query ? `?${query}` : ''}`);
+}
+
+export function createOrder(data: any) {
+  return apiRequest('/orders', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateOrder(id: string, data: any) {
+  return apiRequest(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function cancelOrder(id: string) {
+  return apiRequest(`/orders/${id}`, { method: 'DELETE' });
+}
+
+/** Menu APIs */
+export function getMenuCategories() {
+  return apiRequest('/menu/categories');
+}
+
+export function createMenuCategory(data: any) {
+  return apiRequest('/menu/categories', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function getMenuItems(params?: { category_id?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.category_id) searchParams.set('category_id', params.category_id);
+  const query = searchParams.toString();
+  return apiRequest(`/menu/items${query ? `?${query}` : ''}`);
+}
+
+export function createMenuItem(data: any) {
+  return apiRequest('/menu/items', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateMenuItem(id: string, data: any) {
+  return apiRequest(`/menu/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function bulkImportMenuItems(csv: string) {
+  return apiRequest('/menu/items:bulk', { method: 'POST', body: JSON.stringify({ csv }) });
+}
+
+/** Tables APIs */
+export function getTables() {
+  return apiRequest('/tables');
+}
+
+export function lockTable(id: string, isLocked: boolean) {
+  return apiRequest(`/tables/${id}/lock`, { method: 'PATCH', body: JSON.stringify({ is_locked: isLocked }) });
+}
+
+/** Staff APIs */
+export function getStaff() {
+  return apiRequest('/staff');
+}
+
+export function addStaff(data: any) {
+  return apiRequest('/staff', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function removeStaff(userId: string) {
+  return apiRequest(`/staff/${userId}`, { method: 'DELETE' });
+}
+
+export function getShifts() {
+  return apiRequest('/staff/shifts');
+}
+
+/** KDS APIs */
+export function getKdsOrders(state?: string) {
+  const query = state ? `?state=${state}` : '';
+  return apiRequest(`/kds/orders${query}`);
+}
+
+export function updateKitchenState(orderId: string, kitchenState: string) {
+  return apiRequest(`/kds/orders/${orderId}/state`, { 
+    method: 'PATCH', 
+    body: JSON.stringify({ kitchen_state: kitchenState }) 
+  });
+}
+
+/** Branding APIs */
+export function getBranding() {
+  return apiRequest('/branding');
+}
+
+export function updateBranding(data: any) {
+  return apiRequest('/branding', { method: 'PATCH', body: JSON.stringify(data) });
+}

@@ -73,7 +73,7 @@ export default fp(async (app: FastifyInstance) => {
   }
 
   // B) Instance-level guard for route preHandlers: [app.requireAuth]
-  if (!app.hasDecorator('requireAuth')) {
+  if (!(app as any).requireAuth) {
     app.decorate('requireAuth', async (req: FastifyRequest, reply: FastifyReply) => {
       if (!req.auth?.userId) {
         return reply.code(401).send({ authenticated: false, reason: 'no_token' });
@@ -82,7 +82,7 @@ export default fp(async (app: FastifyInstance) => {
   }
 
   // C) Role-based guard for route preHandlers
-  if (!app.hasDecorator('requireRole')) {
+  if (!(app as any).requireRole) {
     app.decorate('requireRole', async (req: FastifyRequest, reply: FastifyReply, roles: string[]) => {
       const ok = !!req.auth?.memberships?.some(m => roles.includes(m.role));
       if (!ok) return reply.code(403).send({ error: 'forbidden' });

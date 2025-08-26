@@ -92,13 +92,17 @@ export default async function menuRoutes(app: FastifyInstance) {
   app.get('/menu/items', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
+    const query = z.object({
+      category_id: z.string().uuid().optional()
+    }).parse(req.query);
+
     const tenantIds = req.auth?.tenantIds || [];
     if (tenantIds.length === 0) {
       return reply.code(403).send({ error: 'no_tenant_access' });
     }
 
     try {
-      const { data, error } = await app.supabase
+      let queryBuilder = app.supabase
         .from('menu_items')
         .select(`
           *,
@@ -110,6 +114,12 @@ export default async function menuRoutes(app: FastifyInstance) {
         `)
         .in('tenant_id', tenantIds)
         .order('sort_order');
+
+      if (query.category_id) {
+        queryBuilder = queryBuilder.eq('category_id', query.category_id);
+      }
+
+      const { data, error } = await queryBuilder;
 
       if (error) throw error;
 
@@ -202,8 +212,8 @@ export default async function menuRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /menu/items:bulkCsv - Bulk import from CSV
-  app.post('/menu/items:bulkCsv', {
+  // POST /menu/items:bulk - Bulk import from CSV
+  app.post('/menu/items:bulk', {
     preHandler: [app.requireAuth, async (req, reply) => {
       await app.requireRole(req, reply, ['admin', 'manager']);
     }]

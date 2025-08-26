@@ -17,6 +17,70 @@ const UpdateOrderSchema = z.object({
 });
 
 export default async function ordersRoutes(app: FastifyInstance) {
+  // GET /orders - List orders
+  app.get('/orders', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const query = z.object({
+      status: z.string().optional(),
+      type: z.string().optional(),
+      page: z.coerce.number().int().positive().default(1),
+      limit: z.coerce.number().int().positive().max(100).default(50),
+      since: z.string().optional()
+    }).parse(req.query);
+
+    const tenantIds = req.auth?.tenantIds || [];
+    if (tenantIds.length === 0) {
+      return reply.code(403).send({ error: 'no_tenant_access' });
+    }
+
+    try {
+      let queryBuilder = app.supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            menu_items (name, price)
+          ),
+          restaurant_tables (table_number),
+          customers (first_name, last_name)
+        `)
+        .in('tenant_id', tenantIds)
+        .order('created_at', { ascending: false });
+
+      if (query.status) {
+        queryBuilder = queryBuilder.eq('status', query.status);
+      }
+
+      if (query.type) {
+        queryBuilder = queryBuilder.eq('order_type', query.type);
+      }
+
+      if (query.since) {
+        const hoursAgo = query.since === '24h' ? 24 : 168; // default to 1 week
+        const sinceDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+        queryBuilder = queryBuilder.gte('created_at', sinceDate.toISOString());
+      }
+
+      const offset = (query.page - 1) * query.limit;
+      queryBuilder = queryBuilder.range(offset, offset + query.limit - 1);
+
+      const { data, error } = await queryBuilder;
+
+      if (error) throw error;
+
+      return reply.send({ 
+        orders: data || [], 
+        page: query.page, 
+        limit: query.limit 
+      });
+    } catch (err: any) {
+      app.log.error(err, 'Failed to fetch orders');
+      return reply.code(500).send({ error: 'failed_to_fetch_orders' });
+    }
+  });
+
   // POST /orders - Create new order
   app.post('/orders', {
     preHandler: [app.requireAuth, async (req, reply) => {
@@ -77,7 +141,8 @@ export default async function ordersRoutes(app: FastifyInstance) {
         menu_item_id: item.menu_item_id,
         quantity: item.quantity,
         unit_price: menuItems?.find(mi => mi.id === item.menu_item_id)?.price || 0,
-        total_price: (menuItems?.find(mi => mi.id === item.menu_item_id)?.price || 0) * item.quantity
+        total_price: (menuItems?.find(mi => mi.id === item.menu_item_id)?.price || 0) * item.quantity,
+        tenant_id: tenantId
       }));
 
       const { error: itemsError } = await app.supabase
@@ -90,99 +155,6 @@ export default async function ordersRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error(err, 'Failed to create order');
       return reply.code(500).send({ error: 'failed_to_create_order' });
-    }
-  });
-
-  // GET /orders - List orders
-  app.get('/orders', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const query = z.object({
-      status: z.string().optional(),
-      since: z.string().optional()
-    }).parse(req.query);
-
-    const tenantIds = req.auth?.tenantIds || [];
-    if (tenantIds.length === 0) {
-      return reply.code(403).send({ error: 'no_tenant_access' });
-    }
-
-    try {
-      let queryBuilder = app.supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            menu_items (name, price)
-          ),
-          restaurant_tables (table_number),
-          customers (first_name, last_name)
-        `)
-        .in('tenant_id', tenantIds)
-        .order('created_at', { ascending: false });
-
-      if (query.status) {
-        queryBuilder = queryBuilder.eq('status', query.status);
-      }
-
-      if (query.since) {
-        const hoursAgo = query.since === '24h' ? 24 : 168; // default to 1 week
-        const sinceDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-        queryBuilder = queryBuilder.gte('created_at', sinceDate.toISOString());
-      }
-
-      const { data, error } = await queryBuilder;
-
-      if (error) throw error;
-
-      return reply.send({ orders: data || [] });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch orders');
-      return reply.code(500).send({ error: 'failed_to_fetch_orders' });
-    }
-  });
-
-  // GET /orders/:id - Get specific order
-  app.get('/orders/:id', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const tenantIds = req.auth?.tenantIds || [];
-    if (tenantIds.length === 0) {
-      return reply.code(403).send({ error: 'no_tenant_access' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            menu_items (name, price, image_url)
-          ),
-          restaurant_tables (table_number, capacity),
-          customers (first_name, last_name, email)
-        `)
-        .eq('id', params.id)
-        .in('tenant_id', tenantIds)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'order_not_found' });
-        }
-        throw error;
-      }
-
-      return reply.send({ order: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch order');
-      return reply.code(500).send({ error: 'failed_to_fetch_order' });
     }
   });
 

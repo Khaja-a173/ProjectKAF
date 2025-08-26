@@ -15,6 +15,12 @@ import tablesRoutes from './routes/tables';
 import staffRoutes from './routes/staff';
 import kdsRoutes from './routes/kds';
 import brandingRoutes from './routes/branding';
+import ordersRoutes from './routes/orders';
+import menuRoutes from './routes/menu';
+import tablesRoutes from './routes/tables';
+import staffRoutes from './routes/staff';
+import kdsRoutes from './routes/kds';
+import brandingRoutes from './routes/branding';
 
 const app = Fastify({ logger: true });
 
@@ -32,6 +38,12 @@ await app.register(authPlugin); // ✅ Register auth once
 await app.register(tenantRoutes);
 await app.register(authRoutes);
 await app.register(analyticsRoutes);
+await app.register(ordersRoutes);
+await app.register(menuRoutes);
+await app.register(tablesRoutes);
+await app.register(staffRoutes);
+await app.register(kdsRoutes);
+await app.register(brandingRoutes);
 await app.register(ordersRoutes);
 await app.register(menuRoutes);
 await app.register(tablesRoutes);
