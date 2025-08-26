@@ -1,6 +1,5 @@
-// server/src/plugins/auth.ts
 import fp from 'fastify-plugin';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 type StaffMembership = {
   tenant_id: string;
@@ -17,9 +16,12 @@ declare module 'fastify' {
       primaryTenantId?: string | null;
     }
   }
+  interface FastifyInstance {
+    requireAuth: (req: FastifyRequest, reply: FastifyReply) => void | Promise<void>;
+  }
 }
 
-export default fp(async (app) => {
+export default fp(async (app: FastifyInstance) => {
   app.addHook('preHandler', async (req) => {
     const h = req.headers.authorization;
     if (!h?.startsWith('Bearer ')) return;
@@ -34,7 +36,7 @@ export default fp(async (app) => {
       return;
     }
 
-    // 2) Mark authenticated immediately
+    // 2) Seed auth object
     req.auth = {
       userId: data.user.id,
       email: data.user.email ?? null,
@@ -43,7 +45,7 @@ export default fp(async (app) => {
       primaryTenantId: null,
     };
 
-    // 3) Best-effort membership load (no joins)
+    // 3) Load memberships
     const { data: staff, error: staffErr } = await app.supabase
       .from('staff')
       .select('tenant_id, role')
@@ -60,8 +62,15 @@ export default fp(async (app) => {
     req.auth.primaryTenantId = memberships[0]?.tenant_id ?? null;
   });
 
-  // Guards
+  // ---- Guards ----
+
+  // A) Keep existing reply-level guard (backward compatible)
   app.decorateReply('requireAuth', function (this: any, req: FastifyRequest) {
     if (!req.auth?.userId) throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
+  });
+
+  // B) Add instance-level guard for route preHandlers: [app.requireAuth]
+  app.decorate('requireAuth', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.auth?.userId) return reply.code(401).send({ authenticated: false, reason: 'no_token' });
   });
 });

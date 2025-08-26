@@ -7,7 +7,9 @@ import sensible from '@fastify/sensible';   // ✅ add this
 // Keep extension-less imports; tsx resolves .ts at runtime
 import supabasePlugin from './plugins/supabase';
 import authPlugin from './plugins/auth';
+import authPlugin from './plugins/auth';
 import tenantRoutes from './routes/tenants';
+import authRoutes from './routes/auth';
 import authRoutes from './routes/auth';
 import analyticsRoutes from './routes/analytics.js';
 
@@ -18,8 +20,10 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true, credentials: true });
 await app.register(sensible); 
 await app.register(supabasePlugin);
+await app.register(authPlugin);      // 👈 BEFORE any routes that use app.requireAuth
 await app.register(authPlugin);
 await app.register(tenantRoutes);
+await app.register(authRoutes);
 await app.register(authRoutes);
 await app.register(analyticsRoutes);
 // Single, namespaced health endpoint (avoid collisions)
