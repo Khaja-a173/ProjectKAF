@@ -1,10 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
-const UpdateKitchenStateSchema = z.object({
-  kitchen_state: z.enum(['queued', 'preparing', 'ready', 'served', 'cancelled'])
-});
-
 const UpdateKdsStatusSchema = z.object({
   status: z.enum(['preparing', 'ready', 'served'])
 });
@@ -69,8 +65,8 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
   });
 
-  // PATCH /kds/orders/:id/state - Update kitchen state
-  app.patch('/kds/orders/:id/state', {
+  // PATCH /kds/orders/:id/status - Update order status from KDS
+  app.patch('/kds/orders/:id/status', {
     preHandler: [app.requireAuth, async (req, reply) => {
       await app.requireRole(req, reply, ['kitchen', 'manager', 'staff']);
     }]
@@ -79,7 +75,7 @@ export default async function kdsRoutes(app: FastifyInstance) {
       id: z.string().uuid()
     }).parse(req.params);
 
-    const body = UpdateKitchenStateSchema.parse(req.body);
+    const body = UpdateKdsStatusSchema.parse(req.body);
     const tenantIds = req.auth?.tenantIds || [];
 
     if (tenantIds.length === 0) {
@@ -87,20 +83,11 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
 
     try {
-      const updates: any = {
-        kitchen_state: body.kitchen_state
-      };
+      const updates: any = { status: body.status };
 
-      // Update order status based on kitchen state
-      if (body.kitchen_state === 'ready') {
-        updates.status = 'ready';
-        updates.ready_at = new Date().toISOString();
-      } else if (body.kitchen_state === 'served') {
-        updates.status = 'served';
-        updates.served_at = new Date().toISOString();
-      } else if (body.kitchen_state === 'preparing') {
-        updates.status = 'preparing';
-      }
+      // Set timestamps based on status
+      if (body.status === 'ready') updates.ready_at = new Date().toISOString();
+      if (body.status === 'served') updates.served_at = new Date().toISOString();
 
       const { data, error } = await app.supabase
         .from('orders')
@@ -124,10 +111,20 @@ export default async function kdsRoutes(app: FastifyInstance) {
         throw error;
       }
 
+      // Create status event
+      await app.supabase
+        .from('order_status_events')
+        .insert({
+          tenant_id: req.auth?.primaryTenantId,
+          order_id: params.id,
+          status: body.status,
+          created_by: req.auth?.userId || 'kitchen'
+        });
+
       return reply.send({ order: data });
     } catch (err: any) {
-      app.log.error(err, 'Failed to update kitchen state');
-      return reply.code(500).send({ error: 'failed_to_update_kitchen_state' });
+      app.log.error(err, 'Failed to update KDS order status');
+      return reply.code(500).send({ error: 'failed_to_update_kds_status' });
     }
   });
 
@@ -192,68 +189,6 @@ export default async function kdsRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error(err, 'Failed to fetch KDS orders');
       return reply.code(500).send({ error: 'failed_to_fetch_kds_orders' });
-    }
-  });
-
-  // PATCH /kds/orders/:id/status - Update order status from KDS
-  app.patch('/kds/orders/:id/status', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = UpdateKdsStatusSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const updates: any = { status: body.status };
-
-      // Set timestamps based on status
-      if (body.status === 'ready') updates.ready_at = new Date().toISOString();
-      if (body.status === 'served') updates.served_at = new Date().toISOString();
-
-      const { data: order, error: updateError } = await app.supabase
-        .from('orders')
-        .update(updates)
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .select(`
-          *,
-          order_items (
-            *,
-            menu_items (name)
-          ),
-          restaurant_tables (table_number)
-        `)
-        .single();
-
-      if (updateError) {
-        if (updateError.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'order_not_found' });
-        }
-        throw updateError;
-      }
-
-      // Create status event
-      await app.supabase
-        .from('order_status_events')
-        .insert({
-          tenant_id: tenantId,
-          order_id: params.id,
-          status: body.status,
-          created_by: req.auth?.userId || 'kitchen'
-        });
-
-      return reply.send({ order });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update KDS order status');
-      return reply.code(500).send({ error: 'failed_to_update_kds_status' });
     }
   });
 }

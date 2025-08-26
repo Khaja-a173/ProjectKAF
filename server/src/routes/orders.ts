@@ -1,124 +1,266 @@
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+// /home/project/src/lib/api.ts
+import { supabase } from './supabase';
 
-const PlaceOrderFromCartSchema = z.object({
-  session_id: z.string().uuid(),
-  assigned_staff_id: z.string().uuid().optional()
-});
+const API_BASE = '/api';
+// small helper to join safely
+const join = (base: string, path: string) => `${base}${path.startsWith('/') ? path : `/${path}`}`;
 
-const UpdateOrderStatusSchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid', 'cancelled'])
-});
+async function waitForSessionToken(timeoutMs = 3000): Promise<string | null> {
+  const start = Date.now();
+  // try immediate
+  let { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) return session.access_token;
 
-const AssignStaffSchema = z.object({
-  staff_user_id: z.string().uuid()
-});
-
-const CreateOrderSchema = z.object({
-  order_type: z.enum(['dine_in', 'takeaway']).default('dine_in'),
-  table_id: z.string().uuid().optional(),
-  items: z.array(z.object({
-    menu_item_id: z.string().uuid(),
-    quantity: z.number().int().positive()
-  })),
-  notes: z.string().optional()
-});
-
-const UpdateOrderSchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid', 'cancelled']).optional(),
-  kitchen_state: z.enum(['queued', 'preparing', 'ready', 'served', 'cancelled']).optional()
-});
-
-export default async function ordersRoutes(app: FastifyInstance) {
-  // GET /orders - List orders
-  app.get('/orders', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const query = z.object({
-      status: z.string().optional(),
-      type: z.string().optional(),
-      page: z.coerce.number().int().positive().default(1),
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      since: z.string().optional()
-    }).parse(req.query);
-
-    const tenantIds = req.auth?.tenantIds || [];
-    if (tenantIds.length === 0) {
-      return reply.code(403).send({ error: 'no_tenant_access' });
-    }
-
-    try {
-      let queryBuilder = app.supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            menu_items (name, price)
-          ),
-          restaurant_tables (table_number),
-          customers (first_name, last_name)
-        `)
-        .in('tenant_id', tenantIds)
-        .order('created_at', { ascending: false });
-
-      if (query.status) {
-        queryBuilder = queryBuilder.eq('status', query.status);
+  // subscribe and wait until a token arrives or timeout
+  return await new Promise((resolve) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        sub.subscription?.unsubscribe();
+        resolve(session.access_token);
+      } else if (Date.now() - start > timeoutMs) {
+        sub.subscription?.unsubscribe();
+        resolve(null);
       }
-
-      if (query.type) {
-        queryBuilder = queryBuilder.eq('order_type', query.type);
-      }
-
-      if (query.since) {
-        const hoursAgo = query.since === '24h' ? 24 : 168; // default to 1 week
-        const sinceDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-        queryBuilder = queryBuilder.gte('created_at', sinceDate.toISOString());
-      }
-
-      const offset = (query.page - 1) * query.limit;
-      queryBuilder = queryBuilder.range(offset, offset + query.limit - 1);
-
-      const { data, error } = await queryBuilder;
-
-      if (error) throw error;
-
-      return reply.send({ 
-        orders: data || [], 
-        page: query.page, 
-        limit: query.limit 
-      });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch orders');
-      return reply.code(500).send({ error: 'failed_to_fetch_orders' });
-    }
+    });
+    // hard timeout fallback
+    setTimeout(async () => {
+      sub.subscription?.unsubscribe();
+      const { data: { session } } = await supabase.auth.getSession();
+      resolve(session?.access_token ?? null);
+    }, timeoutMs);
   });
+}
 
-  // POST /orders/from-cart - Create order from cart session
-  app.post('/orders/from-cart', async (req, reply) => {
-    const body = PlaceOrderFromCartSchema.parse(req.body);
-    
-    try {
-      // Get cart session with items
-      const { data: session, error: sessionError } = await app.supabase
-        .from('cart_sessions')
-        .select(`
-          *,
-          cart_items (
-            *,
-            menu_items (
-              id,
-              name,
-              price
-            )
-          )
-        `)
-        .eq('id', body.session_id)
-        .eq('status', 'active')
-        .single();
-      
-      if (sessionError || !session) {
-        return reply.code(404).send({ error: 'session_not_found_or_inactive' });
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  // First, try immediate session
+  let { data: { session } } = await supabase.auth.getSession();
+  let token = session?.access_token;
+
+  // If not ready yet, wait briefly
+  if (!token) token = await waitForSessionToken(3000);
+  if (!token) throw new Error('No authentication token available');
+
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+async function buildAuthHeader(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    return { Authorization: `Bearer ${session.access_token}` };
+  }
+  return {};
+}
+
+async function apiRequest(
+  endpoint: string,
+  options: RequestInit = {},
+  { requireAuth = true }: { requireAuth?: boolean } = {}
+): Promise<any> {
+  let headers: Record<string, string>;
+  
+  if (requireAuth) {
+    headers = { ...(await getAuthHeaders()), ...(options.headers as Record<string, string> | undefined) };
+  } else {
+    headers = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) };
+  }
+
+  const res = await fetch(join(API_BASE, endpoint), { ...options, headers });
+
+  // Try to parse JSON either way for better errors
+  const tryJson = async () => {
+    try { return await res.json(); } catch { return null; }
+  };
+
+  if (!res.ok) {
+    const body = await tryJson();
+    const msg = (body && (body.error || body.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  const data = await tryJson();
+  return data;
+}
+
+/** Analytics APIs */
+export function getSummary(window = '7d') {
+  return apiRequest(`/analytics/summary?window=${encodeURIComponent(window)}`);
+}
+
+export function getRevenue(window = '30d', granularity = 'day') {
+  return apiRequest(`/analytics/revenue?window=${encodeURIComponent(window)}&granularity=${encodeURIComponent(granularity)}`);
+}
+
+export function getTopItems(window = '30d', limit = 10) {
+  return apiRequest(`/analytics/top-items?window=${encodeURIComponent(window)}&limit=${limit}`);
+}
+
+/** Auth – whoami should NOT require a token (lets UI show logged-out state cleanly) */
+export function getWhoAmI() {
+  return apiRequest('/auth/whoami', {}, { requireAuth: false });
+}
+
+/** Orders APIs */
+export function getOrders(params?: { status?: string; since?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.since) searchParams.set('since', params.since);
+  const query = searchParams.toString();
+  return apiRequest(`/orders${query ? `?${query}` : ''}`);
+}
+
+export function createOrder(data: any) {
+  return apiRequest('/orders', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateOrder(id: string, data: any) {
+  return apiRequest(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function cancelOrder(id: string) {
+  return apiRequest(`/orders/${id}`, { method: 'DELETE' });
+}
+
+/** Menu APIs */
+export function getMenuCategories() {
+  return apiRequest('/menu/categories');
+}
+
+export function createMenuCategory(data: any) {
+  return apiRequest('/menu/categories', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function getMenuItems(params?: { category_id?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.category_id) searchParams.set('category_id', params.category_id);
+  const query = searchParams.toString();
+  return apiRequest(`/menu/items${query ? `?${query}` : ''}`);
+}
+
+export function createMenuItem(data: any) {
+  return apiRequest('/menu/items', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateMenuItem(id: string, data: any) {
+  return apiRequest(`/menu/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function bulkImportMenuItems(csv: string) {
+  return apiRequest('/menu/items:bulk', { method: 'POST', body: JSON.stringify({ csv }) });
+}
+
+/** Tables APIs */
+export function getTables() {
+  return apiRequest('/tables');
+}
+
+export function lockTable(id: string, isLocked: boolean) {
+  return apiRequest(`/tables/${id}/lock`, { method: 'PATCH', body: JSON.stringify({ is_locked: isLocked }) });
+}
+
+/** Staff APIs */
+export function getStaff() {
+  return apiRequest('/staff');
+}
+
+export function addStaff(data: any) {
+  return apiRequest('/staff', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function removeStaff(userId: string) {
+  return apiRequest(`/staff/${userId}`, { method: 'DELETE' });
+}
+
+export function getShifts() {
+  return apiRequest('/staff/shifts');
+}
+
+/** KDS APIs */
+export function getKdsOrders(state?: string) {
+  const query = state ? `?state=${state}` : '';
+  return apiRequest(`/kds/orders${query}`);
+}
+
+export function updateKitchenState(orderId: string, kitchenState: string) {
+  return apiRequest(`/kds/orders/${orderId}/state`, { 
+    method: 'PATCH', 
+    body: JSON.stringify({ kitchen_state: kitchenState }) 
+  });
+}
+
+/** Branding APIs */
+export function getBranding() {
+  return apiRequest('/branding');
+}
+
+export function updateBranding(data: any) {
+  return apiRequest('/branding', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+/** Payment APIs */
+export function getPaymentProviders() {
+  return apiRequest('/payments/providers');
+}
+
+export function createPaymentProvider(data: any) {
+  return apiRequest('/payments/providers', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updatePaymentProvider(id: string, data: any) {
+  return apiRequest(`/payments/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function listPaymentIntents(filters?: { order_id?: string; status?: string; limit?: number; page?: number }) {
+  const searchParams = new URLSearchParams();
+  if (filters?.order_id) searchParams.set('order_id', filters.order_id);
+  if (filters?.status) searchParams.set('status', filters.status);
+  if (filters?.limit) searchParams.set('limit', filters.limit.toString());
+  if (filters?.page) searchParams.set('page', filters.page.toString());
+  const query = searchParams.toString();
+  return apiRequest(`/payments/intents${query ? `?${query}` : ''}`);
+}
+
+export function createPaymentIntent(data: any) {
+  return apiRequest('/payments/intents', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updatePaymentIntent(id: string, data: any) {
+  return apiRequest(`/payments/intents/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function listPaymentEvents() {
+  return apiRequest('/payments/events');
+}
+
+/** QR & Cart APIs (Public) */
+export function resolveQR(code: string, table: string, sig: string, exp: number) {
+  return apiRequest(`/qr/resolve?code=${code}&table=${table}&sig=${sig}&exp=${exp}`, {}, { requireAuth: false });
+}
+
+export function createCartSession(data: any) {
+  return apiRequest('/cart/session', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function getCart(sessionId: string) {
+  return apiRequest(`/cart/session/${sessionId}`, {}, { requireAuth: false });
+}
+
+export function addCartItem(data: any) {
+  return apiRequest('/cart/items', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function updateCartItem(id: string, data: any) {
+  return apiRequest(`/cart/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function removeCartItem(id: string) {
+  return apiRequest(`/cart/items/${id}`, { method: 'DELETE' }, { requireAuth: false });
+}
+
+export function placeOrderFromCart(data: any) {
       }
       
       if (!session.cart_items || session.cart_items.length === 0) {
@@ -217,63 +359,6 @@ export default async function ordersRoutes(app: FastifyInstance) {
     }
   });
 
-  // PATCH /orders/:id/status - Update order status
-  app.patch('/orders/:id/status', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = UpdateOrderStatusSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Update order status
-      const updates: any = { status: body.status };
-      
-      // Set timestamps based on status
-      if (body.status === 'ready') updates.ready_at = new Date().toISOString();
-      if (body.status === 'served') updates.served_at = new Date().toISOString();
-      if (body.status === 'cancelled') updates.cancelled_at = new Date().toISOString();
-
-      const { data: order, error: updateError } = await app.supabase
-        .from('orders')
-        .update(updates)
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .select()
-        .single();
-
-      if (updateError) {
-        if (updateError.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'order_not_found' });
-        }
-        throw updateError;
-      }
-
-      // Create status event
-      await app.supabase
-        .from('order_status_events')
-        .insert({
-          tenant_id: tenantId,
-          order_id: params.id,
-          status: body.status,
-          created_by: req.auth?.userId || 'system'
-        });
-
-      return reply.send({ order });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update order status');
-      return reply.code(500).send({ error: 'failed_to_update_status' });
-    }
-  });
-
   // POST /orders/:id/assign - Assign staff to order
   app.post('/orders/:id/assign', {
     preHandler: [app.requireAuth]
@@ -325,178 +410,3 @@ export default async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'failed_to_assign_staff' });
     }
   });
-
-  // POST /orders - Create new order
-  app.post('/orders', {
-    preHandler: [app.requireAuth, async (req, reply) => {
-      await app.requireRole(req, reply, ['admin', 'manager', 'staff']);
-    }]
-  }, async (req, reply) => {
-    const body = CreateOrderSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-    
-    if (!tenantId) {
-      return reply.code(403).send({ error: 'no_tenant_context' });
-    }
-
-    try {
-      // Generate order number
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-      
-      // Calculate totals
-      const { data: menuItems, error: menuError } = await app.supabase
-        .from('menu_items')
-        .select('id, price')
-        .eq('tenant_id', tenantId)
-        .in('id', body.items.map(item => item.menu_item_id));
-
-      if (menuError) throw menuError;
-
-      const subtotal = body.items.reduce((sum, item) => {
-        const menuItem = menuItems?.find(mi => mi.id === item.menu_item_id);
-        return sum + (menuItem?.price || 0) * item.quantity;
-      }, 0);
-
-      const taxAmount = subtotal * 0.08; // 8% tax
-      const totalAmount = subtotal + taxAmount;
-
-      // Create order
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .insert({
-          tenant_id: tenantId,
-          table_id: body.table_id,
-          order_number: orderNumber,
-          order_type: body.order_type,
-          status: 'pending',
-          subtotal,
-          tax_amount: taxAmount,
-          total_amount: totalAmount,
-          special_instructions: body.notes,
-          kitchen_state: 'queued'
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = body.items.map(item => ({
-        order_id: order.id,
-        menu_item_id: item.menu_item_id,
-        quantity: item.quantity,
-        unit_price: menuItems?.find(mi => mi.id === item.menu_item_id)?.price || 0,
-        total_price: (menuItems?.find(mi => mi.id === item.menu_item_id)?.price || 0) * item.quantity,
-        tenant_id: tenantId
-      }));
-
-      const { error: itemsError } = await app.supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      return reply.code(201).send({ order, items: orderItems });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create order');
-      return reply.code(500).send({ error: 'failed_to_create_order' });
-    }
-  });
-
-  // PATCH /orders/:id - Update order
-  app.patch('/orders/:id', {
-    preHandler: [app.requireAuth, async (req, reply) => {
-      await app.requireRole(req, reply, ['admin', 'manager', 'staff', 'kitchen']);
-    }]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = UpdateOrderSchema.parse(req.body);
-    const tenantIds = req.auth?.tenantIds || [];
-
-    if (tenantIds.length === 0) {
-      return reply.code(403).send({ error: 'no_tenant_access' });
-    }
-
-    try {
-      const updates: any = {};
-      
-      if (body.status) {
-        updates.status = body.status;
-        
-        // Set timestamps based on status
-        if (body.status === 'ready') updates.ready_at = new Date().toISOString();
-        if (body.status === 'served') updates.served_at = new Date().toISOString();
-        if (body.status === 'cancelled') updates.cancelled_at = new Date().toISOString();
-      }
-
-      if (body.kitchen_state) {
-        updates.kitchen_state = body.kitchen_state;
-      }
-
-      const { data, error } = await app.supabase
-        .from('orders')
-        .update(updates)
-        .eq('id', params.id)
-        .in('tenant_id', tenantIds)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'order_not_found' });
-        }
-        throw error;
-      }
-
-      return reply.send({ order: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update order');
-      return reply.code(500).send({ error: 'failed_to_update_order' });
-    }
-  });
-
-  // DELETE /orders/:id - Cancel order
-  app.delete('/orders/:id', {
-    preHandler: [app.requireAuth, async (req, reply) => {
-      await app.requireRole(req, reply, ['admin', 'manager']);
-    }]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const tenantIds = req.auth?.tenantIds || [];
-    if (tenantIds.length === 0) {
-      return reply.code(403).send({ error: 'no_tenant_access' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: 'Cancelled by staff'
-        })
-        .eq('id', params.id)
-        .in('tenant_id', tenantIds)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'order_not_found' });
-        }
-        throw error;
-      }
-
-      return reply.send({ order: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to cancel order');
-      return reply.code(500).send({ error: 'failed_to_cancel_order' });
-    }
-  });
-}

@@ -234,3 +234,67 @@ export function updatePaymentIntent(id: string, data: any) {
 export function listPaymentEvents() {
   return apiRequest('/payments/events');
 }
+
+/** QR & Cart APIs (Public - No Auth Required) */
+export function resolveQR(code: string, table: string, sig: string, exp: number) {
+  return apiRequest(`/qr/resolve?code=${code}&table=${table}&sig=${sig}&exp=${exp}`, {}, { requireAuth: false });
+}
+
+export function createCartSession(data: any) {
+  return apiRequest('/cart/session', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function getCart(sessionId: string) {
+  return apiRequest(`/cart/session/${sessionId}`, {}, { requireAuth: false });
+}
+
+export function addCartItem(data: any) {
+  return apiRequest('/cart/items', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function updateCartItem(id: string, data: any) {
+  return apiRequest(`/cart/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function removeCartItem(id: string) {
+  return apiRequest(`/cart/items/${id}`, { method: 'DELETE' }, { requireAuth: false });
+}
+
+export function placeOrderFromCart(data: any) {
+  return apiRequest('/orders/from-cart', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+/** Payment Lifecycle APIs */
+export function createPaymentIntent(data: any) {
+  return apiRequest('/payments/intent', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function confirmPaymentIntent(id: string) {
+  return apiRequest(`/payments/intent/${id}/confirm`, { method: 'POST' });
+}
+
+export function createPaymentSplits(paymentId: string, splits: any[]) {
+  return apiRequest(`/payments/${paymentId}/splits`, { method: 'POST', body: JSON.stringify(splits) });
+}
+
+export function createRefund(paymentId: string, data: any) {
+  return apiRequest(`/payments/${paymentId}/refunds`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Receipt APIs */
+export function sendReceipt(orderId: string, data: any) {
+  return apiRequest(`/receipts/${orderId}/send`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function listReceipts(filters?: any) {
+  const searchParams = new URLSearchParams();
+  if (filters?.order_id) searchParams.set('order_id', filters.order_id);
+  if (filters?.status) searchParams.set('status', filters.status);
+  const query = searchParams.toString();
+  return apiRequest(`/receipts${query ? `?${query}` : ''}`);
+}
+
+/** Order Assignment APIs */
+export function assignStaffToOrder(orderId: string, staffUserId: string) {
+  return apiRequest(`/orders/${orderId}/assign`, { method: 'POST', body: JSON.stringify({ staff_user_id: staffUserId }) });
+}

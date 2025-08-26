@@ -219,6 +219,226 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /payments/intent - Create payment intent
+  app.post('/payments/intent', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      amount: z.number().positive(),
+      method: z.enum(['card', 'cash', 'upi', 'wallet'])
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Verify order exists and belongs to tenant
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, total_amount, status')
+        .eq('id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Create payment intent
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .insert({
+          tenant_id: tenantId,
+          order_id: body.order_id,
+          amount: body.amount,
+          currency: 'USD',
+          provider: body.method === 'card' ? 'stripe' : 'other',
+          status: 'requires_payment_method',
+          metadata: { method: body.method }
+        })
+        .select()
+        .single();
+
+      if (intentError) throw intentError;
+
+      return reply.code(201).send({ intent });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create payment intent');
+      return reply.code(500).send({ error: 'failed_to_create_intent' });
+    }
+  });
+
+  // POST /payments/intent/:id/confirm - Confirm payment (dev-mode)
+  app.post('/payments/intent/:id/confirm', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Get payment intent
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .select('*')
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (intentError || !intent) {
+        return reply.code(404).send({ error: 'intent_not_found' });
+      }
+
+      // Update intent to completed
+      const { data: updatedIntent, error: updateError } = await app.supabase
+        .from('payment_intents')
+        .update({
+          status: 'succeeded',
+          provider_intent_id: `dev_${Date.now()}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', params.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Create payment event
+      await app.supabase
+        .from('payment_events')
+        .insert({
+          tenant_id: tenantId,
+          provider: intent.provider,
+          event_id: `dev_payment_confirmed_${Date.now()}`,
+          payload: {
+            type: 'payment_intent.succeeded',
+            data: { id: intent.id, amount: intent.amount }
+          }
+        });
+
+      // Update order to paid if this was the full amount
+      if (intent.order_id) {
+        await app.supabase
+          .from('orders')
+          .update({ status: 'paid', payment_status: 'completed' })
+          .eq('id', intent.order_id);
+
+        // Create order status event
+        await app.supabase
+          .from('order_status_events')
+          .insert({
+            tenant_id: tenantId,
+            order_id: intent.order_id,
+            status: 'paid',
+            created_by: req.auth?.userId || 'system'
+          });
+      }
+
+      return reply.send({ intent: updatedIntent });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to confirm payment intent');
+      return reply.code(500).send({ error: 'failed_to_confirm_payment' });
+    }
+  });
+
+  // POST /payments/:payment_id/splits - Create payment splits
+  app.post('/payments/:payment_id/splits', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      payment_id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = z.array(z.object({
+      amount: z.number().positive(),
+      method: z.string(),
+      payer_type: z.string().optional()
+    })).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Create payment splits
+      const splits = body.map(split => ({
+        tenant_id: tenantId,
+        payment_id: params.payment_id,
+        amount: split.amount,
+        method: split.method,
+        payer_type: split.payer_type || 'customer',
+        status: 'pending'
+      }));
+
+      const { data: createdSplits, error: splitsError } = await app.supabase
+        .from('payment_splits')
+        .insert(splits)
+        .select();
+
+      if (splitsError) throw splitsError;
+
+      return reply.code(201).send({ splits: createdSplits });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create payment splits');
+      return reply.code(500).send({ error: 'failed_to_create_splits' });
+    }
+  });
+
+  // POST /payments/:payment_id/refunds - Create refund
+  app.post('/payments/:payment_id/refunds', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      payment_id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = z.object({
+      amount: z.number().positive(),
+      reason: z.string()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Create refund record
+      const { data: refund, error: refundError } = await app.supabase
+        .from('payment_refunds')
+        .insert({
+          tenant_id: tenantId,
+          payment_id: params.payment_id,
+          amount: body.amount,
+          reason: body.reason,
+          status: 'pending',
+          created_by: req.auth?.userId || 'system'
+        })
+        .select()
+        .single();
+
+      if (refundError) throw refundError;
+
+      return reply.code(201).send({ refund });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create refund');
+      return reply.code(500).send({ error: 'failed_to_create_refund' });
+    }
+  });
+
   // PATCH /payments/intents/:id - Update payment intent
   app.patch('/payments/intents/:id', {
     preHandler: [app.requireAuth]
@@ -280,6 +500,230 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error(err, 'Failed to fetch payment events');
       return reply.code(500).send({ error: 'failed_to_fetch_events' });
+    }
+  });
+
+  // POST /payments/intent - Create payment intent
+  app.post('/payments/intent', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      amount: z.number().positive(),
+      method: z.enum(['card', 'cash', 'upi', 'wallet'])
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Verify order exists and belongs to tenant
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, order_number, total_amount, status')
+        .eq('id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Create payment intent
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .insert({
+          tenant_id: tenantId,
+          order_id: body.order_id,
+          amount: body.amount,
+          currency: 'USD',
+          provider: 'dev',
+          status: 'requires_payment_method',
+          metadata: { method: body.method }
+        })
+        .select()
+        .single();
+
+      if (intentError) throw intentError;
+
+      return reply.code(201).send({ intent });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create payment intent');
+      return reply.code(500).send({ error: 'failed_to_create_intent' });
+    }
+  });
+
+  // POST /payments/intent/:id/confirm - Confirm payment (dev-mode)
+  app.post('/payments/intent/:id/confirm', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Get payment intent
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .select('*')
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (intentError || !intent) {
+        return reply.code(404).send({ error: 'intent_not_found' });
+      }
+
+      // Update intent to succeeded
+      const { data: updatedIntent, error: updateError } = await app.supabase
+        .from('payment_intents')
+        .update({
+          status: 'succeeded',
+          provider_intent_id: `dev_${Date.now()}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', params.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Create payment event
+      await app.supabase
+        .from('payment_events')
+        .insert({
+          provider: 'dev',
+          event_id: `evt_${Date.now()}`,
+          tenant_id: tenantId,
+          payload: {
+            type: 'payment_intent.succeeded',
+            data: { object: updatedIntent }
+          },
+          received_at: new Date().toISOString()
+        });
+
+      // Update order to paid
+      if (intent.order_id) {
+        await app.supabase
+          .from('orders')
+          .update({
+            status: 'paid',
+            payment_status: 'completed'
+          })
+          .eq('id', intent.order_id);
+
+        // Create order status event
+        await app.supabase
+          .from('order_status_events')
+          .insert({
+            tenant_id: tenantId,
+            order_id: intent.order_id,
+            status: 'paid',
+            created_by: req.auth?.userId || 'system'
+          });
+      }
+
+      return reply.send({ intent: updatedIntent });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to confirm payment intent');
+      return reply.code(500).send({ error: 'failed_to_confirm_intent' });
+    }
+  });
+
+  // POST /payments/:payment_id/splits - Create payment splits
+  app.post('/payments/:payment_id/splits', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      payment_id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = z.array(z.object({
+      amount: z.number().positive(),
+      method: z.enum(['card', 'cash', 'upi', 'wallet']),
+      payer_type: z.string().optional()
+    })).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Create payment splits
+      const splits = body.map(split => ({
+        tenant_id: tenantId,
+        payment_id: params.payment_id,
+        amount: split.amount,
+        method: split.method,
+        payer_type: split.payer_type,
+        status: 'pending'
+      }));
+
+      const { data, error } = await app.supabase
+        .from('payment_splits')
+        .insert(splits)
+        .select();
+
+      if (error) throw error;
+
+      return reply.code(201).send({ splits: data });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create payment splits');
+      return reply.code(500).send({ error: 'failed_to_create_splits' });
+    }
+  });
+
+  // POST /payments/:payment_id/refunds - Create refund
+  app.post('/payments/:payment_id/refunds', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      payment_id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = z.object({
+      amount: z.number().positive(),
+      reason: z.string()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Create refund record
+      const { data: refund, error: refundError } = await app.supabase
+        .from('payment_refunds')
+        .insert({
+          tenant_id: tenantId,
+          payment_id: params.payment_id,
+          amount: body.amount,
+          reason: body.reason,
+          status: 'pending',
+          created_by: req.auth?.userId
+        })
+        .select()
+        .single();
+
+      if (refundError) throw refundError;
+
+      return reply.code(201).send({ refund });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create refund');
+      return reply.code(500).send({ error: 'failed_to_create_refund' });
     }
   });
 
