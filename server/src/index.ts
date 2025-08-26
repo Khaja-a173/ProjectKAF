@@ -10,6 +10,7 @@ import authPlugin from './plugins/auth';
 import authPlugin from './plugins/auth';
 import tenantRoutes from './routes/tenants';
 import authRoutes from './routes/auth';
+import analyticsRoutes from './routes/analytics';
 import authRoutes from './routes/auth';
 import analyticsRoutes from './routes/analytics.js';
 
@@ -24,6 +25,7 @@ await app.register(authPlugin);      // 👈 BEFORE any routes that use app.requ
 await app.register(authPlugin);
 await app.register(tenantRoutes);
 await app.register(authRoutes);
+await app.register(analyticsRoutes);
 await app.register(authRoutes);
 await app.register(analyticsRoutes);
 // Single, namespaced health endpoint (avoid collisions)
