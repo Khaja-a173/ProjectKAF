@@ -199,3 +199,38 @@ export function getBranding() {
 export function updateBranding(data: any) {
   return apiRequest('/branding', { method: 'PATCH', body: JSON.stringify(data) });
 }
+
+/** Payment APIs */
+export function getPaymentProviders() {
+  return apiRequest('/payments/providers');
+}
+
+export function createPaymentProvider(data: any) {
+  return apiRequest('/payments/providers', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updatePaymentProvider(id: string, data: any) {
+  return apiRequest(`/payments/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function listPaymentIntents(filters?: { order_id?: string; status?: string; limit?: number; page?: number }) {
+  const searchParams = new URLSearchParams();
+  if (filters?.order_id) searchParams.set('order_id', filters.order_id);
+  if (filters?.status) searchParams.set('status', filters.status);
+  if (filters?.limit) searchParams.set('limit', filters.limit.toString());
+  if (filters?.page) searchParams.set('page', filters.page.toString());
+  const query = searchParams.toString();
+  return apiRequest(`/payments/intents${query ? `?${query}` : ''}`);
+}
+
+export function createPaymentIntent(data: any) {
+  return apiRequest('/payments/intents', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updatePaymentIntent(id: string, data: any) {
+  return apiRequest(`/payments/intents/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function listPaymentEvents() {
+  return apiRequest('/payments/events');
+}

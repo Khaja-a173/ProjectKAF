@@ -29,6 +29,7 @@ import Tables from "./pages/Tables";
 import Staff from "./pages/Staff";
 import KDS from "./pages/KDS";
 import Branding from "./pages/Branding";
+import PaymentManagement from "./pages/PaymentManagement";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -193,6 +194,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Branding />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute>
+              <PaymentManagement />
             </ProtectedRoute>
           }
         />
