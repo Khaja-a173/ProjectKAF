@@ -1,5 +1,11 @@
 import { Link } from "react-router-dom";
 import { useAccessControl } from "../contexts/AccessControlContext";
+import { useState, useEffect } from "react";
+import { getSummary, getRevenue, getTopItems } from "../lib/api";
+import KpiCards from "../components/analytics/KpiCards";
+import RevenueChart from "../components/analytics/RevenueChart";
+import TopItems from "../components/analytics/TopItems";
+import { Protected } from "../lib/authGuard";
 import DashboardHeader from "../components/DashboardHeader";
 import {
   BarChart3,
@@ -19,8 +25,42 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
+  const [summaryData, setSummaryData] = useState(null);
+  const [revenueData, setRevenueData] = useState(null);
+  const [topItemsData, setTopItemsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [window, setWindow] = useState('7d');
+  const [granularity, setGranularity] = useState('day');
+
   const { canAccessDashboard, currentUser, switchUser, users } =
     useAccessControl();
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [window, granularity]);
+
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [summary, revenue, topItems] = await Promise.all([
+        getSummary(window),
+        getRevenue(window, granularity),
+        getTopItems(window, 10)
+      ]);
+
+      setSummaryData(summary);
+      setRevenueData(revenue);
+      setTopItemsData(topItems);
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const stats = [
     {
@@ -89,6 +129,7 @@ export default function Dashboard() {
   ];
 
   return (
+    <Protected>
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader 
         title="RestaurantOS" 
@@ -135,6 +176,60 @@ export default function Dashboard() {
             </Link>
           </div>
         </nav>
+
+        {/* Analytics Filters */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Business Analytics</h2>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Window:</label>
+                <select
+                  value={window}
+                  onChange={(e) => setWindow(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="7d">7 Days</option>
+                  <option value="30d">30 Days</option>
+                  <option value="90d">90 Days</option>
+                  <option value="mtd">Month to Date</option>
+                  <option value="qtd">Quarter to Date</option>
+                  <option value="ytd">Year to Date</option>
+                </select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Granularity:</label>
+                <select
+                  value={granularity}
+                  onChange={(e) => setGranularity(e.target.value)}
+                  disabled={window === '7d'}
+                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                >
+                  <option value="day">Day</option>
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="mb-8">
+          <KpiCards data={summaryData} loading={loading} error={error} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Revenue Chart */}
+          <div className="lg:col-span-2">
+            <RevenueChart data={revenueData} loading={loading} error={error} />
+          </div>
+
+          {/* Top Items */}
+          <div>
+            <TopItems data={topItemsData} loading={loading} error={error} />
+          </div>
+        </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -336,5 +431,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    </Protected>
   );
 }
