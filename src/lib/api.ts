@@ -1,56 +1,56 @@
+// /home/project/src/lib/api.ts
 import { supabase } from './supabase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
+async function buildAuthHeader(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.access_token) {
-    throw new Error('No authentication token available');
+  if (session?.access_token) {
+    return { Authorization: `Bearer ${session.access_token}` };
   }
+  return {};
+}
 
-  return {
-    'Authorization': `Bearer ${session.access_token}`,
-    'Content-Type': 'application/json'
+async function apiRequest(
+  endpoint: string,
+  options: RequestInit = {},
+  { requireAuth = true }: { requireAuth?: boolean } = {}
+): Promise<any> {
+  const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  const authHeader = requireAuth ? await buildAuthHeader() : {};
+  const headers = { ...baseHeaders, ...authHeader, ...(options.headers as Record<string, string> | undefined) };
+
+  const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+
+  // Try to parse JSON either way for better errors
+  const tryJson = async () => {
+    try { return await res.json(); } catch { return null; }
   };
-}
 
-async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-  try {
-    const headers = await getAuthHeaders();
-    
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...options.headers
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (err) {
-    console.error('API request failed:', endpoint, err);
-    throw err;
+  if (!res.ok) {
+    const body = await tryJson();
+    const msg = (body && (body.error || body.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
+
+  const data = await tryJson();
+  return data;
 }
 
-export async function getSummary(window: string = '7d') {
-  return apiRequest(`/analytics/summary?window=${window}`);
+/** Analytics APIs */
+export function getSummary(window = '7d') {
+  return apiRequest(`/analytics/summary?window=${encodeURIComponent(window)}`);
 }
 
-export async function getRevenue(window: string = '30d', granularity: string = 'day') {
-  return apiRequest(`/analytics/revenue?window=${window}&granularity=${granularity}`);
+export function getRevenue(window = '30d', granularity = 'day') {
+  return apiRequest(`/analytics/revenue?window=${encodeURIComponent(window)}&granularity=${encodeURIComponent(granularity)}`);
 }
 
-export async function getTopItems(window: string = '30d', limit: number = 10) {
-  return apiRequest(`/analytics/top-items?window=${window}&limit=${limit}`);
+export function getTopItems(window = '30d', limit = 10) {
+  return apiRequest(`/analytics/top-items?window=${encodeURIComponent(window)}&limit=${limit}`);
 }
 
-export async function getWhoAmI() {
-  return apiRequest('/auth/whoami');
+/** Auth – whoami should NOT require a token (lets UI show logged-out state cleanly) */
+export function getWhoAmI() {
+  return apiRequest('/auth/whoami', {}, { requireAuth: false });
 }
