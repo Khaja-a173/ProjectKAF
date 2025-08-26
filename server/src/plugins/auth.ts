@@ -1,10 +1,10 @@
+// server/src/plugins/auth.ts
 import fp from 'fastify-plugin';
 import type { FastifyRequest } from 'fastify';
 
 type StaffMembership = {
   tenant_id: string;
   role: 'admin' | 'manager' | 'staff' | 'kitchen' | 'cashier';
-  tenant_code?: string | null;
 };
 
 declare module 'fastify' {
@@ -21,44 +21,40 @@ declare module 'fastify' {
 
 export default fp(async (app) => {
   app.addHook('preHandler', async (req) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return;
+    const h = req.headers.authorization;
+    if (!h?.startsWith('Bearer ')) return;
 
-    const accessToken = authHeader.slice('Bearer '.length);
+    const token = h.slice('Bearer '.length).trim();
+    if (!token) return;
 
     // 1) Validate token
-    const { data: { user }, error: authErr } = await app.supabase.auth.getUser(accessToken);
-    if (authErr || !user) {
-      app.log.warn({ authErr }, 'Token validation failed');
-      return; // unauthenticated
+    const { data, error } = await app.supabase.auth.getUser(token);
+    if (error || !data?.user) {
+      app.log.warn({ error }, 'auth.getUser failed');
+      return;
     }
 
-    // 2) Mark authenticated EARLY
+    // 2) Mark authenticated immediately
     req.auth = {
-      userId: user.id,
-      email: user.email ?? null,
+      userId: data.user.id,
+      email: data.user.email ?? null,
       memberships: [],
       tenantIds: [],
       primaryTenantId: null,
     };
 
-    // 3) Best-effort memberships WITHOUT joins
-    const { data: staffRows, error: staffErr } = await app.supabase
+    // 3) Best-effort membership load (no joins)
+    const { data: staff, error: staffErr } = await app.supabase
       .from('staff')
       .select('tenant_id, role')
-      .eq('user_id', user.id);
+      .eq('user_id', data.user.id);
 
     if (staffErr) {
-      app.log.warn({ staffErr }, 'Staff membership load failed; continuing as authenticated with no memberships');
+      app.log.warn({ staffErr }, 'staff lookup failed; continuing');
       return;
     }
 
-    const memberships: StaffMembership[] = (staffRows ?? []).map((r: any) => ({
-      tenant_id: r.tenant_id,
-      role: r.role,
-      tenant_code: null,
-    }));
-
+    const memberships = (staff ?? []) as StaffMembership[];
     req.auth.memberships = memberships;
     req.auth.tenantIds = memberships.map(m => m.tenant_id);
     req.auth.primaryTenantId = memberships[0]?.tenant_id ?? null;
@@ -66,28 +62,6 @@ export default fp(async (app) => {
 
   // Guards
   app.decorateReply('requireAuth', function (this: any, req: FastifyRequest) {
-    if (!req.auth?.userId) {
-      throw this.httpErrors?.unauthorized?.('Missing/invalid token') ?? new Error('Unauthorized');
-    }
-  });
-
-  app.decorateReply('requireRole', function (this: any, req: FastifyRequest, roles: string[]) {
-    if (!req.auth?.userId) {
-      throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
-    }
-    const has = req.auth.memberships.some(m => roles.includes(m.role));
-    if (!has) {
-      throw this.httpErrors?.forbidden?.('Insufficient role') ?? new Error('Forbidden');
-    }
-  });
-
-  app.decorateReply('requireTenantCtx', function (this: any, req: FastifyRequest, tenantId?: string) {
-    if (!req.auth?.userId) {
-      throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
-    }
-    const tid = tenantId ?? req.auth.primaryTenantId;
-    if (!tid || !req.auth.tenantIds.includes(tid)) {
-      throw this.httpErrors?.forbidden?.('No tenant access') ?? new Error('Forbidden');
-    }
+    if (!req.auth?.userId) throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
   });
 });
