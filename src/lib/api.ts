@@ -1,7 +1,11 @@
 // /home/project/src/lib/api.ts
 import { supabase } from './supabase';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
+// normalize: no trailing slash
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
+// small helper to join safely
+const join = (base: string, path: string) => `${base}${path.startsWith('/') ? path : `/${path}`}`;
 
 async function waitForSessionToken(timeoutMs = 3000): Promise<string | null> {
   const start = Date.now();
@@ -66,7 +70,7 @@ async function apiRequest(
     headers = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) };
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+  const res = await fetch(join(API_BASE, endpoint), { ...options, headers });
 
   // Try to parse JSON either way for better errors
   const tryJson = async () => {
