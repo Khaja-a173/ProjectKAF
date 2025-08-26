@@ -18,6 +18,7 @@ declare module 'fastify' {
   }
   interface FastifyInstance {
     requireAuth: (req: FastifyRequest, reply: FastifyReply) => void | Promise<void>;
+    requireRole: (req: FastifyRequest, reply: FastifyReply, roles: string[]) => void | Promise<void>;
   }
 }
 
@@ -77,6 +78,14 @@ export default fp(async (app: FastifyInstance) => {
       if (!req.auth?.userId) {
         return reply.code(401).send({ authenticated: false, reason: 'no_token' });
       }
+    });
+  }
+
+  // C) Role-based guard for route preHandlers
+  if (!app.hasDecorator('requireRole')) {
+    app.decorate('requireRole', async (req: FastifyRequest, reply: FastifyReply, roles: string[]) => {
+      const ok = !!req.auth?.memberships?.some(m => roles.includes(m.role));
+      if (!ok) return reply.code(403).send({ error: 'forbidden' });
     });
   }
 }, { name: 'auth-plugin' }); // meta name helps debugging duplicate loads

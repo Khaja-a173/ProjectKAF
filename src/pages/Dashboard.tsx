@@ -329,34 +329,12 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {canAccessDashboard("MENU") && (
                   <Link
-                    to="/admin/menu"
+                    to="/menu-admin"
                     className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <MenuIcon className="w-5 h-5 text-blue-600 mr-3" />
                     <span className="font-medium text-blue-900">
-                      Admin Menu Management
-                    </span>
-                  </Link>
-                )}
-                {canAccessDashboard("KITCHEN") && (
-                  <Link
-                    to="/kitchen-dashboard"
-                    className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                  >
-                    <ChefHat className="w-5 h-5 text-red-600 mr-3" />
-                    <span className="font-medium text-red-900">
-                      Kitchen Dashboard
-                    </span>
-                  </Link>
-                )}
-                {canAccessDashboard("CUSTOMIZATION") && (
-                  <Link
-                    to="/application-customization"
-                    className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                  >
-                    <Settings className="w-5 h-5 text-purple-600 mr-3" />
-                    <span className="font-medium text-purple-900">
-                      Application Customization
+                      Menu Management
                     </span>
                   </Link>
                 )}
@@ -367,7 +345,51 @@ export default function Dashboard() {
                   >
                     <ShoppingCart className="w-5 h-5 text-green-600 mr-3" />
                     <span className="font-medium text-green-900">
-                      View Orders
+                      Order Management
+                    </span>
+                  </Link>
+                )}
+                {canAccessDashboard("TABLES") && (
+                  <Link
+                    to="/tables"
+                    className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                  >
+                    <Grid3X3 className="w-5 h-5 text-indigo-600 mr-3" />
+                    <span className="font-medium text-indigo-900">
+                      Table Management
+                    </span>
+                  </Link>
+                )}
+                {canAccessDashboard("STAFF") && (
+                  <Link
+                    to="/staff"
+                    className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                  >
+                    <Users className="w-5 h-5 text-purple-600 mr-3" />
+                    <span className="font-medium text-purple-900">
+                      Staff Management
+                    </span>
+                  </Link>
+                )}
+                {canAccessDashboard("KITCHEN") && (
+                  <Link
+                    to="/kds"
+                    className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <ChefHat className="w-5 h-5 text-red-600 mr-3" />
+                    <span className="font-medium text-red-900">
+                      Kitchen Dashboard
+                    </span>
+                  </Link>
+                )}
+                {canAccessDashboard("CUSTOMIZATION") && (
+                  <Link
+                    to="/branding"
+                    className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                  >
+                    <Settings className="w-5 h-5 text-purple-600 mr-3" />
+                    <span className="font-medium text-purple-900">
+                      Branding & Customization
                     </span>
                   </Link>
                 )}
@@ -379,28 +401,6 @@ export default function Dashboard() {
                     <BarChart3 className="w-5 h-5 text-purple-600 mr-3" />
                     <span className="font-medium text-purple-900">
                       Analytics
-                    </span>
-                  </Link>
-                )}
-                {canAccessDashboard("TABLES") && (
-                  <Link
-                    to="/table-management"
-                    className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-                  >
-                    <Grid3X3 className="w-5 h-5 text-indigo-600 mr-3" />
-                    <span className="font-medium text-indigo-900">
-                      Table Management
-                    </span>
-                  </Link>
-                )}
-                {canAccessDashboard("STAFF") && (
-                  <Link
-                    to="/staff-management"
-                    className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                  >
-                    <Users className="w-5 h-5 text-purple-600 mr-3" />
-                    <span className="font-medium text-purple-900">
-                      Staff Management
                     </span>
                   </Link>
                 )}

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { beginCheckoutAttempt, endCheckoutAttempt, getCurrentAttemptKey } from "../lib/idempotency";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import DashboardHeader from "../components/DashboardHeader";
 import SessionCartComponent from "../components/SessionCart";
 import OrderSuccessModal from "../components/OrderSuccessModal";
 import TableSessionBadge from "../components/TableSessionBadge";

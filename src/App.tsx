@@ -23,6 +23,12 @@ import StaffManagement from "./pages/StaffManagement";
 import CustomerMenu from "./pages/CustomerMenu";
 import ApplicationCustomization from "./pages/ApplicationCustomization";
 import KitchenDashboard from "./pages/KitchenDashboard";
+import Orders from "./pages/Orders";
+import MenuAdmin from "./pages/MenuAdmin";
+import Tables from "./pages/Tables";
+import Staff from "./pages/Staff";
+import KDS from "./pages/KDS";
+import Branding from "./pages/Branding";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -139,6 +145,54 @@ function App() {
           element={
             <ProtectedRoute requiredDashboard="CUSTOMIZATION">
               <ApplicationCustomization />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <Orders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/menu-admin"
+          element={
+            <ProtectedRoute>
+              <MenuAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tables"
+          element={
+            <ProtectedRoute>
+              <Tables />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/staff"
+          element={
+            <ProtectedRoute>
+              <Staff />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kds"
+          element={
+            <ProtectedRoute>
+              <KDS />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/branding"
+          element={
+            <ProtectedRoute>
+              <Branding />
             </ProtectedRoute>
           }
         />
