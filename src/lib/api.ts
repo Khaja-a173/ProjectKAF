@@ -1,7 +1,7 @@
 // /home/project/src/lib/api.ts
 import { supabase } from './supabase';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = '/api';
 
 async function buildAuthHeader(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
