@@ -1,7 +1,49 @@
 // /home/project/src/lib/api.ts
 import { supabase } from './supabase';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL;
+
+async function waitForSessionToken(timeoutMs = 3000): Promise<string | null> {
+  const start = Date.now();
+  // try immediate
+  let { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) return session.access_token;
+
+  // subscribe and wait until a token arrives or timeout
+  return await new Promise((resolve) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        sub.subscription?.unsubscribe();
+        resolve(session.access_token);
+      } else if (Date.now() - start > timeoutMs) {
+        sub.subscription?.unsubscribe();
+        resolve(null);
+      }
+    });
+    // hard timeout fallback
+    setTimeout(async () => {
+      sub.subscription?.unsubscribe();
+      const { data: { session } } = await supabase.auth.getSession();
+      resolve(session?.access_token ?? null);
+    }, timeoutMs);
+  });
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  // First, try immediate session
+  let { data: { session } } = await supabase.auth.getSession();
+  let token = session?.access_token;
+
+  // If not ready yet, wait briefly
+  if (!token) token = await waitForSessionToken(3000);
+  if (!token) throw new Error('No authentication token available');
+
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
 
 async function buildAuthHeader(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -16,9 +58,13 @@ async function apiRequest(
   options: RequestInit = {},
   { requireAuth = true }: { requireAuth?: boolean } = {}
 ): Promise<any> {
-  const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-  const authHeader = requireAuth ? await buildAuthHeader() : {};
-  const headers = { ...baseHeaders, ...authHeader, ...(options.headers as Record<string, string> | undefined) };
+  let headers: Record<string, string>;
+  
+  if (requireAuth) {
+    headers = { ...(await getAuthHeaders()), ...(options.headers as Record<string, string> | undefined) };
+  } else {
+    headers = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) };
+  }
 
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
 
