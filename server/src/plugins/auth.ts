@@ -20,48 +20,51 @@ declare module 'fastify' {
 }
 
 export default fp(async (app) => {
-  // PreHandler to authenticate and enrich request with staff memberships
   app.addHook('preHandler', async (req) => {
-    // Only guard when Authorization header present; public routes still work
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) return;
 
     const accessToken = authHeader.slice('Bearer '.length);
 
-    // Validate token via Supabase Admin client (service role)
+    // 1) Validate token
     const { data: { user }, error: authErr } = await app.supabase.auth.getUser(accessToken);
     if (authErr || !user) {
-      // leave unauthenticated; don't throw globally, specific routes can require
-      return;
+      app.log.warn({ authErr }, 'Token validation failed');
+      return; // unauthenticated
     }
 
-    // Fetch staff memberships for this user (multi-tenant)
+    // 2) Mark authenticated EARLY
+    req.auth = {
+      userId: user.id,
+      email: user.email ?? null,
+      memberships: [],
+      tenantIds: [],
+      primaryTenantId: null,
+    };
+
+    // 3) Best-effort memberships WITHOUT joins
     const { data: staffRows, error: staffErr } = await app.supabase
       .from('staff')
-      .select('tenant_id, role, tenants!inner(code)')
+      .select('tenant_id, role')
       .eq('user_id', user.id);
 
     if (staffErr) {
-      app.log.error(staffErr, 'Failed to load staff memberships');
+      app.log.warn({ staffErr }, 'Staff membership load failed; continuing as authenticated with no memberships');
       return;
     }
 
     const memberships: StaffMembership[] = (staffRows ?? []).map((r: any) => ({
       tenant_id: r.tenant_id,
       role: r.role,
-      tenant_code: r.tenants?.code ?? null,
+      tenant_code: null,
     }));
 
-    req.auth = {
-      userId: user.id,
-      email: user.email ?? null,
-      memberships,
-      tenantIds: memberships.map(m => m.tenant_id),
-      primaryTenantId: memberships[0]?.tenant_id ?? null,
-    };
+    req.auth.memberships = memberships;
+    req.auth.tenantIds = memberships.map(m => m.tenant_id);
+    req.auth.primaryTenantId = memberships[0]?.tenant_id ?? null;
   });
 
-  // Decorate simple guards
+  // Guards
   app.decorateReply('requireAuth', function (this: any, req: FastifyRequest) {
     if (!req.auth?.userId) {
       throw this.httpErrors?.unauthorized?.('Missing/invalid token') ?? new Error('Unauthorized');
