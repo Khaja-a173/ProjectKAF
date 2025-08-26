@@ -9,6 +9,7 @@ import supabasePlugin from './plugins/supabase';
 import authPlugin from './plugins/auth';
 import tenantRoutes from './routes/tenants';
 import authRoutes from './routes/auth';
+import analyticsRoutes from './routes/analytics.js';
 
 const app = Fastify({ logger: true });
 
@@ -20,7 +21,7 @@ await app.register(supabasePlugin);
 await app.register(authPlugin);
 await app.register(tenantRoutes);
 await app.register(authRoutes);
-
+await app.register(analyticsRoutes);
 // Single, namespaced health endpoint (avoid collisions)
 app.get('/_health', async () => ({ ok: true }));
 
