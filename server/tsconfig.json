@@ -9,6 +9,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
-  },
+    "src",
+    "src/types"
   "include": ["src"]
 }
