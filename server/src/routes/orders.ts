@@ -1,6 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
+const PlaceOrderFromCartSchema = z.object({
+  session_id: z.string().uuid(),
+  assigned_staff_id: z.string().uuid().optional()
+});
+
+const UpdateOrderStatusSchema = z.object({
+  status: z.enum(['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid', 'cancelled'])
+});
+
+const AssignStaffSchema = z.object({
+  staff_user_id: z.string().uuid()
+});
+
 const CreateOrderSchema = z.object({
   order_type: z.enum(['dine_in', 'takeaway']).default('dine_in'),
   table_id: z.string().uuid().optional(),
@@ -78,6 +91,238 @@ export default async function ordersRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error(err, 'Failed to fetch orders');
       return reply.code(500).send({ error: 'failed_to_fetch_orders' });
+    }
+  });
+
+  // POST /orders/from-cart - Create order from cart session
+  app.post('/orders/from-cart', async (req, reply) => {
+    const body = PlaceOrderFromCartSchema.parse(req.body);
+    
+    try {
+      // Get cart session with items
+      const { data: session, error: sessionError } = await app.supabase
+        .from('cart_sessions')
+        .select(`
+          *,
+          cart_items (
+            *,
+            menu_items (
+              id,
+              name,
+              price
+            )
+          )
+        `)
+        .eq('id', body.session_id)
+        .eq('status', 'active')
+        .single();
+      
+      if (sessionError || !session) {
+        return reply.code(404).send({ error: 'session_not_found_or_inactive' });
+      }
+      
+      if (!session.cart_items || session.cart_items.length === 0) {
+        return reply.code(400).send({ error: 'cart_is_empty' });
+      }
+      
+      // Calculate totals
+      const subtotal = session.cart_items.reduce((sum: number, item: any) => {
+        const price = item.menu_items?.price || 0;
+        return sum + (price * item.qty);
+      }, 0);
+      
+      const taxAmount = subtotal * 0.08; // 8% tax
+      const totalAmount = subtotal + taxAmount;
+      
+      // Generate order number
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+      
+      // Create order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .insert({
+          tenant_id: session.tenant_id,
+          table_id: session.table_id,
+          staff_id: body.assigned_staff_id,
+          order_number: orderNumber,
+          order_type: session.mode === 'dine_in' ? 'dine_in' : 'takeaway',
+          status: 'pending',
+          subtotal,
+          tax_amount: taxAmount,
+          total_amount: totalAmount,
+          session_id: session.id
+        })
+        .select()
+        .single();
+      
+      if (orderError) throw orderError;
+      
+      // Create order items
+      const orderItems = session.cart_items.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.menu_item_id,
+        quantity: item.qty,
+        unit_price: item.menu_items?.price || 0,
+        total_price: (item.menu_items?.price || 0) * item.qty,
+        special_instructions: item.notes,
+        tenant_id: session.tenant_id
+      }));
+      
+      const { error: itemsError } = await app.supabase
+        .from('order_items')
+        .insert(orderItems);
+      
+      if (itemsError) throw itemsError;
+      
+      // Create status event
+      await app.supabase
+        .from('order_status_events')
+        .insert({
+          tenant_id: session.tenant_id,
+          order_id: order.id,
+          status: 'pending',
+          created_by: body.assigned_staff_id || 'customer'
+        });
+      
+      // Mark cart session as completed
+      await app.supabase
+        .from('cart_sessions')
+        .update({ status: 'completed' })
+        .eq('id', body.session_id);
+      
+      // If dine_in, optionally mark table as occupied
+      if (session.mode === 'dine_in' && session.table_id) {
+        await app.supabase
+          .from('restaurant_tables')
+          .update({ status: 'occupied' })
+          .eq('id', session.table_id);
+      }
+      
+      return reply.code(201).send({
+        order: {
+          id: order.id,
+          number: order.order_number,
+          status: order.status,
+          totals: {
+            subtotal,
+            tax: taxAmount,
+            total: totalAmount
+          }
+        }
+      });
+      
+    } catch (err: any) {
+      app.log.error(err, 'Failed to place order from cart');
+      return reply.code(500).send({ error: 'failed_to_place_order' });
+    }
+  });
+
+  // PATCH /orders/:id/status - Update order status
+  app.patch('/orders/:id/status', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = UpdateOrderStatusSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Update order status
+      const updates: any = { status: body.status };
+      
+      // Set timestamps based on status
+      if (body.status === 'ready') updates.ready_at = new Date().toISOString();
+      if (body.status === 'served') updates.served_at = new Date().toISOString();
+      if (body.status === 'cancelled') updates.cancelled_at = new Date().toISOString();
+
+      const { data: order, error: updateError } = await app.supabase
+        .from('orders')
+        .update(updates)
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (updateError) {
+        if (updateError.code === 'PGRST116') {
+          return reply.code(404).send({ error: 'order_not_found' });
+        }
+        throw updateError;
+      }
+
+      // Create status event
+      await app.supabase
+        .from('order_status_events')
+        .insert({
+          tenant_id: tenantId,
+          order_id: params.id,
+          status: body.status,
+          created_by: req.auth?.userId || 'system'
+        });
+
+      return reply.send({ order });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to update order status');
+      return reply.code(500).send({ error: 'failed_to_update_status' });
+    }
+  });
+
+  // POST /orders/:id/assign - Assign staff to order
+  app.post('/orders/:id/assign', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = AssignStaffSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Verify staff belongs to tenant
+      const { data: staff, error: staffError } = await app.supabase
+        .from('staff')
+        .select('id, user_id')
+        .eq('user_id', body.staff_user_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (staffError || !staff) {
+        return reply.code(404).send({ error: 'staff_not_found' });
+      }
+
+      // Update order with assigned staff
+      const { data: order, error: updateError } = await app.supabase
+        .from('orders')
+        .update({ staff_id: body.staff_user_id })
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (updateError) {
+        if (updateError.code === 'PGRST116') {
+          return reply.code(404).send({ error: 'order_not_found' });
+        }
+        throw updateError;
+      }
+
+      return reply.send({ order });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to assign staff to order');
+      return reply.code(500).send({ error: 'failed_to_assign_staff' });
     }
   });
 
