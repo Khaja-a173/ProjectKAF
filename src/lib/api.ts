@@ -1,9 +1,7 @@
 // /home/project/src/lib/api.ts
 import { supabase } from './supabase';
 
-const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
-// normalize: no trailing slash
-const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
+const API_BASE = '/api';
 // small helper to join safely
 const join = (base: string, path: string) => `${base}${path.startsWith('/') ? path : `/${path}`}`;
 
