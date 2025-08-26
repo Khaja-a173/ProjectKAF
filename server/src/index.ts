@@ -12,8 +12,6 @@ import authRoutes from './routes/auth';
 
 const app = Fastify({ logger: true });
 
-// Single, namespaced health endpoint (avoid collisions)
-app.get('/_health', async () => ({ ok: true }));
 
 // Plugins
 await app.register(cors, { origin: true, credentials: true });
@@ -22,6 +20,10 @@ await app.register(supabasePlugin);
 await app.register(authPlugin);
 await app.register(tenantRoutes);
 await app.register(authRoutes);
+
+// Single, namespaced health endpoint (avoid collisions)
+app.get('/_health', async () => ({ ok: true }));
+
 
 // Print all routes at startup so we can see what's registered
 app.ready(err => {
