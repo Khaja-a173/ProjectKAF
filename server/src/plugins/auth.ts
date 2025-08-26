@@ -22,6 +22,7 @@ declare module 'fastify' {
 }
 
 export default fp(async (app: FastifyInstance) => {
+  // --- Keep existing auth parsing & membership load unchanged ---
   app.addHook('preHandler', async (req) => {
     const h = req.headers.authorization;
     if (!h?.startsWith('Bearer ')) return;
@@ -29,14 +30,12 @@ export default fp(async (app: FastifyInstance) => {
     const token = h.slice('Bearer '.length).trim();
     if (!token) return;
 
-    // 1) Validate token
     const { data, error } = await app.supabase.auth.getUser(token);
     if (error || !data?.user) {
       app.log.warn({ error }, 'auth.getUser failed');
       return;
     }
 
-    // 2) Seed auth object
     req.auth = {
       userId: data.user.id,
       email: data.user.email ?? null,
@@ -45,7 +44,6 @@ export default fp(async (app: FastifyInstance) => {
       primaryTenantId: null,
     };
 
-    // 3) Load memberships
     const { data: staff, error: staffErr } = await app.supabase
       .from('staff')
       .select('tenant_id, role')
@@ -62,15 +60,23 @@ export default fp(async (app: FastifyInstance) => {
     req.auth.primaryTenantId = memberships[0]?.tenant_id ?? null;
   });
 
-  // ---- Guards ----
+  // ---- Guards (now idempotent) ----
 
-  // A) Keep existing reply-level guard (backward compatible)
-  app.decorateReply('requireAuth', function (this: any, req: FastifyRequest) {
-    if (!req.auth?.userId) throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
-  });
+  // A) Reply-level guard for handlers using reply.requireAuth()
+  if (!app.hasReplyDecorator('requireAuth')) {
+    app.decorateReply('requireAuth', function (this: any, req: FastifyRequest) {
+      if (!req.auth?.userId) {
+        throw this.httpErrors?.unauthorized?.('Unauthorized') ?? new Error('Unauthorized');
+      }
+    });
+  }
 
-  // B) Add instance-level guard for route preHandlers: [app.requireAuth]
-  app.decorate('requireAuth', async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!req.auth?.userId) return reply.code(401).send({ authenticated: false, reason: 'no_token' });
-  });
-});
+  // B) Instance-level guard for route preHandlers: [app.requireAuth]
+  if (!app.hasDecorator('requireAuth')) {
+    app.decorate('requireAuth', async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!req.auth?.userId) {
+        return reply.code(401).send({ authenticated: false, reason: 'no_token' });
+      }
+    });
+  }
+}, { name: 'auth-plugin' }); // meta name helps debugging duplicate loads
