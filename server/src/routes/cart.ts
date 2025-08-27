@@ -1,47 +1,92 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
-const CreateCartSchema = z.object({
+const StartCartSchema = z.object({
+  mode: z.enum(['dine_in', 'takeaway']),
+  table_id: z.string().uuid().nullable()
+});
+
+const AddItemsSchema = z.object({
+  cart_id: z.string().uuid(),
   items: z.array(z.object({
     menu_item_id: z.string().uuid(),
     qty: z.number().int().positive()
-  })),
-  order_type: z.enum(['dine_in', 'takeaway']),
-  table_id: z.string().uuid().optional()
+  }))
 });
 
-const CheckoutSchema = z.object({
-  session_id: z.string().uuid(),
-  customer: z.object({
-    email: z.string().email().optional(),
-    phone: z.string().optional()
-  }).optional()
+const GetCartSchema = z.object({
+  cart_id: z.string().uuid()
 });
 
 // In-memory cart storage for dev (replace with DB in production)
 const cartStorage = new Map<string, any>();
 
 export default async function cartRoutes(app: FastifyInstance) {
-  // POST /public/cart - Create cart session
-  app.post('/public/cart', async (req, reply) => {
-    const body = CreateCartSchema.parse(req.body);
+  // POST /cart/start - Create cart session
+  app.post('/cart/start', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = StartCartSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
+    
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
     
     try {
-      // Generate session IDs
-      const cartId = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      
       // Validate table exists if provided
       if (body.table_id) {
         const { data: table, error: tableError } = await app.supabase
           .from('restaurant_tables')
           .select('id, tenant_id, table_number, status')
           .eq('id', body.table_id)
+          .eq('tenant_id', tenantId)
           .single();
         
         if (tableError || !table) {
           return reply.code(404).send({ error: 'table_not_found' });
         }
+      }
+      
+      // Generate cart ID
+      const cartId = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      
+      // Store cart in memory
+      const cart = {
+        cart_id: cartId,
+        tenant_id: tenantId,
+        table_id: body.table_id,
+        mode: body.mode,
+        items: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      cartStorage.set(cartId, cart);
+      
+      return reply.code(201).send({ cart_id: cartId });
+      
+    } catch (err: any) {
+      app.log.error(err, 'Failed to start cart');
+      return reply.code(500).send({ error: 'failed_to_start_cart' });
+    }
+  });
+
+  // POST /cart/items - Add items to cart
+  app.post('/cart/items', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = AddItemsSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
+    
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+    
+    try {
+      const cart = cartStorage.get(body.cart_id);
+      if (!cart || cart.tenant_id !== tenantId) {
+        return reply.code(404).send({ error: 'cart_not_found' });
       }
       
       // Validate menu items exist
@@ -50,77 +95,74 @@ export default async function cartRoutes(app: FastifyInstance) {
         .from('menu_items')
         .select('id, name, price, tenant_id')
         .in('id', menuItemIds)
+        .eq('tenant_id', tenantId)
         .eq('is_available', true);
       
       if (menuError || !menuItems || menuItems.length !== menuItemIds.length) {
         return reply.code(400).send({ error: 'invalid_menu_items' });
       }
       
-      // Ensure all items belong to same tenant
-      const tenantIds = [...new Set(menuItems.map(item => item.tenant_id))];
-      if (tenantIds.length !== 1) {
-        return reply.code(400).send({ error: 'items_from_different_tenants' });
-      }
-      
-      // Store cart in memory
-      const cart = {
-        cart_id: cartId,
-        session_id: sessionId,
-        tenant_id: tenantIds[0],
-        table_id: body.table_id,
-        order_type: body.order_type,
-        items: body.items.map(item => {
-          const menuItem = menuItems.find(mi => mi.id === item.menu_item_id);
-          return {
-            menu_item_id: item.menu_item_id,
-            name: menuItem?.name,
-            price: menuItem?.price,
-            qty: item.qty,
-            total: (menuItem?.price || 0) * item.qty
-          };
-        }),
-        created_at: new Date().toISOString()
-      };
-      
-      cartStorage.set(sessionId, cart);
-      
-      return reply.code(201).send({
-        cart_id: cartId,
-        session_id: sessionId
+      // Update cart items
+      body.items.forEach(newItem => {
+        const menuItem = menuItems.find(mi => mi.id === newItem.menu_item_id);
+        if (!menuItem) return;
+        
+        const existingIndex = cart.items.findIndex((item: any) => item.menu_item_id === newItem.menu_item_id);
+        
+        if (existingIndex >= 0) {
+          cart.items[existingIndex].qty += newItem.qty;
+        } else {
+          cart.items.push({
+            menu_item_id: newItem.menu_item_id,
+            name: menuItem.name,
+            price: menuItem.price,
+            qty: newItem.qty
+          });
+        }
       });
       
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create cart');
-      return reply.code(500).send({ error: 'failed_to_create_cart' });
-    }
-  });
-  
-  // GET /public/cart/:session_id - Get cart contents
-  app.get('/public/cart/:session_id', async (req, reply) => {
-    const params = z.object({
-      session_id: z.string().uuid()
-    }).parse(req.params);
-    
-    try {
-      const cart = cartStorage.get(params.session_id);
-      
-      if (!cart) {
-        return reply.code(404).send({ error: 'cart_not_found' });
-      }
+      cart.updated_at = new Date().toISOString();
+      cartStorage.set(body.cart_id, cart);
       
       // Calculate totals
-      const subtotal = cart.items.reduce((sum: number, item: any) => sum + item.total, 0);
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
       const tax = subtotal * 0.08; // 8% tax
       const total = subtotal + tax;
       
       return reply.send({
-        session: {
-          session_id: cart.session_id,
-          tenant_id: cart.tenant_id,
-          table_id: cart.table_id,
-          order_type: cart.order_type,
-          created_at: cart.created_at
-        },
+        items: cart.items,
+        totals: { subtotal, tax, total }
+      });
+      
+    } catch (err: any) {
+      app.log.error(err, 'Failed to add cart items');
+      return reply.code(500).send({ error: 'failed_to_add_items' });
+    }
+  });
+
+  // GET /cart/:cart_id - Get cart contents
+  app.get('/cart/:cart_id', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = GetCartSchema.parse(req.params);
+    const tenantId = req.auth?.primaryTenantId;
+    
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+    
+    try {
+      const cart = cartStorage.get(params.cart_id);
+      if (!cart || cart.tenant_id !== tenantId) {
+        return reply.code(404).send({ error: 'cart_not_found' });
+      }
+      
+      // Calculate totals
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
+      const tax = subtotal * 0.08;
+      const total = subtotal + tax;
+      
+      return reply.send({
         items: cart.items,
         totals: { subtotal, tax, total }
       });
@@ -128,83 +170,6 @@ export default async function cartRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error(err, 'Failed to get cart');
       return reply.code(500).send({ error: 'failed_to_get_cart' });
-    }
-  });
-  
-  // POST /public/orders/checkout - Convert cart to order
-  app.post('/public/orders/checkout', async (req, reply) => {
-    const body = CheckoutSchema.parse(req.body);
-    
-    try {
-      const cart = cartStorage.get(body.session_id);
-      
-      if (!cart) {
-        return reply.code(404).send({ error: 'cart_not_found' });
-      }
-      
-      if (!cart.items || cart.items.length === 0) {
-        return reply.code(400).send({ error: 'cart_empty' });
-      }
-      
-      // Calculate totals
-      const subtotal = cart.items.reduce((sum: number, item: any) => sum + item.total, 0);
-      const tax = subtotal * 0.08;
-      const total = subtotal + tax;
-      
-      // Generate order number
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-      
-      // Create order
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .insert({
-          tenant_id: cart.tenant_id,
-          table_id: cart.table_id,
-          order_number: orderNumber,
-          order_type: cart.order_type,
-          status: 'pending',
-          subtotal: subtotal,
-          tax_amount: tax,
-          total_amount: total,
-          mode: cart.order_type,
-          session_id: body.session_id
-        })
-        .select()
-        .single();
-      
-      if (orderError) throw orderError;
-      
-      // Create order items
-      const orderItems = cart.items.map((item: any) => ({
-        order_id: order.id,
-        menu_item_id: item.menu_item_id,
-        quantity: item.qty,
-        unit_price: item.price,
-        total_price: item.total,
-        tenant_id: cart.tenant_id
-      }));
-      
-      const { error: itemsError } = await app.supabase
-        .from('order_items')
-        .insert(orderItems);
-      
-      if (itemsError) throw itemsError;
-      
-      // Clear cart from memory
-      cartStorage.delete(body.session_id);
-      
-      app.log.info(`Order created: ${orderNumber} for tenant ${cart.tenant_id}`);
-      
-      return reply.code(201).send({
-        order_id: order.id,
-        order_number: orderNumber,
-        status: order.status,
-        total_amount: order.total_amount
-      });
-      
-    } catch (err: any) {
-      app.log.error(err, 'Failed to checkout cart');
-      return reply.code(500).send({ error: 'failed_to_checkout' });
     }
   });
 }

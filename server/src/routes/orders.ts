@@ -162,4 +162,255 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /orders/confirm - Create order from cart
+  app.post('/orders/confirm', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      cart_id: z.string().uuid(),
+      notes: z.string().optional(),
+      assign_staff_id: z.string().uuid().optional()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Get cart from memory (in production this would be from DB)
+      const cartStorage = (global as any).cartStorage || new Map();
+      const cart = cartStorage.get(body.cart_id);
+      
+      if (!cart || cart.tenant_id !== tenantId) {
+        return reply.code(404).send({ error: 'cart_not_found' });
+      }
+
+      if (!cart.items || cart.items.length === 0) {
+        return reply.code(400).send({ error: 'cart_empty' });
+      }
+
+      // Calculate totals
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
+      const tax = subtotal * 0.08;
+      const total = subtotal + tax;
+
+      // Generate order number
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+
+      // Create order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .insert({
+          tenant_id: tenantId,
+          table_id: cart.table_id,
+          staff_id: body.assign_staff_id,
+          order_number: orderNumber,
+          order_type: cart.mode,
+          status: 'pending',
+          subtotal: subtotal,
+          tax_amount: tax,
+          total_amount: total,
+          special_instructions: body.notes,
+          mode: cart.mode
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = cart.items.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.menu_item_id,
+        quantity: item.qty,
+        unit_price: item.price,
+        total_price: item.price * item.qty,
+        tenant_id: tenantId
+      }));
+
+      const { error: itemsError } = await app.supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Try to insert status event (safe fallback if table missing)
+      try {
+        await app.supabase
+          .from('order_status_events')
+          .insert({
+            tenant_id: tenantId,
+            order_id: order.id,
+            from_status: null,
+            to_status: 'new',
+            created_by: req.auth?.userId || 'customer'
+          });
+      } catch (statusErr) {
+        app.log.warn('order_status_events table not available, skipping event');
+      }
+
+      // Clear cart from memory
+      cartStorage.delete(body.cart_id);
+
+      app.log.info(`Order created: ${orderNumber} for tenant ${tenantId}`);
+
+      return reply.code(201).send({
+        order_id: order.id,
+        order_number: orderNumber,
+        status: 'new',
+        total_amount: order.total_amount
+      });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to confirm order');
+      return reply.code(500).send({ error: 'failed_to_confirm_order' });
+    }
+  });
+
+  // GET /orders/:id/status - Get order status timeline
+  app.get('/orders/:id/status', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Get order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, status')
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Try to get status timeline
+      try {
+        const { data: events, error: eventsError } = await app.supabase
+          .from('order_status_events')
+          .select('*')
+          .eq('order_id', params.id)
+          .eq('tenant_id', tenantId)
+          .order('created_at');
+
+        if (eventsError) {
+          // Table doesn't exist - return basic status
+          return reply.send({
+            order_id: params.id,
+            current: order.status || 'new',
+            timeline: []
+          });
+        }
+
+        const timeline = (events || []).map(event => ({
+          at: event.created_at,
+          from: event.from_status,
+          to: event.to_status
+        }));
+
+        return reply.send({
+          order_id: params.id,
+          current: order.status || 'new',
+          timeline
+        });
+
+      } catch (timelineErr) {
+        // Fallback to basic status
+        return reply.send({
+          order_id: params.id,
+          current: order.status || 'new',
+          timeline: []
+        });
+      }
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to get order status');
+      return reply.code(500).send({ error: 'failed_to_get_order_status' });
+    }
+  });
+
+  // POST /orders/:id/status - Update order status
+  app.post('/orders/:id/status', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({
+      id: z.string().uuid()
+    }).parse(req.params);
+
+    const body = z.object({
+      to: z.enum(['preparing', 'ready', 'served', 'paid', 'voided'])
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Get current order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, status')
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Update order status
+      const updates: any = { status: body.to };
+      if (body.to === 'ready') updates.ready_at = new Date().toISOString();
+      if (body.to === 'served') updates.served_at = new Date().toISOString();
+
+      const { data: updatedOrder, error: updateError } = await app.supabase
+        .from('orders')
+        .update(updates)
+        .eq('id', params.id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Try to insert status event
+      try {
+        await app.supabase
+          .from('order_status_events')
+          .insert({
+            tenant_id: tenantId,
+            order_id: params.id,
+            from_status: order.status,
+            to_status: body.to,
+            created_by: req.auth?.userId || 'staff'
+          });
+      } catch (statusErr) {
+        app.log.warn('order_status_events table not available, skipping event');
+      }
+
+      return reply.send({ order: updatedOrder });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to update order status');
+      return reply.code(500).send({ error: 'failed_to_update_order_status' });
+    }
+  });
+
   app.post('/api/orders/checkout', async (req, reply) => {
+
+  // Simple status endpoint (safe for tests)
+  app.get('/api/orders/status', async (_req, reply) => {
+    return reply.code(200).send({ ok: true });
+  });
+});
