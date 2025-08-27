@@ -1,40 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createHmac } from 'crypto';
 
 const QrResolveSchema = z.object({
   code: z.string().min(1).max(10),
-  table: z.string().regex(/^T\d{2}$/),
-  sig: z.string().optional(),
-  exp: z.coerce.number().int().positive().optional()
+  table: z.string().regex(/^T\d{2}$/)
 });
 
 export default async function qrRoutes(app: FastifyInstance) {
-  // GET /qr/resolve?code=<tenantCode>&table=<tableNumber>&sig=<signature>&exp=<expiration>
+  // GET /qr/resolve?code=<tenantCode>&table=<tableNumber>
   app.get('/qr/resolve', async (req, reply) => {
     const query = QrResolveSchema.parse(req.query);
-    const { code, table, sig, exp } = query;
-
-    // For now, skip signature validation if not provided (dev mode)
-    if (sig && exp) {
-      // Verify signature
-      const secret = process.env.QR_SECRET;
-      if (!secret) {
-        return reply.code(500).send({ error: 'QR_SECRET not configured' });
-      }
-
-      const dataToSign = `${code}:${table}:${exp}`;
-      const expectedSig = createHmac('sha256', secret).update(dataToSign).digest('hex');
-
-      if (expectedSig !== sig) {
-        return reply.code(400).send({ error: 'invalid_signature' });
-      }
-
-      // Check expiration
-      if (exp <= Math.floor(Date.now() / 1000)) {
-        return reply.code(400).send({ error: 'qr_expired' });
-      }
-    }
+    const { code, table } = query;
     
     try {
       // Lookup tenant by code
