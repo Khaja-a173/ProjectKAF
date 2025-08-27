@@ -214,3 +214,4 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
   });
 }
+)
