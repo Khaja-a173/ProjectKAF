@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getCart, updateCartItem, removeCartItem, placeOrderFromCart } from '../lib/api';
+import { getCart, confirmOrder } from '../lib/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ShoppingCart, Plus, Minus, Trash2, CreditCard, DollarSign, Clock } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ShoppingCart, Plus, Minus, Trash2, CreditCard, DollarSign, Clock } from
 export default function Cart() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const sessionId = searchParams.get('session');
+  const cartId = searchParams.get('cart');
   
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -17,22 +17,22 @@ export default function Cart() {
   const [orderMode, setOrderMode] = useState<'dine_in' | 'takeaway'>('dine_in');
 
   useEffect(() => {
-    if (sessionId) {
+    if (cartId) {
       loadCart();
     } else {
       setError('No cart session found');
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [cartId]);
 
   const loadCart = async () => {
-    if (!sessionId) return;
+    if (!cartId) return;
 
     try {
       setLoading(true);
-      const response = await getCart(sessionId);
+      const response = await getCart(cartId);
       setCart(response);
-      setOrderMode(response.session?.mode || 'dine_in');
+      setOrderMode(response.mode || 'dine_in');
       setError(null);
     } catch (err: any) {
       console.error('Failed to load cart:', err);
@@ -42,40 +42,15 @@ export default function Cart() {
     }
   };
 
-  const handleUpdateQuantity = async (itemId: string, newQty: number) => {
-    if (newQty <= 0) {
-      return handleRemoveItem(itemId);
-    }
-
-    try {
-      const response = await updateCartItem(itemId, { qty: newQty });
-      setCart(response);
-    } catch (err: any) {
-      alert('Failed to update quantity');
-    }
-  };
-
-  const handleRemoveItem = async (itemId: string) => {
-    try {
-      const response = await removeCartItem(itemId);
-      setCart(response);
-    } catch (err: any) {
-      alert('Failed to remove item');
-    }
-  };
-
   const handlePlaceOrder = async () => {
-    if (!sessionId || !cart?.items?.length) return;
+    if (!cartId || !cart?.items?.length) return;
 
     try {
       setPlacing(true);
-      const response = await placeOrderFromCart({
-        session_id: sessionId,
-        assigned_staff_id: null // Customer order
-      });
+      const response = await confirmOrder(cartId);
 
       // Redirect to order tracking
-      navigate(`/order-tracking?order=${response.order.id}`);
+      navigate(`/order-tracking?order=${response.order_id}`);
     } catch (err: any) {
       alert('Failed to place order: ' + err.message);
     } finally {
@@ -132,7 +107,7 @@ export default function Cart() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Your Cart</h1>
               <p className="text-gray-600">
-                {cart?.session?.table_id ? `Table ${cart.session.table_id}` : 'Takeaway Order'} • {items.length} items
+                {cart?.table_id ? `Table ${cart.table_id}` : 'Takeaway Order'} • {items.length} items
               </p>
             </div>
           </div>
@@ -178,28 +153,11 @@ export default function Cart() {
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-8 text-center font-medium">{item.qty}</span>
-                        <button
+                      src={item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=100'}
+                      alt={item.name}
                           onClick={() => handleUpdateQuantity(item.id, item.qty + 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900">
-                          ${((item.menu_items?.price || 0) * item.qty).toFixed(2)}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <span className="w-8 text-center font-medium">{item.quantity}</span>
                   </div>
                 ))}
               </div>
@@ -244,16 +202,9 @@ export default function Cart() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">${totals.subtotal.toFixed(2)}</span>
-                  </div>
+                        ${item.total_price.toFixed(2)}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax (8%)</span>
-                    <span className="font-medium">${totals.tax.toFixed(2)}</span>
-                  </div>
-                  <div className="border-t border-gray-300 pt-2">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total</span>
-                      <span className="text-blue-600">${totals.total.toFixed(2)}</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -261,7 +212,7 @@ export default function Cart() {
               {/* Place Order Button */}
               <button
                 onClick={handlePlaceOrder}
-                disabled={placing || items.length === 0}
+                disabled={placing || items.length === 0 || !cartId}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-xl text-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {placing ? (

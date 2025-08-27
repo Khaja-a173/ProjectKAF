@@ -35,15 +35,25 @@ export default function ScanEntry() {
       const response = await resolveQR(code, table);
       setQrData(response);
 
-      // Store tenant and table context
+      // Store tenant and table context in localStorage
       localStorage.setItem('tenant_id', response.tenant.id);
       localStorage.setItem('table_id', response.table.id);
       localStorage.setItem('table_number', response.table.table_number);
 
-      // Redirect to menu with context
-      setTimeout(() => {
-        navigate(`/menu?tenant=${response.tenant.id}&table=${response.table.id}`);
-      }, 2000);
+      // Check if there's an existing cart
+      const existingCartId = localStorage.getItem('cart_id');
+      
+      if (existingCartId) {
+        // Redirect to existing cart
+        setTimeout(() => {
+          navigate(`/cart?cart=${existingCartId}`);
+        }, 2000);
+      } else {
+        // Redirect to menu with dine-in mode
+        setTimeout(() => {
+          navigate(`/menu?mode=dine-in&tenant=${response.tenant.id}&table=${response.table.id}`);
+        }, 2000);
+      }
 
     } catch (err: any) {
       console.error('QR resolve failed:', err);
