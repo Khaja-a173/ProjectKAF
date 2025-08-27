@@ -1,156 +1,108 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { createHmac } from 'crypto';
 
 const QrResolveSchema = z.object({
-  code: z.string().length(4),
-  table: z.string().regex(/^T\d{2}$/)
+  code: z.string().min(1).max(10),
+  table: z.string().regex(/^T\d{2}$/),
+  sig: z.string(),
+  exp: z.coerce.number().int().positive()
 });
 
 export default async function qrRoutes(app: FastifyInstance) {
-  /**
-   * GET /qr/resolve?code=<tenantCode>&table=<tableNumber>
-   * Public endpoint - no auth required for QR scanning
-   */
-  app.get('/qr/resolve', {
-    schema: {
-      querystring: QrResolveSchema
+  // GET /public/qr/resolve?code=<tenantCode>&table=<tableNumber>&sig=<signature>&exp=<expiration>
+  app.get('/public/qr/resolve', async (req, reply) => {
+    const query = QrResolveSchema.parse(req.query);
+    const { code, table, sig, exp } = query;
+
+    // 1. Verify signature
+    const secret = process.env.QR_SECRET;
+    if (!secret) {
+      return reply.code(500).send({ error: 'QR_SECRET not configured' });
     }
-  }, async (req, reply) => {
+
+    const dataToSign = `${code}:${table}:${exp}`;
+    const expectedSig = createHmac('sha256', secret).update(dataToSign).digest('hex');
+
+    if (expectedSig !== sig) {
+      return reply.code(400).send({ error: 'invalid_signature' });
+    }
+
+    // 2. Check expiration
+    if (exp <= Math.floor(Date.now() / 1000)) {
+      return reply.code(400).send({ error: 'qr_expired' });
+    }
+    
     try {
-      const { code, table } = QrResolveSchema.parse(req.query);
+      // 3. Lookup tenant by code
+      const { data: tenant, error: tenantError } = await app.supabase
+        .from('tenants')
+        .select('id, name, slug, code')
+        .eq('code', code.toUpperCase())
+        .maybeSingle();
       
-      // Resolve tenant by code
-      let tenant = null;
-      try {
-        const { data: tenantData, error: tenantError } = await app.supabase
-          .from('tenants')
-          .select('id, name, slug')
-          .eq('code', code.toUpperCase())
-          .single();
-
-        if (tenantError) {
-          if (tenantError.code === '42P01') {
-            app.log.warn('tenants table not found');
-          } else if (tenantError.code === 'PGRST116') {
-            return reply.code(404).send({ error: 'Tenant not found' });
-          } else {
-            throw tenantError;
-          }
-        } else {
-          tenant = tenantData;
-        }
-      } catch (err) {
-        app.log.warn('Failed to resolve tenant:', err);
+      if (tenantError || !tenant) {
+        return reply.code(404).send({ error: 'tenant_not_found' });
       }
-
-      // If no tenant found, return error
-      if (!tenant) {
-        return reply.code(404).send({ error: 'Restaurant not found' });
+      
+      // 4. Lookup table by table_number
+      const { data: tableData, error: tableError } = await app.supabase
+        .from('restaurant_tables')
+        .select('id, table_number, status, capacity')
+        .eq('tenant_id', tenant.id)
+        .eq('table_number', table)
+        .maybeSingle();
+      
+      if (tableError || !tableData) {
+        return reply.code(404).send({ error: 'table_not_found' });
       }
-
-      // Resolve table by table_number
-      let tableData = null;
-      try {
-        const { data, error } = await app.supabase
-          .from('restaurant_tables')
-          .select('id, table_number, capacity, location')
-          .eq('tenant_id', tenant.id)
-          .eq('table_number', table)
-          .single();
-
-        if (error) {
-          if (error.code === '42P01') {
-            app.log.warn('restaurant_tables table not found');
-          } else if (error.code === 'PGRST116') {
-            return reply.code(404).send({ error: 'Table not found' });
-          } else {
-            throw error;
-          }
-        } else {
-          tableData = data;
-        }
-      } catch (err) {
-        app.log.warn('Failed to resolve table:', err);
-      }
-
-      // If no table found, return error
-      if (!tableData) {
-        return reply.code(404).send({ error: 'Table not found' });
-      }
-
-      // Get branding (optional)
-      let branding = {};
-      try {
-        const { data } = await app.supabase
-          .from('tenant_branding')
-          .select('*')
-          .eq('tenant_id', tenant.id)
-          .single();
-        
-        if (data) {
-          branding = {
-            logo_url: data.logo_url,
-            theme: data.theme || {},
-            gallery_urls: data.gallery_urls || []
-          };
-        }
-      } catch (err) {
-        // Branding is optional, continue without it
-        app.log.debug('No branding found for tenant:', tenant.id);
-      }
-
-      // Get menu bootstrap (categories and items)
-      let categories = [];
-      let items = [];
-
-      try {
-        const { data: categoriesData } = await app.supabase
-          .from('categories')
-          .select('id, name, description, sort_order')
-          .eq('tenant_id', tenant.id)
-          .eq('is_active', true)
-          .order('sort_order');
-
-        categories = categoriesData || [];
-      } catch (err) {
-        app.log.debug('Categories table not found or error:', err);
-      }
-
-      try {
-        const { data: itemsData } = await app.supabase
-          .from('menu_items')
-          .select('id, name, description, price, image_url, category_id, is_available')
-          .eq('tenant_id', tenant.id)
-          .eq('is_available', true)
-          .order('sort_order');
-
-        items = itemsData || [];
-      } catch (err) {
-        app.log.debug('Menu items table not found or error:', err);
-      }
-
+      
+      // 5. Get branding (safe fallback if missing)
+      const { data: branding } = await app.supabase
+        .from('customization')
+        .select('theme, logo_url, hero_video')
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+      
+      // 6. Get menu categories (safe fallback)
+      const { data: categories } = await app.supabase
+        .from('categories')
+        .select('id, name, description')
+        .eq('tenant_id', tenant.id)
+        .eq('is_active', true)
+        .order('sort_order');
+      
+      // 7. Get menu items (safe fallback)
+      const { data: items } = await app.supabase
+        .from('menu_items')
+        .select('id, name, description, price, image_url, is_available, preparation_time, calories, allergens, dietary_info, is_featured, sort_order')
+        .eq('tenant_id', tenant.id)
+        .eq('is_available', true)
+        .order('sort_order');
+      
       return reply.send({
         tenant: {
           id: tenant.id,
           name: tenant.name,
           slug: tenant.slug,
-          branding
+          code: tenant.code
         },
         table: {
           id: tableData.id,
           table_number: tableData.table_number,
-          capacity: tableData.capacity,
-          location: tableData.location
+          status: tableData.status,
+          capacity: tableData.capacity
         },
+        branding: branding || { theme: {}, logo_url: null, hero_video: null },
         menu_bootstrap: {
-          categories,
-          items
+          categories: categories || [],
+          items: items || []
         }
       });
-
-    } catch (err) {
-      app.log.error('QR resolve failed:', err);
-      return reply.code(500).send({ error: 'Failed to resolve QR code' });
+      
+    } catch (err: any) {
+      app.log.error(err, 'QR resolve failed');
+      return reply.code(500).send({ error: 'qr_resolve_failed' });
     }
   });
 }
