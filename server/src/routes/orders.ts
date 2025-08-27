@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
+import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 export default fp(async function ordersRoutes(app: FastifyInstance) {
@@ -9,7 +10,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
   app.get('/orders', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
-    const query = z.object({
+    const query = z.object({ // TODO: Use v_orders_latest_status for filtering
       status: z.string().optional(),
       page: z.coerce.number().int().positive().default(1),
       limit: z.coerce.number().int().positive().max(100).default(50)
@@ -162,7 +163,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /orders/confirm - Create order from cart
+  // POST /public/orders/checkout - Create order from cart (customer-facing)
   app.post('/orders/confirm', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
@@ -178,7 +179,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
     }
 
     try {
-      // Get cart from memory (in production this would be from DB)
+      // Get cart from memory (in production this would be from DB/Redis)
       const cartStorage = (global as any).cartStorage || new Map();
       const cart = cartStorage.get(body.cart_id);
       
@@ -191,6 +192,7 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       }
 
       // Calculate totals
+      // TODO: Fetch menu item prices from DB for security
       const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
       const tax = subtotal * 0.08;
       const total = subtotal + tax;
@@ -212,7 +214,8 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
           tax_amount: tax,
           total_amount: total,
           special_instructions: body.notes,
-          mode: cart.mode
+          mode: cart.mode,
+          session_id: cart.session_id // Link to cart session
         })
         .select()
         .single();
@@ -225,7 +228,8 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
         menu_item_id: item.menu_item_id,
         quantity: item.qty,
         unit_price: item.price,
-        total_price: item.price * item.qty,
+        total_price: item.price * item.qty, // TODO: Recalculate from DB price
+        special_instructions: item.notes, // Pass item-level notes
         tenant_id: tenantId
       }));
 
@@ -237,10 +241,10 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
 
       // Try to insert status event (safe fallback if table missing)
       try {
-        await app.supabase
+        const sb = getServiceSupabase(); // Use service role for RLS bypass
+        await sb
           .from('order_status_events')
           .insert({
-            tenant_id: tenantId,
             order_id: order.id,
             from_status: null,
             to_status: 'new',
@@ -406,11 +410,11 @@ export default fp(async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'failed_to_update_order_status' });
     }
   });
-
-  app.post('/api/orders/checkout', async (req, reply) => {
-
-  // Simple status endpoint (safe for tests)
-  app.get('/api/orders/status', async (_req, reply) => {
-    return reply.code(200).send({ ok: true });
-  });
 });
+// Helper to get Supabase client with service role
+function getServiceSupabase() {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
+  if (!url || !serviceKey) throw new Error('Supabase URL or Service Role Key missing');
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}

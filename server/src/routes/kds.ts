@@ -1,8 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
+
+// Helper to get Supabase client with service role
+function getServiceSupabase() {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
+  if (!url || !serviceKey) throw new Error('Supabase URL or Service Role Key missing');
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}
 
 const AdvanceOrderSchema = z.object({
-  to: z.enum(['preparing', 'ready', 'served'])
+  to_status: z.enum(['preparing', 'ready', 'served'])
 });
 
 export default async function kdsRoutes(app: FastifyInstance) {
@@ -20,29 +29,29 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
 
     // Verify user has kitchen role
-    const userRole = req.auth?.memberships?.[0]?.role;
+    const userRole = req.auth?.memberships?.?.role;
     if (!['kitchen', 'staff', 'manager', 'admin'].includes(userRole || '')) {
       return reply.code(403).send({ error: 'insufficient_role' });
     }
 
     try {
-      // Try to use latest status view first
+      const sb = getServiceSupabase(); // Use service role for RLS bypass
       let orders: any[] = [];
       
+      // Try to use v_orders_latest_status view first
       try {
-        const { data: latestOrders, error: viewError } = await app.supabase
+        const { data: latestStatuses, error: viewError } = await sb
           .from('v_orders_latest_status')
           .select('order_id, status, last_changed_at')
           .eq('tenant_id', tenantId);
 
-        if (!viewError && latestOrders) {
-          // Get full order details for orders with active statuses
-          const activeOrderIds = latestOrders
-            .filter(o => ['new', 'preparing', 'ready'].includes(o.status))
+        if (!viewError && latestStatuses) {
+          const activeOrderIds = latestStatuses
+            .filter(o => ['new', 'pending', 'confirmed', 'preparing', 'ready'].includes(o.status))
             .map(o => o.order_id);
 
           if (activeOrderIds.length > 0) {
-            const { data: fullOrders } = await app.supabase
+            const { data: fullOrders } = await sb
               .from('orders')
               .select(`
                 *,
@@ -59,12 +68,12 @@ export default async function kdsRoutes(app: FastifyInstance) {
           }
         }
       } catch (viewErr) {
-        app.log.warn('v_orders_latest_status view not available, using fallback');
+        app.log.warn('v_orders_latest_status view not available, using fallback for KDS orders');
       }
 
-      // Fallback: query orders directly
+      // Fallback: query orders directly if view failed or no active orders found via view
       if (orders.length === 0) {
-        const { data: fallbackOrders } = await app.supabase
+        const { data: fallbackOrders } = await sb
           .from('orders')
           .select(`
             *,
@@ -75,15 +84,15 @@ export default async function kdsRoutes(app: FastifyInstance) {
             restaurant_tables (table_number)
           `)
           .eq('tenant_id', tenantId)
-          .not('status', 'in', '(cancelled,paid)')
+          .not('status', 'in', '(cancelled,paid,served)') // Exclude final states
           .order('created_at');
 
         orders = fallbackOrders || [];
       }
 
-      // Group by lanes
+      // Group by lanes based on current order status
       const lanes = {
-        queued: orders.filter(o => ['new', 'pending'].includes(o.status)),
+        queued: orders.filter(o => ['new', 'pending', 'confirmed'].includes(o.status)),
         preparing: orders.filter(o => o.status === 'preparing'),
         ready: orders.filter(o => o.status === 'ready')
       };
@@ -117,14 +126,15 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
 
     // Verify user has kitchen role
-    const userRole = req.auth?.memberships?.[0]?.role;
+    const userRole = req.auth?.memberships?.?.role;
     if (!['kitchen', 'staff', 'manager', 'admin'].includes(userRole || '')) {
       return reply.code(403).send({ error: 'insufficient_role' });
     }
 
     try {
+      const sb = getServiceSupabase(); // Use service role for RLS bypass
       // Get current order
-      const { data: order, error: orderError } = await app.supabase
+      const { data: order, error: orderError } = await sb
         .from('orders')
         .select('id, status')
         .eq('id', params.id)
@@ -136,11 +146,11 @@ export default async function kdsRoutes(app: FastifyInstance) {
       }
 
       // Update order status
-      const updates: any = { status: body.to };
-      if (body.to === 'ready') updates.ready_at = new Date().toISOString();
-      if (body.to === 'served') updates.served_at = new Date().toISOString();
+      const updates: any = { status: body.to_status };
+      if (body.to_status === 'ready') updates.ready_at = new Date().toISOString();
+      if (body.to_status === 'served') updates.served_at = new Date().toISOString();
 
-      const { data: updatedOrder, error: updateError } = await app.supabase
+      const { data: updatedOrder, error: updateError } = await sb
         .from('orders')
         .update(updates)
         .eq('id', params.id)
@@ -152,20 +162,20 @@ export default async function kdsRoutes(app: FastifyInstance) {
 
       // Try to insert status event
       try {
-        await app.supabase
+        await sb
           .from('order_status_events')
           .insert({
-            tenant_id: tenantId,
+            tenant_id: tenantId, // Explicitly set tenant_id for RLS bypass
             order_id: params.id,
             from_status: order.status,
-            to_status: body.to,
+            to_status: body.to_status,
             created_by: req.auth?.userId || 'kitchen'
           });
       } catch (statusErr) {
-        app.log.warn('order_status_events table not available, skipping event');
+        app.log.warn('order_status_events table not available, skipping event for KDS advance');
       }
 
-      app.log.info(`KDS: Order ${params.id} advanced from ${order.status} to ${body.to}`);
+      app.log.info(`KDS: Order ${params.id} advanced from ${order.status} to ${body.to_status}`);
 
       return reply.send({ order: updatedOrder });
 
@@ -185,8 +195,9 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
 
     try {
+      const sb = getServiceSupabase(); // Use service role for RLS bypass
       // Try to query the KDS lane counts view
-      const { data, error } = await app.supabase
+      const { data, error } = await sb
         .from('v_kds_lane_counts')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -227,8 +238,9 @@ export default async function kdsRoutes(app: FastifyInstance) {
     }
 
     try {
+      const sb = getServiceSupabase(); // Use service role for RLS bypass
       // Try to query the latest status view
-      const { data, error } = await app.supabase
+      const { data, error } = await sb
         .from('v_orders_latest_status')
         .select('order_id, status, last_changed_at')
         .eq('tenant_id', tenantId)
