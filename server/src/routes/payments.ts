@@ -24,168 +24,30 @@ const CreateIntentSchema = z.object({
   order_id: z.string().uuid().optional(),
   amount: z.number().positive(),
   currency: z.string().default('USD'),
-  provider: z.enum(['stripe', 'razorpay', 'other']),
-  metadata: z.record(z.any()).optional()
+  method: z.enum(['card', 'cash', 'upi', 'wallet'])
 });
 
-const UpdateIntentSchema = z.object({
-  status: z.enum(['requires_payment_method', 'processing', 'succeeded', 'failed', 'cancelled']).optional(),
-  provider_intent_id: z.string().optional(),
-  client_secret_last4: z.string().optional(),
-  metadata: z.record(z.any()).optional()
+const ConfirmIntentSchema = z.object({
+  payment_intent_id: z.string().uuid(),
+  provider_transaction_id: z.string().optional(),
+  status: z.enum(['succeeded', 'failed', 'cancelled']).optional()
 });
+
+const CreateRefundSchema = z.object({
+  payment_id: z.string().uuid(),
+  amount: z.number().positive(),
+  reason: z.string()
+});
+
+const CreateSplitSchema = z.array(z.object({
+  amount: z.number().positive(),
+  method: z.enum(['cash', 'card', 'wallet']),
+  payer_type: z.enum(['customer', 'staff']).default('customer')
+}));
 
 export default async function paymentsRoutes(app: FastifyInstance) {
-  // GET /payments/providers - List payment providers
-  app.get('/payments/providers', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('payment_providers')
-        .select('id, provider, display_name, publishable_key, secret_last4, is_live, is_enabled, metadata, created_at, updated_at')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      return reply.send({ providers: data || [] });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch payment providers');
-      return reply.code(500).send({ error: 'failed_to_fetch_providers' });
-    }
-  });
-
-  // POST /payments/providers - Create payment provider
-  app.post('/payments/providers', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const body = CreateProviderSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('payment_providers')
-        .insert({
-          tenant_id: tenantId,
-          provider: body.provider,
-          display_name: body.display_name,
-          publishable_key: body.publishable_key,
-          secret_last4: body.secret_last4,
-          is_live: body.is_live,
-          is_enabled: body.is_enabled,
-          metadata: body.metadata || {}
-        })
-        .select('id, provider, display_name, publishable_key, secret_last4, is_live, is_enabled, metadata, created_at, updated_at')
-        .single();
-
-      if (error) throw error;
-
-      return reply.code(201).send({ provider: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create payment provider');
-      return reply.code(500).send({ error: 'failed_to_create_provider' });
-    }
-  });
-
-  // PATCH /payments/providers/:id - Update payment provider
-  app.patch('/payments/providers/:id', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = UpdateProviderSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('payment_providers')
-        .update(body)
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .select('id, provider, display_name, publishable_key, secret_last4, is_live, is_enabled, metadata, created_at, updated_at')
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'provider_not_found' });
-        }
-        throw error;
-      }
-
-      return reply.send({ provider: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update payment provider');
-      return reply.code(500).send({ error: 'failed_to_update_provider' });
-    }
-  });
-
-  // GET /payments/intents - List payment intents
-  app.get('/payments/intents', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const query = z.object({
-      order_id: z.string().uuid().optional(),
-      status: z.string().optional(),
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      page: z.coerce.number().int().positive().default(1)
-    }).parse(req.query);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      let queryBuilder = app.supabase
-        .from('payment_intents')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
-
-      if (query.order_id) {
-        queryBuilder = queryBuilder.eq('order_id', query.order_id);
-      }
-
-      if (query.status) {
-        queryBuilder = queryBuilder.eq('status', query.status);
-      }
-
-      const offset = (query.page - 1) * query.limit;
-      queryBuilder = queryBuilder.range(offset, offset + query.limit - 1);
-
-      const { data, error } = await queryBuilder;
-
-      if (error) throw error;
-
-      return reply.send({ 
-        intents: data || [], 
-        page: query.page, 
-        limit: query.limit 
-      });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch payment intents');
-      return reply.code(500).send({ error: 'failed_to_fetch_intents' });
-    }
-  });
-
-  // POST /payments/intents - Create payment intent
-  app.post('/payments/intents', {
+  // POST /payments/intent - Create payment intent
+  app.post('/payments/intent', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
     const body = CreateIntentSchema.parse(req.body);
@@ -196,183 +58,125 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     }
 
     try {
-      const { data, error } = await app.supabase
+      // Mock Stripe/Razorpay behavior if keys are not set
+      const isMockMode = !process.env.STRIPE_PUBLIC_KEY || !process.env.STRIPE_SECRET_KEY;
+
+      const { data: intent, error: intentError } = await app.supabase
         .from('payment_intents')
         .insert({
           tenant_id: tenantId,
           order_id: body.order_id,
           amount: body.amount,
           currency: body.currency,
-          provider: body.provider,
+          provider: isMockMode ? 'mock' : 'stripe', // Use 'mock' provider for dev
           status: 'requires_payment_method',
-          metadata: body.metadata || {}
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return reply.code(201).send({ intent: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create payment intent');
-      return reply.code(500).send({ error: 'failed_to_create_intent' });
-    }
-  });
-
-  // POST /payments/initiate - Initiate payment for order
-  app.post('/payments/initiate', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      provider: z.enum(['stripe', 'razorpay', 'dev']),
-      method: z.enum(['card', 'wallet', 'upi']).optional(),
-      split: z.array(z.object({
-        amount: z.number().positive(),
-        payer_type: z.string(),
-        note: z.string().optional()
-      })).optional()
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Verify order exists and belongs to tenant
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .select('id, order_number, total_amount, status')
-        .eq('id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (orderError || !order) {
-        return reply.code(404).send({ error: 'order_not_found' });
-      }
-
-      // Create payment intent
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .insert({
-          tenant_id: tenantId,
-          order_id: body.order_id,
-          amount: order.total_amount,
-          currency: 'USD',
-          provider: body.provider,
-          status: 'pending',
-          metadata: {
-            method: body.method,
-            split: body.split
-          }
+          metadata: { method: body.method }
         })
         .select()
         .single();
 
       if (intentError) throw intentError;
 
-      return reply.code(201).send({
-        intent,
-        client_secret: `dev_secret_${intent.id}`, // Mock client secret
-        checkout_url: `https://dev-checkout.example.com/${intent.id}` // Mock checkout URL
-      });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to initiate payment');
-      return reply.code(500).send({ error: 'failed_to_initiate_payment' });
-    }
-  });
-
-  // POST /payments/confirm - Confirm payment (dev-mode)
-  app.post('/payments/confirm', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      provider: z.enum(['stripe', 'razorpay', 'dev']),
-      intent_reference: z.string(),
-      amount: z.number().positive()
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Update payment intent to completed
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .update({
-          status: 'succeeded',
-          provider_intent_id: body.intent_reference,
-          updated_at: new Date().toISOString()
-        })
-        .eq('order_id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .select()
-        .single();
-
-      if (intentError) throw intentError;
-
-      // Update order to paid
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .update({
-          status: 'paid',
-          payment_status: 'completed'
-        })
-        .eq('id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Try to insert status event
-      try {
-        await app.supabase
-          .from('order_status_events')
-          .insert({
-            tenant_id: tenantId,
-            order_id: body.order_id,
-            from_status: 'served',
-            to_status: 'paid',
-            created_by: req.auth?.userId || 'system'
-          });
-      } catch (statusErr) {
-        app.log.warn('order_status_events table not available, skipping event');
-      }
-
-      // Try to insert payment event
+      // Add payment event
       try {
         await app.supabase
           .from('payment_events')
           .insert({
-            provider: body.provider,
-            event_id: `payment_confirmed_${Date.now()}`,
+            provider: intent.provider,
+            event_id: `intent.created_${intent.id}`,
             tenant_id: tenantId,
-            payload: {
-              type: 'payment.succeeded',
-              data: { order_id: body.order_id, amount: body.amount }
-            },
+            payload: { type: 'intent.created', data: intent },
             received_at: new Date().toISOString()
           });
       } catch (eventErr) {
         app.log.warn('payment_events table not available, skipping event');
       }
 
-      app.log.info(`Payment confirmed for order ${body.order_id}`);
-
-      return reply.send({
-        payment: intent,
-        order: order
+      return reply.code(201).send({
+        payment_intent_id: intent.id,
+        client_secret: isMockMode ? `mock_client_secret_${intent.id}` : 'real_client_secret_from_provider'
       });
 
     } catch (err: any) {
-      app.log.error(err, 'Failed to confirm payment');
-      return reply.code(500).send({ error: 'failed_to_confirm_payment' });
+      app.log.error(err, 'Failed to create payment intent');
+      return reply.code(500).send({ error: 'failed_to_create_intent' });
+    }
+  });
+
+  // POST /payments/capture - Capture payment intent
+  app.post('/payments/capture', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = ConfirmIntentSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .update({
+          status: body.status || 'succeeded', // Default to succeeded for mock
+          provider_intent_id: body.provider_transaction_id || `mock_txn_${Date.now()}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', body.payment_intent_id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (intentError) throw intentError;
+
+      // Insert into payments table (if exists)
+      try {
+        await app.supabase
+          .from('payments')
+          .insert({
+            tenant_id: tenantId,
+            order_id: intent.order_id,
+            amount: intent.amount,
+            payment_method: intent.metadata?.method || 'card',
+            payment_provider: intent.provider,
+            provider_transaction_id: intent.provider_intent_id,
+            status: intent.status,
+            processed_at: new Date().toISOString()
+          });
+      } catch (paymentErr) {
+        app.log.warn('payments table not available, skipping payments record');
+      }
+
+      // Add order status event
+      if (intent.order_id) {
+        try {
+          await app.supabase
+            .from('order_status_events')
+            .insert({
+              tenant_id: tenantId,
+              order_id: intent.order_id,
+              from_status: 'paying', // Assuming it was paying
+              to_status: 'paid',
+              created_by: req.auth?.userId || 'system'
+            });
+          
+          // Update order status directly (for simplicity in mock mode)
+          await app.supabase
+            .from('orders')
+            .update({ status: 'paid' })
+            .eq('id', intent.order_id)
+            .eq('tenant_id', tenantId);
+
+        } catch (statusErr) {
+          app.log.warn('order_status_events table not available, skipping status event');
+        }
+      }
+
+      return reply.send({ success: true, intent });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to capture payment');
+      return reply.code(500).send({ error: 'failed_to_capture_payment' });
     }
   });
 
@@ -380,42 +184,48 @@ export default async function paymentsRoutes(app: FastifyInstance) {
   app.post('/payments/refund', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      amount: z.number().positive(),
-      reason: z.string()
-    }).parse(req.body);
-
+    const body = CreateRefundSchema.parse(req.body);
     const tenantId = req.auth?.primaryTenantId;
+
     if (!tenantId) {
       return reply.code(400).send({ error: 'tenant_context_missing' });
     }
 
     try {
-      // Create refund record (dev simulation)
-      const refund = {
-        id: `refund_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        tenant_id: tenantId,
-        order_id: body.order_id,
-        amount: body.amount,
-        reason: body.reason,
-        status: 'completed', // Dev mode - instant refund
-        created_by: req.auth?.userId || 'system',
-        created_at: new Date().toISOString()
-      };
-
-      // Try to insert into payment_refunds if table exists
+      // Insert into payment_refunds (if exists)
       try {
-        await app.supabase
+        const { data: refund, error: refundError } = await app.supabase
           .from('payment_refunds')
-          .insert(refund);
+          .insert({
+            tenant_id: tenantId,
+            payment_id: body.payment_id,
+            amount: body.amount,
+            reason: body.reason,
+            status: 'completed', // Mock: immediately completed
+            created_by: req.auth?.userId || 'staff'
+          })
+          .select()
+          .single();
+        
+        if (refundError) throw refundError;
+
+        // Add payment event
+        await app.supabase
+          .from('payment_events')
+          .insert({
+            provider: 'mock',
+            event_id: `refund.succeeded_${refund.id}`,
+            tenant_id: tenantId,
+            payload: { type: 'refund.succeeded', data: refund },
+            received_at: new Date().toISOString()
+          });
+
+        return reply.code(201).send({ success: true, refund });
+
       } catch (refundErr) {
-        app.log.warn('payment_refunds table not available, using mock mode');
+        app.log.warn('payment_refunds table not available, simulating refund');
+        return reply.code(201).send({ success: true, message: 'Refund simulated (table not available)' });
       }
-
-      app.log.info(`Refund created for order ${body.order_id}: $${body.amount}`);
-
-      return reply.code(201).send({ refund });
 
     } catch (err: any) {
       app.log.error(err, 'Failed to create refund');
@@ -427,646 +237,74 @@ export default async function paymentsRoutes(app: FastifyInstance) {
   app.post('/payments/split', {
     preHandler: [app.requireAuth]
   }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      splits: z.array(z.object({
-        amount: z.number().positive(),
-        method: z.enum(['cash', 'card', 'wallet']),
-        payer_type: z.enum(['customer', 'staff']).default('customer')
-      }))
-    }).parse(req.body);
-
+    const body = CreateSplitSchema.parse(req.body);
     const tenantId = req.auth?.primaryTenantId;
+
     if (!tenantId) {
       return reply.code(400).send({ error: 'tenant_context_missing' });
     }
 
     try {
-      // Verify order exists
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .select('id, total_amount')
-        .eq('id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (orderError || !order) {
-        return reply.code(404).send({ error: 'order_not_found' });
-      }
-
-      // Validate split amounts
-      const totalSplits = body.splits.reduce((sum, split) => sum + split.amount, 0);
-      if (Math.abs(totalSplits - order.total_amount) > 0.01) {
-        return reply.code(400).send({ error: 'split_amounts_mismatch' });
-      }
-
-      // Create payment splits
-      const splits = body.splits.map(split => ({
-        id: `split_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        tenant_id: tenantId,
-        order_id: body.order_id,
-        amount: split.amount,
-        method: split.method,
-        payer_type: split.payer_type,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      }));
-
-      // Try to insert into payment_splits if table exists
+      // Insert into payment_splits (if exists)
       try {
-        await app.supabase
+        const { data: splits, error: splitsError } = await app.supabase
           .from('payment_splits')
-          .insert(splits);
-      } catch (splitErr) {
-        app.log.warn('payment_splits table not available, using mock mode');
-      }
+          .insert(body.map(s => ({
+            tenant_id: tenantId,
+            amount: s.amount,
+            method: s.method,
+            payer_type: s.payer_type,
+            status: 'pending' // Mock: always pending initially
+          })))
+          .select();
+        
+        if (splitsError) throw splitsError;
 
-      return reply.code(201).send({ splits });
+        return reply.code(201).send({ success: true, splits });
+
+      } catch (splitsErr) {
+        app.log.warn('payment_splits table not available, simulating splits');
+        return reply.code(201).send({ success: true, message: 'Splits simulated (table not available)' });
+      }
 
     } catch (err: any) {
       app.log.error(err, 'Failed to create payment splits');
-      return reply.code(500).send({ error: 'failed_to_create_splits' });
+      return reply.code(500).send({ error: 'failed_to_create_payment_splits' });
     }
   });
 
-  // POST /payments/webhook/:provider - Webhook handler (no auth)
-  app.post('/payments/webhook/:provider', async (req, reply) => {
-    const params = z.object({
-      provider: z.enum(['stripe', 'razorpay', 'other'])
-    }).parse(req.params);
-
+  // POST /payments/webhook (no auth; provider-verified only)
+  app.post('/payments/webhook', async (req, reply) => {
+    // This endpoint should ideally be secured by provider-specific signatures
+    // For now, we just log the event.
     try {
-      // Store webhook event for debugging/processing
-      const event = {
-        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        provider: params.provider,
-        event_id: (req.body as any)?.id || `evt_${Date.now()}`,
-        tenant_id: null, // Will be inferred from metadata in future
-        payload: req.body,
-        received_at: new Date().toISOString()
-      };
+      // Introspect payload for common fields
+      const payload = req.body;
+      const eventId = payload.id || payload.event_id || `webhook_evt_${Date.now()}`;
+      const provider = payload.provider || 'unknown';
+      const tenantId = payload.tenant_id || null; // Attempt to get tenant_id from payload
 
-      // Try to insert into payment_events if table exists
+      // Insert into payment_events (if exists)
       try {
         await app.supabase
           .from('payment_events')
-          .insert(event);
+          .insert({
+            provider: provider,
+            event_id: eventId,
+            tenant_id: tenantId,
+            payload: payload,
+            received_at: new Date().toISOString()
+          });
       } catch (eventErr) {
-        app.log.warn('payment_events table not available, webhook logged only');
+        app.log.warn('payment_events table not available, skipping webhook event storage');
       }
 
-      app.log.info({ provider: params.provider, event_id: event.event_id }, 'Payment webhook received');
-
-      return reply.send({ ok: true });
-    } catch (err: any) {
-      app.log.error(err, 'Payment webhook error');
-      return reply.send({ ok: true }); // Always return success to provider
-    }
-  });
-
-  // POST /payments/intent - Create payment intent
-  app.post('/payments/intent', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      amount: z.number().positive(),
-      method: z.enum(['card', 'cash', 'upi', 'wallet'])
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Verify order exists and belongs to tenant
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .select('id, total_amount, status')
-        .eq('id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (orderError || !order) {
-        return reply.code(404).send({ error: 'order_not_found' });
-      }
-
-      // Create payment intent
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .insert({
-          tenant_id: tenantId,
-          order_id: body.order_id,
-          amount: body.amount,
-          currency: 'USD',
-          provider: body.method === 'card' ? 'stripe' : 'other',
-          status: 'requires_payment_method',
-          metadata: { method: body.method }
-        })
-        .select()
-        .single();
-
-      if (intentError) throw intentError;
-
-      return reply.code(201).send({ intent });
+      app.log.info(`Webhook received from ${provider}: ${eventId}`);
+      return reply.code(200).send({ received: true });
 
     } catch (err: any) {
-      app.log.error(err, 'Failed to create payment intent');
-      return reply.code(500).send({ error: 'failed_to_create_intent' });
+      app.log.error(err, 'Error processing webhook');
+      return reply.code(500).send({ error: 'webhook_processing_error' });
     }
-  });
-
-  // POST /payments/intent/:id/confirm - Confirm payment (dev-mode)
-  app.post('/payments/intent/:id/confirm', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Get payment intent
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .select('*')
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (intentError || !intent) {
-        return reply.code(404).send({ error: 'intent_not_found' });
-      }
-
-      // Update intent to completed
-      const { data: updatedIntent, error: updateError } = await app.supabase
-        .from('payment_intents')
-        .update({
-          status: 'succeeded',
-          provider_intent_id: `dev_${Date.now()}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', params.id)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-
-      // Create payment event
-      await app.supabase
-        .from('payment_events')
-        .insert({
-          tenant_id: tenantId,
-          provider: intent.provider,
-          event_id: `dev_payment_confirmed_${Date.now()}`,
-          payload: {
-            type: 'payment_intent.succeeded',
-            data: { id: intent.id, amount: intent.amount }
-          }
-        });
-
-      // Update order to paid if this was the full amount
-      if (intent.order_id) {
-        await app.supabase
-          .from('orders')
-          .update({ status: 'paid', payment_status: 'completed' })
-          .eq('id', intent.order_id);
-
-        // Create order status event
-        await app.supabase
-          .from('order_status_events')
-          .insert({
-            tenant_id: tenantId,
-            order_id: intent.order_id,
-            status: 'paid',
-            created_by: req.auth?.userId || 'system'
-          });
-      }
-
-      return reply.send({ intent: updatedIntent });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to confirm payment intent');
-      return reply.code(500).send({ error: 'failed_to_confirm_payment' });
-    }
-  });
-
-  // POST /payments/:payment_id/splits - Create payment splits
-  app.post('/payments/:payment_id/splits', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      payment_id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = z.array(z.object({
-      amount: z.number().positive(),
-      method: z.string(),
-      payer_type: z.string().optional()
-    })).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Create payment splits
-      const splits = body.map(split => ({
-        tenant_id: tenantId,
-        payment_id: params.payment_id,
-        amount: split.amount,
-        method: split.method,
-        payer_type: split.payer_type || 'customer',
-        status: 'pending'
-      }));
-
-      const { data: createdSplits, error: splitsError } = await app.supabase
-        .from('payment_splits')
-        .insert(splits)
-        .select();
-
-      if (splitsError) throw splitsError;
-
-      return reply.code(201).send({ splits: createdSplits });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create payment splits');
-      return reply.code(500).send({ error: 'failed_to_create_splits' });
-    }
-  });
-
-  // POST /payments/:payment_id/refunds - Create refund
-  app.post('/payments/:payment_id/refunds', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      payment_id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = z.object({
-      amount: z.number().positive(),
-      reason: z.string()
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Create refund record
-      const { data: refund, error: refundError } = await app.supabase
-        .from('payment_refunds')
-        .insert({
-          tenant_id: tenantId,
-          payment_id: params.payment_id,
-          amount: body.amount,
-          reason: body.reason,
-          status: 'pending',
-          created_by: req.auth?.userId || 'system'
-        })
-        .select()
-        .single();
-
-      if (refundError) throw refundError;
-
-      return reply.code(201).send({ refund });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create refund');
-      return reply.code(500).send({ error: 'failed_to_create_refund' });
-    }
-  });
-
-  // PATCH /payments/intents/:id - Update payment intent
-  app.patch('/payments/intents/:id', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = UpdateIntentSchema.parse(req.body);
-    const tenantId = req.auth?.primaryTenantId;
-
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('payment_intents')
-        .update(body)
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'intent_not_found' });
-        }
-        throw error;
-      }
-
-      return reply.send({ intent: data });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update payment intent');
-      return reply.code(500).send({ error: 'failed_to_update_intent' });
-    }
-  });
-
-  // GET /payments/events - List payment events
-  app.get('/payments/events', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      const { data, error } = await app.supabase
-        .from('payment_events')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('received_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      return reply.send({ events: data || [] });
-    } catch (err: any) {
-      app.log.error(err, 'Failed to fetch payment events');
-      return reply.code(500).send({ error: 'failed_to_fetch_events' });
-    }
-  });
-
-  // POST /payments/intent - Create payment intent
-  app.post('/payments/intent', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const body = z.object({
-      order_id: z.string().uuid(),
-      amount: z.number().positive(),
-      method: z.enum(['card', 'cash', 'upi', 'wallet'])
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Verify order exists and belongs to tenant
-      const { data: order, error: orderError } = await app.supabase
-        .from('orders')
-        .select('id, order_number, total_amount, status')
-        .eq('id', body.order_id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (orderError || !order) {
-        return reply.code(404).send({ error: 'order_not_found' });
-      }
-
-      // Create payment intent
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .insert({
-          tenant_id: tenantId,
-          order_id: body.order_id,
-          amount: body.amount,
-          currency: 'USD',
-          provider: 'dev',
-          status: 'requires_payment_method',
-          metadata: { method: body.method }
-        })
-        .select()
-        .single();
-
-      if (intentError) throw intentError;
-
-      return reply.code(201).send({ intent });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create payment intent');
-      return reply.code(500).send({ error: 'failed_to_create_intent' });
-    }
-  });
-
-  // POST /payments/intent/:id/confirm - Confirm payment (dev-mode)
-  app.post('/payments/intent/:id/confirm', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Get payment intent
-      const { data: intent, error: intentError } = await app.supabase
-        .from('payment_intents')
-        .select('*')
-        .eq('id', params.id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (intentError || !intent) {
-        return reply.code(404).send({ error: 'intent_not_found' });
-      }
-
-      // Update intent to succeeded
-      const { data: updatedIntent, error: updateError } = await app.supabase
-        .from('payment_intents')
-        .update({
-          status: 'succeeded',
-          provider_intent_id: `dev_${Date.now()}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', params.id)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-
-      // Create payment event
-      await app.supabase
-        .from('payment_events')
-        .insert({
-          provider: 'dev',
-          event_id: `evt_${Date.now()}`,
-          tenant_id: tenantId,
-          payload: {
-            type: 'payment_intent.succeeded',
-            data: { object: updatedIntent }
-          },
-          received_at: new Date().toISOString()
-        });
-
-      // Update order to paid
-      if (intent.order_id) {
-        await app.supabase
-          .from('orders')
-          .update({
-            status: 'paid',
-            payment_status: 'completed'
-          })
-          .eq('id', intent.order_id);
-
-        // Create order status event
-        await app.supabase
-          .from('order_status_events')
-          .insert({
-            tenant_id: tenantId,
-            order_id: intent.order_id,
-            status: 'paid',
-            created_by: req.auth?.userId || 'system'
-          });
-      }
-
-      return reply.send({ intent: updatedIntent });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to confirm payment intent');
-      return reply.code(500).send({ error: 'failed_to_confirm_intent' });
-    }
-  });
-
-  // POST /payments/:payment_id/splits - Create payment splits
-  app.post('/payments/:payment_id/splits', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      payment_id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = z.array(z.object({
-      amount: z.number().positive(),
-      method: z.enum(['card', 'cash', 'upi', 'wallet']),
-      payer_type: z.string().optional()
-    })).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Create payment splits
-      const splits = body.map(split => ({
-        tenant_id: tenantId,
-        payment_id: params.payment_id,
-        amount: split.amount,
-        method: split.method,
-        payer_type: split.payer_type,
-        status: 'pending'
-      }));
-
-      const { data, error } = await app.supabase
-        .from('payment_splits')
-        .insert(splits)
-        .select();
-
-      if (error) throw error;
-
-      return reply.code(201).send({ splits: data });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create payment splits');
-      return reply.code(500).send({ error: 'failed_to_create_splits' });
-    }
-  });
-
-  // POST /payments/:payment_id/refunds - Create refund
-  app.post('/payments/:payment_id/refunds', {
-    preHandler: [app.requireAuth]
-  }, async (req, reply) => {
-    const params = z.object({
-      payment_id: z.string().uuid()
-    }).parse(req.params);
-
-    const body = z.object({
-      amount: z.number().positive(),
-      reason: z.string()
-    }).parse(req.body);
-
-    const tenantId = req.auth?.primaryTenantId;
-    if (!tenantId) {
-      return reply.code(400).send({ error: 'tenant_context_missing' });
-    }
-
-    try {
-      // Create refund record
-      const { data: refund, error: refundError } = await app.supabase
-        .from('payment_refunds')
-        .insert({
-          tenant_id: tenantId,
-          payment_id: params.payment_id,
-          amount: body.amount,
-          reason: body.reason,
-          status: 'pending',
-          created_by: req.auth?.userId
-        })
-        .select()
-        .single();
-
-      if (refundError) throw refundError;
-
-      return reply.code(201).send({ refund });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to create refund');
-      return reply.code(500).send({ error: 'failed_to_create_refund' });
-    }
-  });
-
-  // POST /payments/webhook/:provider - Webhook handler (placeholder)
-  app.post('/payments/webhook/:provider', async (req, reply) => {
-    const params = z.object({
-      provider: z.enum(['stripe', 'razorpay', 'other'])
-    }).parse(req.params);
-
-    try {
-      // Store webhook event for debugging/processing
-      const { data, error } = await app.supabase
-        .from('payment_events')
-        .insert({
-          provider: params.provider,
-          event_id: (req.body as any)?.id || `evt_${Date.now()}`,
-          tenant_id: null, // Will be inferred from metadata in future
-          payload: req.body,
-          received_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) {
-        app.log.error(error, 'Failed to store payment event');
-        // Don't fail webhook - return success to provider
-      }
-
-      app.log.info({ provider: params.provider, event_id: data?.event_id }, 'Payment webhook received');
-
-      return reply.send({ ok: true });
-    } catch (err: any) {
-      app.log.error(err, 'Payment webhook error');
-      return reply.send({ ok: true }); // Always return success to provider
-    }
-  });
-
-  app.post('/api/orders/checkout', async (req, reply) => {
-
   });
 }

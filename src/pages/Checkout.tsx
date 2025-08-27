@@ -89,7 +89,7 @@ export default function Checkout() {
           });
           
           // Confirm immediately in dev mode
-          await confirmPaymentIntent(intent.intent.id);
+          await confirmPaymentIntent(intent.payment_intent_id);
         }
       } else {
         // Single payment
@@ -100,7 +100,7 @@ export default function Checkout() {
         });
         
         // Confirm immediately in dev mode
-        await confirmPaymentIntent(intent.intent.id);
+        await confirmPaymentIntent(intent.payment_intent_id);
       }
 
       setCompleted(true);

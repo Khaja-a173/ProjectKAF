@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getCart, updateCartItem, removeCartItem, placeOrderFromCart } from '../lib/api';
+import { getCart, addCartItems, confirmOrder, updateCartItem, removeCartItem } from '../lib/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ShoppingCart, Plus, Minus, Trash2, CreditCard, DollarSign, Clock } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ShoppingCart, Plus, Minus, Trash2, CreditCard, DollarSign, Clock } from
 export default function Cart() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const sessionId = searchParams.get('session');
+  const cartId = searchParams.get('cart');
   
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -17,22 +17,22 @@ export default function Cart() {
   const [orderMode, setOrderMode] = useState<'dine_in' | 'takeaway'>('dine_in');
 
   useEffect(() => {
-    if (sessionId) {
+    if (cartId) {
       loadCart();
     } else {
       setError('No cart session found');
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [cartId]);
 
   const loadCart = async () => {
-    if (!sessionId) return;
+    if (!cartId) return;
 
     try {
       setLoading(true);
-      const response = await getCart(sessionId);
+      const response = await getCart(cartId);
       setCart(response);
-      setOrderMode(response.session?.mode || 'dine_in');
+      setOrderMode(response.mode || 'dine_in'); // Assuming mode is part of cart response
       setError(null);
     } catch (err: any) {
       console.error('Failed to load cart:', err);
@@ -43,11 +43,13 @@ export default function Cart() {
   };
 
   const handleUpdateQuantity = async (itemId: string, newQty: number) => {
+    if (!cartId) return;
     if (newQty <= 0) {
       return handleRemoveItem(itemId);
     }
 
     try {
+      // Assuming updateCartItem takes cartId and item details
       const response = await updateCartItem(itemId, { qty: newQty });
       setCart(response);
     } catch (err: any) {
@@ -56,6 +58,7 @@ export default function Cart() {
   };
 
   const handleRemoveItem = async (itemId: string) => {
+    if (!cartId) return;
     try {
       const response = await removeCartItem(itemId);
       setCart(response);
@@ -65,17 +68,14 @@ export default function Cart() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!sessionId || !cart?.items?.length) return;
+    if (!cartId || !cart?.items?.length) return;
 
     try {
       setPlacing(true);
-      const response = await placeOrderFromCart({
-        session_id: sessionId,
-        assigned_staff_id: null // Customer order
-      });
+      const response = await confirmOrder(cartId);
 
       // Redirect to order tracking
-      navigate(`/order-tracking?order=${response.order.id}`);
+      navigate(`/order-tracking?order=${response.order_id}`);
     } catch (err: any) {
       alert('Failed to place order: ' + err.message);
     } finally {
@@ -132,7 +132,7 @@ export default function Cart() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Your Cart</h1>
               <p className="text-gray-600">
-                {cart?.session?.table_id ? `Table ${cart.session.table_id}` : 'Takeaway Order'} • {items.length} items
+                {cart?.table_id ? `Table ${cart.table_id}` : 'Takeaway Order'} • {items.length} items
               </p>
             </div>
           </div>
@@ -154,16 +154,16 @@ export default function Cart() {
               {/* Cart Items */}
               <div className="space-y-4 mb-8">
                 {items.map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
+                  <div key={item.menu_item_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
                     <div className="flex items-center space-x-4">
                       <img
-                        src={item.menu_items?.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=100'}
-                        alt={item.menu_items?.name}
+                        src={item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=100'}
+                        alt={item.name}
                         className="w-16 h-16 object-cover rounded-lg"
                       />
                       <div>
-                        <h3 className="font-semibold text-gray-900">{item.menu_items?.name}</h3>
-                        <p className="text-gray-600">${item.menu_items?.price} each</p>
+                        <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                        <p className="text-gray-600">${item.price} each</p>
                         {item.notes && (
                           <p className="text-sm text-orange-600">Note: {item.notes}</p>
                         )}
@@ -173,14 +173,14 @@ export default function Cart() {
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => handleUpdateQuantity(item.id, item.qty - 1)}
+                          onClick={() => handleUpdateQuantity(item.menu_item_id, item.qty - 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
                         >
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="w-8 text-center font-medium">{item.qty}</span>
                         <button
-                          onClick={() => handleUpdateQuantity(item.id, item.qty + 1)}
+                          onClick={() => handleUpdateQuantity(item.menu_item_id, item.qty + 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
                         >
                           <Plus className="w-4 h-4" />
@@ -189,12 +189,12 @@ export default function Cart() {
 
                       <div className="text-right">
                         <div className="font-semibold text-gray-900">
-                          ${((item.menu_items?.price || 0) * item.qty).toFixed(2)}
+                          ${((item.price || 0) * item.qty).toFixed(2)}
                         </div>
                       </div>
 
                       <button
-                        onClick={() => handleRemoveItem(item.id)}
+                        onClick={() => handleRemoveItem(item.menu_item_id)}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
                         <Trash2 className="w-4 h-4" />

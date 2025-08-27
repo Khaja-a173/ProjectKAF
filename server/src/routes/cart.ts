@@ -25,7 +25,7 @@ const StartCartSchema = z.object({
 });
 
 const AddItemsSchema = z.object({
-  cart_id: z.string().uuid(),
+  cart_id: z.string(),
   items: z.array(CartItemSchema)
 });
 
@@ -34,13 +34,23 @@ const UpdateItemSchema = z.object({
   notes: z.string().optional()
 });
 
+const ConfirmOrderSchema = z.object({
+  cart_id: z.string(),
+  notes: z.string().optional(),
+  assign_staff_id: z.string().uuid().optional()
+});
+
 export default async function cartRoutes(app: FastifyInstance) {
-  // POST /public/cart - Create cart session
-  app.post('/public/cart', async (req, reply) => {
+  // POST /cart/start - Create cart session
+  app.post('/cart/start', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
     const body = StartCartSchema.parse(req.body);
-    // For public endpoints, tenant_id must be derived from a trusted source (e.g., QR code payload)
-    // For now, we'll use a hardcoded tenant_id for simplicity, but this should be dynamic
-    const tenantId = '550e8400-e29b-41d4-a716-446655440000'; // DEMO TENANT ID
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
 
     try {
       // Validate table exists if provided
@@ -58,14 +68,12 @@ export default async function cartRoutes(app: FastifyInstance) {
         }
       }
       
-      // Generate cart ID and session ID
+      // Generate cart ID
       const cartId = `cart_${app.crypto.randomUUID()}`;
-      const sessionId = `session_${app.crypto.randomUUID()}`;
       
       // Store cart in memory (or DB in production)
       const cart = {
         id: cartId,
-        session_id: sessionId,
         tenant_id: tenantId,
         table_id: body.table_id,
         mode: body.mode,
@@ -76,7 +84,7 @@ export default async function cartRoutes(app: FastifyInstance) {
       
       cartStorage.set(cartId, cart);
       
-      return reply.code(201).send({ cart_id: cartId, session_id: sessionId });
+      return reply.code(201).send({ cart_id: cartId });
       
     } catch (err: any) {
       app.log.error(err, 'Failed to start cart');
@@ -84,11 +92,17 @@ export default async function cartRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /public/cart/:cart_id - Get cart contents
-  app.get('/public/cart/:cart_id', async (req, reply) => {
-    const params = z.object({ cart_id: z.string().uuid() }).parse(req.params);
-    const tenantId = '550e8400-e29b-41d4-a716-446655440000'; // DEMO TENANT ID
-    
+  // GET /cart/:cart_id - Get cart contents
+  app.get('/cart/:cart_id', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const params = z.object({ cart_id: z.string() }).parse(req.params);
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
     try {
       const cart = cartStorage.get(params.cart_id);
       if (!cart || cart.tenant_id !== tenantId) {
@@ -101,7 +115,6 @@ export default async function cartRoutes(app: FastifyInstance) {
       const total = subtotal + tax;
       
       return reply.send({
-        session: { id: cart.session_id, table_id: cart.table_id, mode: cart.mode },
         items: cart.items,
         totals: { subtotal, tax, total }
       });
@@ -112,11 +125,17 @@ export default async function cartRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /public/cart/items - Add items to cart
-  app.post('/public/cart/items', async (req, reply) => {
+  // POST /cart/items - Add items to cart
+  app.post('/cart/items', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
     const body = AddItemsSchema.parse(req.body);
-    const tenantId = '550e8400-e29b-41d4-a716-446655440000'; // DEMO TENANT ID
-    
+    const tenantId = req.auth?.primaryTenantId;
+
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
     try {
       const cart = cartStorage.get(body.cart_id);
       if (!cart || cart.tenant_id !== tenantId) {
@@ -166,7 +185,6 @@ export default async function cartRoutes(app: FastifyInstance) {
       const total = subtotal + tax;
       
       return reply.send({
-        session: { id: cart.session_id, table_id: cart.table_id, mode: cart.mode },
         items: cart.items,
         totals: { subtotal, tax, total }
       });
@@ -177,99 +195,107 @@ export default async function cartRoutes(app: FastifyInstance) {
     }
   });
 
-  // PATCH /public/cart/items/:id - Update cart item quantity/notes
-  app.patch('/public/cart/items/:id', async (req, reply) => {
-    const params = z.object({ id: z.string().uuid() }).parse(req.params);
-    const body = UpdateItemSchema.parse(req.body);
-    const tenantId = '550e8400-e29b-41d4-a716-446655440000'; // DEMO TENANT ID
+  // POST /orders/confirm - Creates an orders row from cart
+  app.post('/orders/confirm', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = ConfirmOrderSchema.parse(req.body);
+    const tenantId = req.auth?.primaryTenantId;
 
-    try {
-      // Find cart containing the item
-      let foundCart: any = null;
-      let itemIndex: number = -1;
-
-      for (const cart of cartStorage.values()) {
-        if (cart.tenant_id === tenantId) {
-          itemIndex = cart.items.findIndex((item: any) => item.menu_item_id === params.id);
-          if (itemIndex !== -1) {
-            foundCart = cart;
-            break;
-          }
-        }
-      }
-
-      if (!foundCart) {
-        return reply.code(404).send({ error: 'cart_item_not_found' });
-      }
-
-      // Update item
-      if (body.qty !== undefined) {
-        foundCart.items[itemIndex].qty = body.qty;
-      }
-      if (body.notes !== undefined) {
-        foundCart.items[itemIndex].notes = body.notes;
-      }
-      foundCart.updated_at = new Date().toISOString();
-      cartStorage.set(foundCart.id, foundCart);
-
-      // Calculate totals
-      const subtotal = foundCart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
-      const tax = subtotal * 0.08;
-      const total = subtotal + tax;
-
-      return reply.send({
-        session: { id: foundCart.session_id, table_id: foundCart.table_id, mode: foundCart.mode },
-        items: foundCart.items,
-        totals: { subtotal, tax, total }
-      });
-
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update cart item');
-      return reply.code(500).send({ error: 'failed_to_update_cart_item' });
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
     }
-  });
-
-  // DELETE /public/cart/items/:id - Remove item from cart
-  app.delete('/public/cart/items/:id', async (req, reply) => {
-    const params = z.object({ id: z.string().uuid() }).parse(req.params);
-    const tenantId = '550e8400-e29b-41d4-a716-446655440000'; // DEMO TENANT ID
 
     try {
-      let foundCart: any = null;
-      let itemIndex: number = -1;
-
-      for (const cart of cartStorage.values()) {
-        if (cart.tenant_id === tenantId) {
-          itemIndex = cart.items.findIndex((item: any) => item.menu_item_id === params.id);
-          if (itemIndex !== -1) {
-            foundCart = cart;
-            break;
-          }
-        }
+      // Get cart from memory (in production this would be from DB/Redis)
+      const cart = cartStorage.get(body.cart_id);
+      
+      if (!cart || cart.tenant_id !== tenantId) {
+        return reply.code(404).send({ error: 'cart_not_found' });
       }
 
-      if (!foundCart) {
-        return reply.code(404).send({ error: 'cart_item_not_found' });
+      if (!cart.items || cart.items.length === 0) {
+        return reply.code(400).send({ error: 'cart_empty' });
       }
-
-      foundCart.items.splice(itemIndex, 1); // Remove item
-      foundCart.updated_at = new Date().toISOString();
-      cartStorage.set(foundCart.id, foundCart);
 
       // Calculate totals
-      const subtotal = foundCart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
+      // TODO: Fetch menu item prices from DB for security
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0);
       const tax = subtotal * 0.08;
       const total = subtotal + tax;
 
-      return reply.send({
-        session: { id: foundCart.session_id, table_id: foundCart.table_id, mode: foundCart.mode },
-        items: foundCart.items,
-        totals: { subtotal, tax, total }
+      // Generate order number
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+
+      // Create order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .insert({
+          tenant_id: tenantId,
+          table_id: cart.table_id,
+          staff_id: body.assign_staff_id,
+          order_number: orderNumber,
+          order_type: cart.mode,
+          status: 'pending',
+          subtotal: subtotal,
+          tax_amount: tax,
+          total_amount: total,
+          special_instructions: body.notes,
+          mode: cart.mode,
+          session_id: cart.id // Link to cart session
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = cart.items.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.menu_item_id,
+        quantity: item.qty,
+        unit_price: item.price,
+        total_price: item.price * item.qty,
+        special_instructions: item.notes, // Pass item-level notes
+        tenant_id: tenantId
+      }));
+
+      const { error: itemsError } = await app.supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Try to insert status event (safe fallback if table missing)
+      try {
+        const sb = getServiceSupabase(); // Use service role for RLS bypass
+        await sb
+          .from('order_status_events')
+          .insert({
+            order_id: order.id,
+            from_status: null,
+            to_status: 'new',
+            created_by: req.auth?.userId || 'customer'
+          });
+      } catch (statusErr) {
+        app.log.warn('order_status_events table not available, skipping event');
+      }
+
+      // Clear cart from memory
+      cartStorage.delete(body.cart_id);
+
+      app.log.info(`Order created: ${orderNumber} for tenant ${tenantId}`);
+
+      return reply.code(201).send({
+        order_id: order.id,
+        order_number: orderNumber,
+        status: 'new',
+        total_amount: order.total_amount
       });
 
     } catch (err: any) {
-      app.log.error(err, 'Failed to remove cart item');
-      return reply.code(500).send({ error: 'failed_to_remove_cart_item' });
+      app.log.error(err, 'Failed to confirm order');
+      return reply.code(500).send({ error: 'failed_to_confirm_order' });
     }
   });
 }

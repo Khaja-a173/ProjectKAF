@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getOrders } from '../lib/api';
+import { getOrderStatus, sendReceipt } from '../lib/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { 
@@ -12,64 +12,61 @@ import {
   DollarSign,
   Bell,
   MapPin,
-  Users
+  Users,
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 
 export default function OrderTracking() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order');
   
-  const [order, setOrder] = useState<any>(null);
+  const [orderStatus, setOrderStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sendingReceipt, setSendingReceipt] = useState(false);
+  const [receiptSent, setReceiptSent] = useState(false);
 
   useEffect(() => {
     if (orderId) {
-      loadOrder();
+      loadOrderStatus();
       
       // Set up polling for real-time updates
-      const interval = setInterval(loadOrder, 5000);
+      const interval = setInterval(loadOrderStatus, 5000);
       return () => clearInterval(interval);
     }
   }, [orderId]);
 
-  const loadOrder = async () => {
+  const loadOrderStatus = async () => {
     try {
-      // In real implementation, this would be a specific order endpoint
-      // For now, we'll simulate with the orders list
-      const response = await getOrders();
-      const foundOrder = response.orders?.find((o: any) => o.id === orderId);
-      
-      if (foundOrder) {
-        setOrder(foundOrder);
-      } else {
-        // Mock order data for demo
-        setOrder({
-          id: orderId,
-          order_number: 'ORD-123456',
-          status: 'preparing',
-          total_amount: 48.60,
-          table_id: 'T01',
-          created_at: new Date().toISOString(),
-          estimated_ready_time: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-          order_items: [
-            { menu_items: { name: 'Truffle Arancini' }, quantity: 2, total_price: 32.00 },
-            { menu_items: { name: 'Grilled Salmon' }, quantity: 1, total_price: 13.00 }
-          ]
-        });
-      }
-      
+      setLoading(true);
+      const response = await getOrderStatus(orderId as string);
+      setOrderStatus(response);
       setError(null);
     } catch (err: any) {
-      console.error('Failed to load order:', err);
+      console.error('Failed to load order status:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSendReceipt = async (channel: 'email' | 'sms') => {
+    if (!orderId) return;
+    setSendingReceipt(true);
+    try {
+      await sendReceipt(orderId, channel);
+      setReceiptSent(true);
+      setTimeout(() => setReceiptSent(false), 3000); // Hide confirmation after 3 seconds
+    } catch (err: any) {
+      alert('Failed to send receipt: ' + err.message);
+    } finally {
+      setSendingReceipt(false);
+    }
+  };
+
   const getStatusStep = (status: string) => {
-    const steps = ['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid'];
+    const steps = ['new', 'pending', 'confirmed', 'preparing', 'ready', 'served', 'paid'];
     return steps.indexOf(status);
   };
 
@@ -80,6 +77,7 @@ export default function OrderTracking() {
     
     if (isActive) {
       switch (status) {
+        case 'new': return <Clock className="w-6 h-6 text-blue-600 animate-pulse" />;
         case 'pending': return <Clock className="w-6 h-6 text-blue-600 animate-pulse" />;
         case 'confirmed': return <CheckCircle className="w-6 h-6 text-blue-600 animate-pulse" />;
         case 'preparing': return <ChefHat className="w-6 h-6 text-orange-600 animate-pulse" />;
@@ -94,7 +92,7 @@ export default function OrderTracking() {
   };
 
   const statusSteps = [
-    { key: 'pending', name: 'Order Placed', description: 'Your order has been received' },
+    { key: 'new', name: 'Order Placed', description: 'Your order has been received' },
     { key: 'confirmed', name: 'Confirmed', description: 'Restaurant confirmed your order' },
     { key: 'preparing', name: 'Preparing', description: 'Kitchen is preparing your food' },
     { key: 'ready', name: 'Ready', description: 'Your order is ready for pickup' },
@@ -117,7 +115,7 @@ export default function OrderTracking() {
     );
   }
 
-  if (error || !order) {
+  if (error || !orderStatus) {
     return (
       <div className="min-h-screen">
         <Header />
@@ -137,7 +135,7 @@ export default function OrderTracking() {
     );
   }
 
-  const currentStep = getStatusStep(order.status);
+  const currentStep = getStatusStep(orderStatus.current);
 
   return (
     <div className="min-h-screen">
@@ -148,11 +146,11 @@ export default function OrderTracking() {
           {/* Order Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Tracking</h1>
-            <p className="text-gray-600">Order {order.order_number}</p>
-            {order.table_id && (
+            <p className="text-gray-600">Order {orderStatus.order_number || orderStatus.order_id.slice(-6)}</p>
+            {orderStatus.table_number && (
               <div className="flex items-center justify-center space-x-2 mt-2">
                 <MapPin className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-600">Table {order.table_id}</span>
+                <span className="text-gray-600">Table {orderStatus.table_number}</span>
               </div>
             )}
           </div>
@@ -206,19 +204,19 @@ export default function OrderTracking() {
               </div>
             </div>
             
-            {order.estimated_ready_time && (
+            {orderStatus.estimated_ready_time && (
               <div className="mt-4 text-sm text-blue-800">
                 <Clock className="w-4 h-4 inline mr-1" />
-                Estimated ready time: {new Date(order.estimated_ready_time).toLocaleTimeString()}
+                Estimated ready time: {new Date(orderStatus.estimated_ready_time).toLocaleTimeString()}
               </div>
             )}
           </div>
 
-          {/* Order Items */}
+          {/* Order Items (mock data for now) */}
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
             <div className="space-y-3">
-              {order.order_items?.map((item: any, index: number) => (
+              {orderStatus.order_items?.map((item: any, index: number) => (
                 <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <span className="font-medium text-gray-900">
                     {item.quantity}x {item.menu_items?.name}
@@ -229,13 +227,36 @@ export default function OrderTracking() {
             </div>
           </div>
 
-          {/* Order Total */}
+          {/* Order Total (mock data for now) */}
           <div className="border-t border-gray-200 pt-6">
             <div className="flex justify-between items-center text-xl font-bold">
               <span>Total Amount</span>
-              <span className="text-green-600">${order.total_amount?.toFixed(2)}</span>
+              <span className="text-green-600">${orderStatus.total_amount?.toFixed(2)}</span>
             </div>
           </div>
+
+          {/* Receipt Actions */}
+          <div className="mt-6 flex justify-center space-x-4">
+            <button
+              onClick={() => handleSendReceipt('email')}
+              disabled={sendingReceipt}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Email Receipt</span>
+            </button>
+            <button
+              onClick={() => handleSendReceipt('sms')}
+              disabled={sendingReceipt}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>SMS Receipt</span>
+            </button>
+          </div>
+          {receiptSent && (
+            <p className="text-center text-sm text-green-600 mt-2">Receipt sent!</p>
+          )}
 
           {/* Auto-refresh indicator */}
           <div className="mt-6 text-center">

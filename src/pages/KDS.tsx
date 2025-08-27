@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getKdsOrders, updateKitchenState } from '../lib/api';
+import { getKdsOrders, advanceOrderFromKds, getKdsLanes, getKdsLatest } from '../lib/api';
 import { subscribeOrders } from '../lib/realtime';
 import DashboardHeader from '../components/DashboardHeader';
 import {
@@ -42,33 +42,49 @@ interface KdsOrders {
   ready: Order[];
 }
 
+interface KdsLaneCounts {
+  tenant_id: string;
+  queued: number;
+  preparing: number;
+  ready: number;
+}
+
 export default function KDS() {
   const [orders, setOrders] = useState<KdsOrders>({ queued: [], preparing: [], ready: [] });
+  const [laneCounts, setLaneCounts] = useState<KdsLaneCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadOrders();
+    loadKdsData();
     
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates (if available)
     const subscription = subscribeOrders('550e8400-e29b-41d4-a716-446655440000', (payload) => {
       console.log('KDS order update:', payload);
-      loadOrders(); // Refresh on any change
+      loadKdsData(); // Refresh on any change
     });
+
+    // Poll every 5 seconds as a fallback or for counts
+    const pollingInterval = setInterval(loadKdsData, 5000);
 
     return () => {
       subscription.unsubscribe();
+      clearInterval(pollingInterval);
     };
   }, []);
 
-  const loadOrders = async () => {
+  const loadKdsData = async () => {
     try {
       setLoading(true);
-      const response = await getKdsOrders();
-      setOrders(response.orders || { queued: [], preparing: [], ready: [] });
+      const [ordersResponse, laneCountsResponse] = await Promise.all([
+        getKdsOrders(),
+        getKdsLanes()
+      ]);
+      setOrders(ordersResponse.orders || { queued: [], preparing: [], ready: [] });
+      setLaneCounts(laneCountsResponse);
       setError(null);
     } catch (err: any) {
-      console.error('Failed to load KDS orders:', err);
+      console.error('Failed to load KDS data:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -77,8 +93,8 @@ export default function KDS() {
 
   const handleStateChange = async (orderId: string, newState: string) => {
     try {
-      await updateKitchenState(orderId, newState);
-      loadOrders(); // Refresh after update
+      await advanceOrderFromKds(orderId, newState);
+      loadKdsData(); // Refresh after update
     } catch (err: any) {
       alert('Failed to update kitchen state: ' + err.message);
     }
@@ -129,7 +145,7 @@ export default function KDS() {
       )}
 
       <div className="flex space-x-2">
-        {order.kitchen_state === 'queued' && (
+        {order.status === 'new' || order.status === 'pending' || order.status === 'confirmed' ? (
           <button
             onClick={() => handleStateChange(order.id, 'preparing')}
             className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
@@ -137,9 +153,7 @@ export default function KDS() {
             <Play className="w-4 h-4" />
             <span>Start</span>
           </button>
-        )}
-        
-        {order.kitchen_state === 'preparing' && (
+        ) : order.status === 'preparing' ? (
           <button
             onClick={() => handleStateChange(order.id, 'ready')}
             className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
@@ -147,9 +161,7 @@ export default function KDS() {
             <CheckCircle className="w-4 h-4" />
             <span>Ready</span>
           </button>
-        )}
-        
-        {order.kitchen_state === 'ready' && (
+        ) : order.status === 'ready' ? (
           <button
             onClick={() => handleStateChange(order.id, 'served')}
             className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
@@ -157,7 +169,7 @@ export default function KDS() {
             <ArrowRight className="w-4 h-4" />
             <span>Served</span>
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -229,7 +241,7 @@ export default function KDS() {
                   <p className="text-sm text-gray-600">New orders waiting</p>
                 </div>
                 <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {orders.queued.length}
+                  {laneCounts?.queued || 0}
                 </span>
               </div>
             </div>
@@ -257,7 +269,7 @@ export default function KDS() {
                   <p className="text-sm text-gray-600">Currently cooking</p>
                 </div>
                 <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {orders.preparing.length}
+                  {laneCounts?.preparing || 0}
                 </span>
               </div>
             </div>
@@ -285,7 +297,7 @@ export default function KDS() {
                   <p className="text-sm text-gray-600">Ready for pickup</p>
                 </div>
                 <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {orders.ready.length}
+                  {laneCounts?.ready || 0}
                 </span>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { resolveQR } from '../lib/api';
+import { resolveQR, startCart } from '../lib/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Loader } from 'lucide-react';
@@ -40,9 +40,13 @@ export default function ScanEntry() {
       localStorage.setItem('table_id', response.table.id);
       localStorage.setItem('table_number', response.table.table_number);
 
+      // Start a new cart session for this table
+      const cartResponse = await startCart('dine_in', response.table.id);
+      localStorage.setItem('cart_id', cartResponse.cart_id);
+
       // Redirect to menu with context
       setTimeout(() => {
-        navigate(`/menu?tenant=${response.tenant.id}&table=${response.table.id}`);
+        navigate(`/menu?cart=${cartResponse.cart_id}&table=${response.table.table_number}`);
       }, 2000);
 
     } catch (err: any) {
