@@ -219,6 +219,194 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /payments/initiate - Initiate payment for order
+  app.post('/payments/initiate', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      provider: z.enum(['stripe', 'razorpay', 'dev']),
+      method: z.enum(['card', 'wallet', 'upi']).optional(),
+      split: z.array(z.object({
+        amount: z.number().positive(),
+        payer_type: z.string(),
+        note: z.string().optional()
+      })).optional()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Verify order exists and belongs to tenant
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, order_number, total_amount, status')
+        .eq('id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Create payment intent
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .insert({
+          tenant_id: tenantId,
+          order_id: body.order_id,
+          amount: order.total_amount,
+          currency: 'USD',
+          provider: body.provider,
+          status: 'pending',
+          metadata: {
+            method: body.method,
+            split: body.split
+          }
+        })
+        .select()
+        .single();
+
+      if (intentError) throw intentError;
+
+      return reply.code(201).send({
+        intent,
+        client_secret: `dev_secret_${intent.id}`, // Mock client secret
+        checkout_url: `https://dev-checkout.example.com/${intent.id}` // Mock checkout URL
+      });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to initiate payment');
+      return reply.code(500).send({ error: 'failed_to_initiate_payment' });
+    }
+  });
+
+  // POST /payments/confirm - Confirm payment (dev-mode)
+  app.post('/payments/confirm', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      provider: z.enum(['stripe', 'razorpay', 'dev']),
+      intent_reference: z.string(),
+      amount: z.number().positive()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Update payment intent to completed
+      const { data: intent, error: intentError } = await app.supabase
+        .from('payment_intents')
+        .update({
+          status: 'succeeded',
+          provider_intent_id: body.intent_reference,
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (intentError) throw intentError;
+
+      // Update order to paid
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .update({
+          status: 'paid',
+          payment_status: 'completed'
+        })
+        .eq('id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      app.log.info(`Payment confirmed for order ${body.order_id}`);
+
+      return reply.send({
+        payment: intent,
+        order: order
+      });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to confirm payment');
+      return reply.code(500).send({ error: 'failed_to_confirm_payment' });
+    }
+  });
+
+  // POST /payments/refund - Create refund
+  app.post('/payments/refund', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      amount: z.number().positive(),
+      reason: z.string()
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Create refund record (dev simulation)
+      const refund = {
+        id: `refund_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        tenant_id: tenantId,
+        order_id: body.order_id,
+        amount: body.amount,
+        reason: body.reason,
+        status: 'completed', // Dev mode - instant refund
+        created_by: req.auth?.userId || 'system',
+        created_at: new Date().toISOString()
+      };
+
+      app.log.info(`Refund created for order ${body.order_id}: $${body.amount}`);
+
+      return reply.code(201).send({ refund });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create refund');
+      return reply.code(500).send({ error: 'failed_to_create_refund' });
+    }
+  });
+
+  // POST /payments/webhook - Webhook handler (no auth)
+  app.post('/payments/webhook/:provider', async (req, reply) => {
+    const params = z.object({
+      provider: z.enum(['stripe', 'razorpay', 'other'])
+    }).parse(req.params);
+
+    try {
+      // Store webhook event for debugging/processing
+      const event = {
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        provider: params.provider,
+        event_id: (req.body as any)?.id || `evt_${Date.now()}`,
+        tenant_id: null, // Will be inferred from metadata in future
+        payload: req.body,
+        received_at: new Date().toISOString()
+      };
+
+      app.log.info({ provider: params.provider, event_id: event.event_id }, 'Payment webhook received');
+
+      return reply.send({ ok: true });
+    } catch (err: any) {
+      app.log.error(err, 'Payment webhook error');
+      return reply.send({ ok: true }); // Always return success to provider
+    }
+  });
+
   // POST /payments/intent - Create payment intent
   app.post('/payments/intent', {
     preHandler: [app.requireAuth]
@@ -760,4 +948,5 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       return reply.send({ ok: true }); // Always return success to provider
     }
   });
-}
+
+  app.post('/api/orders/checkout', async (req, reply) => {

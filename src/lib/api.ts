@@ -236,6 +236,74 @@ export function listPaymentEvents() {
 }
 
 /** QR & Cart APIs (Public - No Auth Required) */
+export function resolveQR(code: string, table: string, sig?: string, exp?: number) {
+  const params = new URLSearchParams({ code, table });
+  if (sig) params.set('sig', sig);
+  if (exp) params.set('exp', exp.toString());
+  return apiRequest(`/public/qr/resolve?${params.toString()}`, {}, { requireAuth: false });
+}
+
+export function createCartSession(data: any) {
+  return apiRequest('/public/cart', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+export function getCart(sessionId: string) {
+  return apiRequest(`/public/cart/${sessionId}`, {}, { requireAuth: false });
+}
+
+export function placeOrderFromCart(data: any) {
+  return apiRequest('/public/orders/checkout', { method: 'POST', body: JSON.stringify(data) }, { requireAuth: false });
+}
+
+/** Order Management APIs */
+export function updateOrderStatus(orderId: string, toStatus: string) {
+  return apiRequest(`/orders/${orderId}/status`, { method: 'POST', body: JSON.stringify({ to_status: toStatus }) });
+}
+
+export function assignStaffToOrder(orderId: string, staffUserId: string) {
+  return apiRequest(`/orders/${orderId}/assign`, { method: 'POST', body: JSON.stringify({ staff_user_id: staffUserId }) });
+}
+
+/** KDS APIs */
+export function getKdsLanes() {
+  return apiRequest('/kds/lanes');
+}
+
+export function getKdsLatest() {
+  return apiRequest('/kds/latest');
+}
+
+export function advanceOrderFromKds(orderId: string, toStatus: string) {
+  return apiRequest(`/kds/orders/${orderId}/advance`, { method: 'POST', body: JSON.stringify({ to_status: toStatus }) });
+}
+
+/** Payment Lifecycle APIs */
+export function initiatePayment(data: any) {
+  return apiRequest('/payments/initiate', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function confirmPayment(data: any) {
+  return apiRequest('/payments/confirm', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function createPaymentRefund(data: any) {
+  return apiRequest('/payments/refund', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Receipt APIs */
+export function sendReceipt(orderId: string, data: any) {
+  return apiRequest(`/receipts/${orderId}/send`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function listReceipts(filters?: any) {
+  const searchParams = new URLSearchParams();
+  if (filters?.order_id) searchParams.set('order_id', filters.order_id);
+  if (filters?.status) searchParams.set('status', filters.status);
+  const query = searchParams.toString();
+  return apiRequest(`/receipts${query ? `?${query}` : ''}`);
+}
+
+/** QR & Cart APIs (Public - No Auth Required) */
 export function resolveQR(code: string, table: string, sig: string, exp: number) {
   return apiRequest(`/qr/resolve?code=${code}&table=${table}&sig=${sig}&exp=${exp}`, {}, { requireAuth: false });
 }

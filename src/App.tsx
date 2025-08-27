@@ -34,6 +34,10 @@ import ScanEntry from "./pages/ScanEntry";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderTracking from "./pages/OrderTracking";
+import ScanEntry from "./pages/ScanEntry";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import OrderTracking from "./pages/OrderTracking";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -95,6 +99,11 @@ function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/events" element={<Events />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/scan" element={<ScanEntry />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/order-tracking" element={<OrderTracking />} />
+        <Route path="/m/:code/:table" element={<ScanEntry />} />
         <Route path="/scan" element={<ScanEntry />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
