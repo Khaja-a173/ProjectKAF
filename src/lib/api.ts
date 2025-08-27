@@ -1,343 +1,329 @@
-// /home/project/src/lib/api.ts
-import { supabase } from './supabase';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { createPaymentIntent, confirmPaymentIntent, createPaymentSplits } from '../lib/api';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import { 
+  CreditCard, 
+  DollarSign, 
+  Smartphone, 
+  Wallet, 
+  Clock, 
+  CheckCircle,
+  Users,
+  Plus,
+  Minus
+} from 'lucide-react';
 
-const API_BASE = '/api';
-// small helper to join safely
-const join = (base: string, path: string) => `${base}${path.startsWith('/') ? path : `/${path}`}`;
-
-async function waitForSessionToken(timeoutMs = 3000): Promise<string | null> {
-  const start = Date.now();
-  // try immediate
-  let { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) return session.access_token;
-
-  // subscribe and wait until a token arrives or timeout
-  return await new Promise((resolve) => {
-    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        sub.subscription?.unsubscribe();
-        resolve(session.access_token);
-      } else if (Date.now() - start > timeoutMs) {
-        sub.subscription?.unsubscribe();
-        resolve(null);
-      }
-    });
-    // hard timeout fallback
-    setTimeout(async () => {
-      sub.subscription?.unsubscribe();
-      const { data: { session } } = await supabase.auth.getSession();
-      resolve(session?.access_token ?? null);
-    }, timeoutMs);
-  });
-}
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  // First, try immediate session
-  let { data: { session } } = await supabase.auth.getSession();
-  let token = session?.access_token;
-
-  // If not ready yet, wait briefly
-  if (!token) token = await waitForSessionToken(3000);
-  if (!token) throw new Error('No authentication token available');
-
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-}
-
-async function buildAuthHeader(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    return { Authorization: `Bearer ${session.access_token}` };
-  }
-  return {};
-}
-
-async function apiRequest(
-  endpoint: string,
-  options: RequestInit = {},
-  { requireAuth = true }: { requireAuth?: boolean } = {}
-): Promise<any> {
-  let headers: Record<string, string>;
+export default function Checkout() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const orderId = searchParams.get('order');
   
-  if (requireAuth) {
-    headers = { ...(await getAuthHeaders()), ...(options.headers as Record<string, string> | undefined) };
-  } else {
-    headers = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) };
-  }
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'upi' | 'wallet'>('card');
+  const [processing, setProcessing] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [splits, setSplits] = useState([{ amount: 0, method: 'card' as const }]);
+  const [useSplitPayment, setUseSplitPayment] = useState(false);
 
-  const res = await fetch(join(API_BASE, endpoint), { ...options, headers });
-
-  // Try to parse JSON either way for better errors
-  const tryJson = async () => {
-    try { return await res.json(); } catch { return null; }
+  // Mock order data - in real app this would come from API
+  const orderData = {
+    id: orderId,
+    number: 'ORD-123456',
+    total: 48.60,
+    subtotal: 45.00,
+    tax: 3.60,
+    items: [
+      { name: 'Truffle Arancini', qty: 2, price: 16.00 },
+      { name: 'Grilled Salmon', qty: 1, price: 13.00 }
+    ]
   };
 
-  if (!res.ok) {
-    const body = await tryJson();
-    const msg = (body && (body.error || body.message)) || `HTTP ${res.status}`;
-    throw new Error(msg);
+  const paymentMethods = [
+    {
+      id: 'card',
+      name: 'Credit/Debit Card',
+      icon: CreditCard,
+      description: 'Visa, Mastercard, Amex'
+    },
+    {
+      id: 'cash',
+      name: 'Cash',
+      icon: DollarSign,
+      description: 'Pay at counter'
+    },
+    {
+      id: 'upi',
+      name: 'UPI',
+      icon: Smartphone,
+      description: 'Google Pay, PhonePe, Paytm'
+    },
+    {
+      id: 'wallet',
+      name: 'Digital Wallet',
+      icon: Wallet,
+      description: 'Apple Pay, Samsung Pay'
+    }
+  ];
+
+  const handlePayment = async () => {
+    if (!orderId) return;
+
+    try {
+      setProcessing(true);
+
+      if (useSplitPayment) {
+        // Handle split payment
+        const totalSplits = splits.reduce((sum, split) => sum + split.amount, 0);
+        if (Math.abs(totalSplits - orderData.total) > 0.01) {
+          alert('Split amounts must equal total order amount');
+          return;
+        }
+
+        // Create payment intent for each split
+        for (const split of splits) {
+          const intent = await createPaymentIntent({
+            order_id: orderId,
+            amount: split.amount,
+            method: split.method
+          });
+          
+          // Confirm immediately in dev mode
+          await confirmPaymentIntent(intent.payment_intent_id);
+        }
+      } else {
+        // Single payment
+        const intent = await createPaymentIntent({
+          order_id: orderId,
+          amount: orderData.total,
+          method: paymentMethod
+        });
+        
+        // Confirm immediately in dev mode
+        await confirmPaymentIntent(intent.payment_intent_id);
+      }
+
+      setCompleted(true);
+      
+      // Redirect after success
+      setTimeout(() => {
+        navigate(`/order-tracking?order=${orderId}`);
+      }, 3000);
+
+    } catch (err: any) {
+      alert('Payment failed: ' + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const addSplit = () => {
+    setSplits([...splits, { amount: 0, method: 'card' }]);
+  };
+
+  const removeSplit = (index: number) => {
+    if (splits.length > 1) {
+      setSplits(splits.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSplit = (index: number, field: 'amount' | 'method', value: any) => {
+    const newSplits = [...splits];
+    newSplits[index] = { ...newSplits[index], [field]: value };
+    setSplits(newSplits);
+  };
+
+  if (completed) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
+            <p className="text-gray-600 mb-6">
+              Your payment has been processed successfully. You'll be redirected to order tracking.
+            </p>
+            <div className="bg-white rounded-xl p-4">
+              <div className="text-sm text-gray-600">
+                <p><strong>Order:</strong> {orderData.number}</p>
+                <p><strong>Amount:</strong> ${orderData.total.toFixed(2)}</p>
+                <p><strong>Method:</strong> {paymentMethod.toUpperCase()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
-  const data = await tryJson();
-  return data;
-}
+  return (
+    <div className="min-h-screen">
+      <Header />
+      
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Order Summary</h2>
+            
+            <div className="space-y-4 mb-6">
+              {orderData.items.map((item, index) => (
+                <div key={index} className="flex justify-between">
+                  <span className="text-gray-600">{item.qty}x {item.name}</span>
+                  <span className="font-medium">${(item.price * item.qty).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
 
-/** Analytics APIs */
-export function getSummary(window = '7d') {
-  return apiRequest(`/analytics/summary?window=${encodeURIComponent(window)}`);
-}
+            <div className="border-t border-gray-200 pt-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-medium">${orderData.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tax</span>
+                <span className="font-medium">${orderData.tax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold">
+                <span>Total</span>
+                <span className="text-blue-600">${orderData.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
 
-export function getRevenue(window = '30d', granularity = 'day') {
-  return apiRequest(`/analytics/revenue?window=${encodeURIComponent(window)}&granularity=${encodeURIComponent(granularity)}`);
-}
+          {/* Payment Methods */}
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
 
-export function getTopItems(window = '30d', limit = 10) {
-  return apiRequest(`/analytics/top-items?window=${encodeURIComponent(window)}&limit=${limit}`);
-}
+            {/* Split Payment Toggle */}
+            <div className="mb-6">
+              <label className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  checked={useSplitPayment}
+                  onChange={(e) => setUseSplitPayment(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="font-medium text-gray-900">Split Payment</span>
+                <Users className="w-4 h-4 text-gray-500" />
+              </label>
+            </div>
 
-/** Auth – whoami should NOT require a token (lets UI show logged-out state cleanly) */
-export function getWhoAmI() {
-  return apiRequest('/auth/whoami', {}, { requireAuth: false });
-}
+            {useSplitPayment ? (
+              /* Split Payment Interface */
+              <div className="space-y-4 mb-6">
+                {splits.map((split, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium">Split {index + 1}</span>
+                      {splits.length > 1 && (
+                        <button
+                          onClick={() => removeSplit(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={split.amount}
+                          onChange={(e) => updateSplit(index, 'amount', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                        <select
+                          value={split.method}
+                          onChange={(e) => updateSplit(index, 'method', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="card">Card</option>
+                          <option value="cash">Cash</option>
+                          <option value="upi">UPI</option>
+                          <option value="wallet">Wallet</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <button
+                  onClick={addSplit}
+                  className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Another Payment</span>
+                </button>
 
-/** Orders APIs */
-export function getOrders(params?: { status?: string; since?: string }) {
-  const searchParams = new URLSearchParams();
-  if (params?.status) searchParams.set('status', params.status);
-  if (params?.since) searchParams.set('since', params.since);
-  const query = searchParams.toString();
-  return apiRequest(`/orders${query ? `?${query}` : ''}`);
-}
+                <div className="text-sm text-gray-600">
+                  Total splits: ${splits.reduce((sum, split) => sum + split.amount, 0).toFixed(2)} / ${orderData.total.toFixed(2)}
+                </div>
+              </div>
+            ) : (
+              /* Single Payment Interface */
+              <div className="space-y-4 mb-6">
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method.id}
+                    onClick={() => setPaymentMethod(method.id as any)}
+                    className={`w-full p-4 border-2 rounded-xl transition-colors text-left ${
+                      paymentMethod === method.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <method.icon className={`w-6 h-6 ${
+                        paymentMethod === method.id ? 'text-blue-600' : 'text-gray-400'
+                      }`} />
+                      <div>
+                        <div className="font-medium text-gray-900">{method.name}</div>
+                        <div className="text-sm text-gray-500">{method.description}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
 
-export function createOrder(data: any) {
-  return apiRequest('/orders', { method: 'POST', body: JSON.stringify(data) });
-}
+            {/* Payment Button */}
+            <button
+              onClick={handlePayment}
+              disabled={processing}
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-6 rounded-xl text-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {processing ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <DollarSign className="w-5 h-5" />
+                  <span>Pay ${orderData.total.toFixed(2)}</span>
+                </>
+              )}
+            </button>
 
-export function updateOrder(id: string, data: any) {
-  return apiRequest(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-}
+            <div className="mt-4 text-center text-sm text-gray-500">
+              <p>Secure payment processing • Dev mode simulation</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-export function cancelOrder(id: string) {
-  return apiRequest(`/orders/${id}`, { method: 'DELETE' });
-}
-
-/** Menu APIs */
-export function getMenuCategories() {
-  return apiRequest('/menu/categories');
-}
-
-export function createMenuCategory(data: any) {
-  return apiRequest('/menu/categories', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function getMenuItems(params?: { category_id?: string }) {
-  const searchParams = new URLSearchParams();
-  if (params?.category_id) searchParams.set('category_id', params.category_id);
-  const query = searchParams.toString();
-  return apiRequest(`/menu/items${query ? `?${query}` : ''}`);
-}
-
-export function createMenuItem(data: any) {
-  return apiRequest('/menu/items', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function updateMenuItem(id: string, data: any) {
-  return apiRequest(`/menu/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-}
-
-export function bulkImportMenuItems(csv: string) {
-  return apiRequest('/menu/items:bulk', { method: 'POST', body: JSON.stringify({ csv }) });
-}
-
-/** Tables APIs */
-export function getTables() {
-  return apiRequest('/tables');
-}
-
-export function lockTable(id: string, isLocked: boolean) {
-  return apiRequest(`/tables/${id}/lock`, { method: 'PATCH', body: JSON.stringify({ is_locked: isLocked }) });
-}
-
-/** Staff APIs */
-export function getStaff() {
-  return apiRequest('/staff');
-}
-
-export function addStaff(data: any) {
-  return apiRequest('/staff', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function removeStaff(userId: string) {
-  return apiRequest(`/staff/${userId}`, { method: 'DELETE' });
-}
-
-export function getShifts() {
-  return apiRequest('/staff/shifts');
-}
-
-/** KDS APIs */
-export function getKdsOrders(state?: string) {
-  const query = state ? `?state=${state}` : '';
-  return apiRequest(`/kds/orders${query}`);
-}
-
-export function updateKitchenState(orderId: string, kitchenState: string) {
-  return apiRequest(`/kds/orders/${orderId}/state`, { 
-    method: 'PATCH', 
-    body: JSON.stringify({ kitchen_state: kitchenState }) 
-  });
-}
-
-/** Branding APIs */
-export function getBranding() {
-  return apiRequest('/branding');
-}
-
-export function updateBranding(data: any) {
-  return apiRequest('/branding', { method: 'PATCH', body: JSON.stringify(data) });
-}
-
-/** Payment APIs */
-export function getPaymentProviders() {
-  return apiRequest('/payments/providers');
-}
-
-export function createPaymentProvider(data: any) {
-  return apiRequest('/payments/providers', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function updatePaymentProvider(id: string, data: any) {
-  return apiRequest(`/payments/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-}
-
-export function listPaymentIntents(filters?: { order_id?: string; status?: string; limit?: number; page?: number }) {
-  const searchParams = new URLSearchParams();
-  if (filters?.order_id) searchParams.set('order_id', filters.order_id);
-  if (filters?.status) searchParams.set('status', filters.status);
-  if (filters?.limit) searchParams.set('limit', filters.limit.toString());
-  if (filters?.page) searchParams.set('page', filters.page.toString());
-  const query = searchParams.toString();
-  return apiRequest(`/payments/intents${query ? `?${query}` : ''}`);
-}
-
-export function createPaymentIntent(data: any) {
-  return apiRequest('/payments/intent', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function confirmPaymentIntent(payment_intent_id: string, data?: any) {
-  return apiRequest(`/payments/capture`, { method: 'POST', body: JSON.stringify({ payment_intent_id, ...data }) });
-}
-
-export function createPaymentRefund(data: any) {
-  return apiRequest('/payments/refund', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function createPaymentSplits(data: any) {
-  return apiRequest('/payments/split', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function listPaymentEvents() {
-  return apiRequest('/payments/webhook');
-}
-
-/** QR & Cart APIs (Public - No Auth Required) */
-export function resolveQR(code: string, table: string) {
-  return apiRequest(`/qr/resolve?code=${code}&table=${table}`, {}, { requireAuth: false });
-}
-
-export function startCart(mode: 'dine_in' | 'takeaway', tableId?: string) {
-  return apiRequest('/cart/start', { 
-    method: 'POST', 
-    body: JSON.stringify({ mode, table_id: tableId || null }) 
-  });
-}
-
-export function addCartItems(cartId: string, items: Array<{ menu_item_id: string; qty: number }>) {
-  return apiRequest('/cart/items', { 
-    method: 'POST', 
-    body: JSON.stringify({ cart_id: cartId, items }) 
-  });
-}
-
-export function getCart(cartId: string) {
-  return apiRequest(`/cart/${cartId}`);
-}
-
-export function confirmOrder(cartId: string, notes?: string, assignStaffId?: string) {
-  return apiRequest('/orders/confirm', { 
-    method: 'POST', 
-    body: JSON.stringify({ cart_id: cartId, notes, assign_staff_id: assignStaffId }) 
-  });
-}
-
-/** Order Status APIs */
-export function getOrderStatus(orderId: string) {
-  return apiRequest(`/orders/${orderId}/status`);
-}
-
-export function updateOrderStatus(orderId: string, toStatus: string) {
-  return apiRequest(`/orders/${orderId}/status`, { 
-    method: 'POST', 
-    body: JSON.stringify({ to: toStatus }) 
-  });
-}
-
-/** KDS APIs */
-export function getKdsLanes() {
-  return apiRequest('/kds/lanes');
-}
-
-export function getKdsLatest() {
-  return apiRequest('/kds/latest');
-}
-
-export function advanceOrderFromKds(orderId: string, toStatus: string) {
-  return apiRequest(`/kds/orders/${orderId}/advance`, { 
-    method: 'POST', 
-    body: JSON.stringify({ to: toStatus }) 
-  });
-}
-
-/** Receipt APIs */
-export function sendReceipt(orderId: string, channel: 'email' | 'sms') {
-  return apiRequest('/receipts/send', { 
-    method: 'POST', 
-    body: JSON.stringify({ order_id: orderId, channel }) 
-  });
-}
-
-export function getPrinterConfig() {
-  return apiRequest('/printer/config');
-}
-
-export function updatePrinterConfig(config: any) {
-  return apiRequest('/printer/config', { method: 'POST', body: JSON.stringify(config) });
-}
-
-/** Payment APIs */
-export function getPaymentConfig() {
-  return apiRequest('/payments/config');
-}
-
-export function updatePaymentConfig(config: any) {
-  return apiRequest('/payments/config', { method: 'PUT', body: JSON.stringify(config) });
-}
-
-export function createPaymentIntent(data: any) {
-  return apiRequest('/payments/intent', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function capturePayment(data: any) {
-  return apiRequest('/payments/capture', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function refundPayment(data: any) {
-  return apiRequest('/payments/refund', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function splitPayment(data: any) {
-  return apiRequest('/payments/split', { method: 'POST', body: JSON.stringify(data) });
+      <Footer />
+    </div>
+  );
 }
