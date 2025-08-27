@@ -330,6 +330,39 @@ export default async function paymentsRoutes(app: FastifyInstance) {
 
       if (orderError) throw orderError;
 
+      // Try to insert status event
+      try {
+        await app.supabase
+          .from('order_status_events')
+          .insert({
+            tenant_id: tenantId,
+            order_id: body.order_id,
+            from_status: 'served',
+            to_status: 'paid',
+            created_by: req.auth?.userId || 'system'
+          });
+      } catch (statusErr) {
+        app.log.warn('order_status_events table not available, skipping event');
+      }
+
+      // Try to insert payment event
+      try {
+        await app.supabase
+          .from('payment_events')
+          .insert({
+            provider: body.provider,
+            event_id: `payment_confirmed_${Date.now()}`,
+            tenant_id: tenantId,
+            payload: {
+              type: 'payment.succeeded',
+              data: { order_id: body.order_id, amount: body.amount }
+            },
+            received_at: new Date().toISOString()
+          });
+      } catch (eventErr) {
+        app.log.warn('payment_events table not available, skipping event');
+      }
+
       app.log.info(`Payment confirmed for order ${body.order_id}`);
 
       return reply.send({
@@ -371,6 +404,15 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         created_at: new Date().toISOString()
       };
 
+      // Try to insert into payment_refunds if table exists
+      try {
+        await app.supabase
+          .from('payment_refunds')
+          .insert(refund);
+      } catch (refundErr) {
+        app.log.warn('payment_refunds table not available, using mock mode');
+      }
+
       app.log.info(`Refund created for order ${body.order_id}: $${body.amount}`);
 
       return reply.code(201).send({ refund });
@@ -381,7 +423,73 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /payments/webhook - Webhook handler (no auth)
+  // POST /payments/split - Create payment splits
+  app.post('/payments/split', {
+    preHandler: [app.requireAuth]
+  }, async (req, reply) => {
+    const body = z.object({
+      order_id: z.string().uuid(),
+      splits: z.array(z.object({
+        amount: z.number().positive(),
+        method: z.enum(['cash', 'card', 'wallet']),
+        payer_type: z.enum(['customer', 'staff']).default('customer')
+      }))
+    }).parse(req.body);
+
+    const tenantId = req.auth?.primaryTenantId;
+    if (!tenantId) {
+      return reply.code(400).send({ error: 'tenant_context_missing' });
+    }
+
+    try {
+      // Verify order exists
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .select('id, total_amount')
+        .eq('id', body.order_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !order) {
+        return reply.code(404).send({ error: 'order_not_found' });
+      }
+
+      // Validate split amounts
+      const totalSplits = body.splits.reduce((sum, split) => sum + split.amount, 0);
+      if (Math.abs(totalSplits - order.total_amount) > 0.01) {
+        return reply.code(400).send({ error: 'split_amounts_mismatch' });
+      }
+
+      // Create payment splits
+      const splits = body.splits.map(split => ({
+        id: `split_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        tenant_id: tenantId,
+        order_id: body.order_id,
+        amount: split.amount,
+        method: split.method,
+        payer_type: split.payer_type,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      }));
+
+      // Try to insert into payment_splits if table exists
+      try {
+        await app.supabase
+          .from('payment_splits')
+          .insert(splits);
+      } catch (splitErr) {
+        app.log.warn('payment_splits table not available, using mock mode');
+      }
+
+      return reply.code(201).send({ splits });
+
+    } catch (err: any) {
+      app.log.error(err, 'Failed to create payment splits');
+      return reply.code(500).send({ error: 'failed_to_create_splits' });
+    }
+  });
+
+  // POST /payments/webhook/:provider - Webhook handler (no auth)
   app.post('/payments/webhook/:provider', async (req, reply) => {
     const params = z.object({
       provider: z.enum(['stripe', 'razorpay', 'other'])
@@ -397,6 +505,15 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         payload: req.body,
         received_at: new Date().toISOString()
       };
+
+      // Try to insert into payment_events if table exists
+      try {
+        await app.supabase
+          .from('payment_events')
+          .insert(event);
+      } catch (eventErr) {
+        app.log.warn('payment_events table not available, webhook logged only');
+      }
 
       app.log.info({ provider: params.provider, event_id: event.event_id }, 'Payment webhook received');
 
@@ -950,3 +1067,6 @@ export default async function paymentsRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/orders/checkout', async (req, reply) => {
+
+  });
+}

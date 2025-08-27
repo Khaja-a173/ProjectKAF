@@ -236,6 +236,102 @@ export function listPaymentEvents() {
 }
 
 /** QR & Cart APIs (Public - No Auth Required) */
+export function resolveQR(code: string, table: string) {
+  return apiRequest(`/qr/resolve?code=${code}&table=${table}`, {}, { requireAuth: false });
+}
+
+export function startCart(mode: 'dine_in' | 'takeaway', tableId?: string) {
+  return apiRequest('/cart/start', { 
+    method: 'POST', 
+    body: JSON.stringify({ mode, table_id: tableId || null }) 
+  });
+}
+
+export function addCartItems(cartId: string, items: Array<{ menu_item_id: string; qty: number }>) {
+  return apiRequest('/cart/items', { 
+    method: 'POST', 
+    body: JSON.stringify({ cart_id: cartId, items }) 
+  });
+}
+
+export function getCart(cartId: string) {
+  return apiRequest(`/cart/${cartId}`);
+}
+
+export function confirmOrder(cartId: string, notes?: string, assignStaffId?: string) {
+  return apiRequest('/orders/confirm', { 
+    method: 'POST', 
+    body: JSON.stringify({ cart_id: cartId, notes, assign_staff_id: assignStaffId }) 
+  });
+}
+
+/** Order Status APIs */
+export function getOrderStatus(orderId: string) {
+  return apiRequest(`/orders/${orderId}/status`);
+}
+
+export function updateOrderStatus(orderId: string, toStatus: string) {
+  return apiRequest(`/orders/${orderId}/status`, { 
+    method: 'POST', 
+    body: JSON.stringify({ to: toStatus }) 
+  });
+}
+
+/** KDS APIs */
+export function getKdsOrders(lane?: string) {
+  const query = lane ? `?lane=${lane}` : '';
+  return apiRequest(`/kds/orders${query}`);
+}
+
+export function getKdsLanes() {
+  return apiRequest('/kds/lanes');
+}
+
+export function getKdsLatest() {
+  return apiRequest('/kds/latest');
+}
+
+export function advanceOrderFromKds(orderId: string, toStatus: string) {
+  return apiRequest(`/kds/orders/${orderId}/advance`, { 
+    method: 'POST', 
+    body: JSON.stringify({ to: toStatus }) 
+  });
+}
+
+/** Payment Lifecycle APIs */
+export function initiatePayment(data: any) {
+  return apiRequest('/payments/initiate', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function confirmPayment(data: any) {
+  return apiRequest('/payments/confirm', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function createPaymentRefund(data: any) {
+  return apiRequest('/payments/refund', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function createPaymentSplit(data: any) {
+  return apiRequest('/payments/split', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Receipt APIs */
+export function sendReceipt(orderId: string, channel: 'email' | 'sms') {
+  return apiRequest('/receipts/send', { 
+    method: 'POST', 
+    body: JSON.stringify({ order_id: orderId, channel }) 
+  });
+}
+
+export function getPrinterConfig() {
+  return apiRequest('/printer/config');
+}
+
+export function updatePrinterConfig(config: any) {
+  return apiRequest('/printer/config', { method: 'POST', body: JSON.stringify(config) });
+}
+
+/** QR & Cart APIs (Public - No Auth Required) */
 export function resolveQR(code: string, table: string, sig?: string, exp?: number) {
   const params = new URLSearchParams({ code, table });
   if (sig) params.set('sig', sig);

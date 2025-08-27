@@ -15,17 +15,15 @@ export default function ScanEntry() {
   // Extract QR parameters from URL
   const code = searchParams.get('code');
   const table = searchParams.get('table');
-  const sig = searchParams.get('sig');
-  const exp = searchParams.get('exp');
 
   useEffect(() => {
-    if (code && table && sig && exp) {
+    if (code && table) {
       handleQRResolve();
     }
-  }, [code, table, sig, exp]);
+  }, [code, table]);
 
   const handleQRResolve = async () => {
-    if (!code || !table || !sig || !exp) {
+    if (!code || !table) {
       setError('Invalid QR code parameters');
       return;
     }
@@ -34,7 +32,7 @@ export default function ScanEntry() {
       setLoading(true);
       setError(null);
 
-      const response = await resolveQR(code, table, sig, parseInt(exp));
+      const response = await resolveQR(code, table);
       setQrData(response);
 
       // Store tenant and table context
@@ -126,7 +124,7 @@ export default function ScanEntry() {
                 <p><strong>Restaurant:</strong> {qrData.tenant.name}</p>
                 <p><strong>Table:</strong> {qrData.table.table_number}</p>
                 <p><strong>Capacity:</strong> {qrData.table.capacity} guests</p>
-                <p><strong>Menu Items:</strong> {qrData.menu.items.length} available</p>
+                <p><strong>Menu Items:</strong> {qrData.menu_bootstrap.items.length} available</p>
               </div>
             </div>
             <p className="text-sm text-gray-500">Redirecting to menu...</p>
