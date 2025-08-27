@@ -19,13 +19,13 @@ import analyticsRoutes from './routes/analytics';
 import qrRoutes from './routes/qr'; // New QR routes
 import cartRoutes from './routes/cart'; // New Cart routes
 import kdsRoutes from './routes/kds'; // New KDS routes
-import paymentsRoutes from './routes/payments'; // New Payments routes
 import receiptsRoutes from './routes/receipts'; // New Receipts routes
 import menuRoutes from './routes/menu';
 import ordersRoutes from './routes/orders';
 import tablesRoutes from './routes/tables';
 import staffRoutes from './routes/staff';
 import brandingRoutes from './routes/branding';
+import paymentsRoutes from './routes/payments'; // New Payments routes
 
 
 const ENV_PATH = path.resolve(process.cwd(), '.env'); // ← resolves to /home/project/server/.env when you run from /home/project/server
@@ -55,13 +55,13 @@ await app.register(analyticsRoutes);
 await app.register(qrRoutes); // Register new QR routes
 await app.register(cartRoutes); // Register new Cart routes
 await app.register(kdsRoutes); // Register new KDS routes
-await app.register(paymentsRoutes); // Register new Payments routes
 await app.register(receiptsRoutes); // Register new Receipts routes
 await app.register(menuRoutes);
 await app.register(ordersRoutes);
 await app.register(tablesRoutes);
 await app.register(staffRoutes);
 await app.register(brandingRoutes);
+await app.register(paymentsRoutes); // Register new Payments routes
 
 
 // health (namespaced to avoid collisions)

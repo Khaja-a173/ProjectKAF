@@ -316,3 +316,28 @@ export function getPrinterConfig() {
 export function updatePrinterConfig(config: any) {
   return apiRequest('/printer/config', { method: 'POST', body: JSON.stringify(config) });
 }
+
+/** Payment APIs */
+export function getPaymentConfig() {
+  return apiRequest('/payments/config');
+}
+
+export function updatePaymentConfig(config: any) {
+  return apiRequest('/payments/config', { method: 'PUT', body: JSON.stringify(config) });
+}
+
+export function createPaymentIntent(data: any) {
+  return apiRequest('/payments/intent', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function capturePayment(data: any) {
+  return apiRequest('/payments/capture', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function refundPayment(data: any) {
+  return apiRequest('/payments/refund', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function splitPayment(data: any) {
+  return apiRequest('/payments/split', { method: 'POST', body: JSON.stringify(data) });
+}
