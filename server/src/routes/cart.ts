@@ -1,278 +1,210 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
-const CreateSessionSchema = z.object({
-  tenant_id: z.string().uuid(),
-  table_id: z.string().uuid().optional(),
-  mode: z.enum(['dine_in', 'takeaway']),
-  customer_name: z.string().optional(),
-  party_size: z.number().int().positive().default(2)
+const CreateCartSchema = z.object({
+  items: z.array(z.object({
+    menu_item_id: z.string().uuid(),
+    qty: z.number().int().positive()
+  })),
+  order_type: z.enum(['dine_in', 'takeaway']),
+  table_id: z.string().uuid().optional()
 });
 
-const AddItemSchema = z.object({
+const CheckoutSchema = z.object({
   session_id: z.string().uuid(),
-  menu_item_id: z.string().uuid(),
-  qty: z.number().int().positive(),
-  notes: z.string().optional()
+  customer: z.object({
+    email: z.string().email().optional(),
+    phone: z.string().optional()
+  }).optional()
 });
 
-const UpdateItemSchema = z.object({
-  qty: z.number().int().positive().optional(),
-  notes: z.string().optional()
-});
+// In-memory cart storage for dev (replace with DB in production)
+const cartStorage = new Map<string, any>();
 
 export default async function cartRoutes(app: FastifyInstance) {
-  // POST /cart/session - Create cart session
-  app.post('/cart/session', async (req, reply) => {
-    const body = CreateSessionSchema.parse(req.body);
+  // POST /public/cart - Create cart session
+  app.post('/public/cart', async (req, reply) => {
+    const body = CreateCartSchema.parse(req.body);
     
     try {
-      // Verify tenant exists
-      const { data: tenant, error: tenantError } = await app.supabase
-        .from('tenants')
-        .select('id, name')
-        .eq('id', body.tenant_id)
-        .single();
+      // Generate session IDs
+      const cartId = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       
-      if (tenantError || !tenant) {
-        return reply.code(404).send({ error: 'tenant_not_found' });
+      // Validate table exists if provided
+      if (body.table_id) {
+        const { data: table, error: tableError } = await app.supabase
+          .from('restaurant_tables')
+          .select('id, tenant_id, table_number, status')
+          .eq('id', body.table_id)
+          .single();
+        
+        if (tableError || !table) {
+          return reply.code(404).send({ error: 'table_not_found' });
+        }
       }
       
-      // Create cart session
-      const { data: session, error: sessionError } = await app.supabase
-        .from('cart_sessions')
-        .insert({
-          tenant_id: body.tenant_id,
-          table_id: body.table_id,
-          mode: body.mode,
-          customer_name: body.customer_name,
-          party_size: body.party_size,
-          status: 'active'
-        })
-        .select()
-        .single();
+      // Validate menu items exist
+      const menuItemIds = body.items.map(item => item.menu_item_id);
+      const { data: menuItems, error: menuError } = await app.supabase
+        .from('menu_items')
+        .select('id, name, price, tenant_id')
+        .in('id', menuItemIds)
+        .eq('is_available', true);
       
-      if (sessionError) throw sessionError;
+      if (menuError || !menuItems || menuItems.length !== menuItemIds.length) {
+        return reply.code(400).send({ error: 'invalid_menu_items' });
+      }
+      
+      // Ensure all items belong to same tenant
+      const tenantIds = [...new Set(menuItems.map(item => item.tenant_id))];
+      if (tenantIds.length !== 1) {
+        return reply.code(400).send({ error: 'items_from_different_tenants' });
+      }
+      
+      // Store cart in memory
+      const cart = {
+        cart_id: cartId,
+        session_id: sessionId,
+        tenant_id: tenantIds[0],
+        table_id: body.table_id,
+        order_type: body.order_type,
+        items: body.items.map(item => {
+          const menuItem = menuItems.find(mi => mi.id === item.menu_item_id);
+          return {
+            menu_item_id: item.menu_item_id,
+            name: menuItem?.name,
+            price: menuItem?.price,
+            qty: item.qty,
+            total: (menuItem?.price || 0) * item.qty
+          };
+        }),
+        created_at: new Date().toISOString()
+      };
+      
+      cartStorage.set(sessionId, cart);
       
       return reply.code(201).send({
-        session,
-        items: [],
-        totals: { subtotal: 0, tax: 0, total: 0 }
+        cart_id: cartId,
+        session_id: sessionId
       });
       
     } catch (err: any) {
-      app.log.error(err, 'Failed to create cart session');
-      return reply.code(500).send({ error: 'failed_to_create_session' });
+      app.log.error(err, 'Failed to create cart');
+      return reply.code(500).send({ error: 'failed_to_create_cart' });
     }
   });
   
-  // GET /cart/session/:session_id - Get cart with items
-  app.get('/cart/session/:session_id', async (req, reply) => {
+  // GET /public/cart/:session_id - Get cart contents
+  app.get('/public/cart/:session_id', async (req, reply) => {
     const params = z.object({
       session_id: z.string().uuid()
     }).parse(req.params);
     
     try {
-      // Get session
-      const { data: session, error: sessionError } = await app.supabase
-        .from('cart_sessions')
-        .select('*')
-        .eq('id', params.session_id)
-        .single();
+      const cart = cartStorage.get(params.session_id);
       
-      if (sessionError || !session) {
-        return reply.code(404).send({ error: 'session_not_found' });
+      if (!cart) {
+        return reply.code(404).send({ error: 'cart_not_found' });
       }
       
-      // Get cart items with menu item details
-      const { data: items, error: itemsError } = await app.supabase
-        .from('cart_items')
-        .select(`
-          *,
-          menu_items (
-            id,
-            name,
-            price,
-            image_url
-          )
-        `)
-        .eq('session_id', params.session_id)
-        .order('created_at');
-      
-      if (itemsError) throw itemsError;
-      
       // Calculate totals
-      const subtotal = (items || []).reduce((sum, item) => {
-        const price = item.menu_items?.price || 0;
-        return sum + (price * item.qty);
-      }, 0);
-      
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + item.total, 0);
       const tax = subtotal * 0.08; // 8% tax
       const total = subtotal + tax;
       
       return reply.send({
-        session,
-        items: items || [],
+        session: {
+          session_id: cart.session_id,
+          tenant_id: cart.tenant_id,
+          table_id: cart.table_id,
+          order_type: cart.order_type,
+          created_at: cart.created_at
+        },
+        items: cart.items,
         totals: { subtotal, tax, total }
       });
       
     } catch (err: any) {
-      app.log.error(err, 'Failed to get cart session');
-      return reply.code(500).send({ error: 'failed_to_get_session' });
+      app.log.error(err, 'Failed to get cart');
+      return reply.code(500).send({ error: 'failed_to_get_cart' });
     }
   });
   
-  // POST /cart/items - Add item to cart
-  app.post('/cart/items', async (req, reply) => {
-    const body = AddItemSchema.parse(req.body);
+  // POST /public/orders/checkout - Convert cart to order
+  app.post('/public/orders/checkout', async (req, reply) => {
+    const body = CheckoutSchema.parse(req.body);
     
     try {
-      // Verify session exists and is active
-      const { data: session, error: sessionError } = await app.supabase
-        .from('cart_sessions')
-        .select('id, tenant_id, status')
-        .eq('id', body.session_id)
-        .eq('status', 'active')
-        .single();
+      const cart = cartStorage.get(body.session_id);
       
-      if (sessionError || !session) {
-        return reply.code(404).send({ error: 'session_not_found_or_inactive' });
+      if (!cart) {
+        return reply.code(404).send({ error: 'cart_not_found' });
       }
       
-      // Verify menu item exists and belongs to tenant
-      const { data: menuItem, error: menuError } = await app.supabase
-        .from('menu_items')
-        .select('id, name, price, active')
-        .eq('id', body.menu_item_id)
-        .eq('tenant_id', session.tenant_id)
-        .eq('active', true)
-        .single();
-      
-      if (menuError || !menuItem) {
-        return reply.code(404).send({ error: 'menu_item_not_found' });
+      if (!cart.items || cart.items.length === 0) {
+        return reply.code(400).send({ error: 'cart_empty' });
       }
       
-      // Check if item already in cart
-      const { data: existingItem } = await app.supabase
-        .from('cart_items')
-        .select('id, qty')
-        .eq('session_id', body.session_id)
-        .eq('menu_item_id', body.menu_item_id)
-        .maybeSingle();
+      // Calculate totals
+      const subtotal = cart.items.reduce((sum: number, item: any) => sum + item.total, 0);
+      const tax = subtotal * 0.08;
+      const total = subtotal + tax;
       
-      if (existingItem) {
-        // Update existing item quantity
-        const { data: updatedItem, error: updateError } = await app.supabase
-          .from('cart_items')
-          .update({
-            qty: existingItem.qty + body.qty,
-            notes: body.notes,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingItem.id)
-          .select()
-          .single();
-        
-        if (updateError) throw updateError;
-        
-        // Return full cart
-        const cartResponse = await fetch(`${req.protocol}://${req.hostname}/cart/session/${body.session_id}`);
-        const cart = await cartResponse.json();
-        return reply.send(cart);
-      } else {
-        // Add new item
-        const { data: newItem, error: insertError } = await app.supabase
-          .from('cart_items')
-          .insert({
-            session_id: body.session_id,
-            menu_item_id: body.menu_item_id,
-            qty: body.qty,
-            notes: body.notes,
-            unit_price: menuItem.price
-          })
-          .select()
-          .single();
-        
-        if (insertError) throw insertError;
-        
-        // Return full cart
-        const cartResponse = await fetch(`${req.protocol}://${req.hostname}/cart/session/${body.session_id}`);
-        const cart = await cartResponse.json();
-        return reply.send(cart);
-      }
+      // Generate order number
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
       
-    } catch (err: any) {
-      app.log.error(err, 'Failed to add cart item');
-      return reply.code(500).send({ error: 'failed_to_add_item' });
-    }
-  });
-  
-  // PATCH /cart/items/:id - Update cart item
-  app.patch('/cart/items/:id', async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-    
-    const body = UpdateItemSchema.parse(req.body);
-    
-    try {
-      const { data: item, error } = await app.supabase
-        .from('cart_items')
-        .update({
-          ...body,
-          updated_at: new Date().toISOString()
+      // Create order
+      const { data: order, error: orderError } = await app.supabase
+        .from('orders')
+        .insert({
+          tenant_id: cart.tenant_id,
+          table_id: cart.table_id,
+          order_number: orderNumber,
+          order_type: cart.order_type,
+          status: 'pending',
+          subtotal: subtotal,
+          tax_amount: tax,
+          total_amount: total,
+          mode: cart.order_type,
+          session_id: body.session_id
         })
-        .eq('id', params.id)
-        .select('session_id')
+        .select()
         .single();
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'cart_item_not_found' });
-        }
-        throw error;
-      }
+      if (orderError) throw orderError;
       
-      // Return full cart
-      const cartResponse = await fetch(`${req.protocol}://${req.hostname}/cart/session/${item.session_id}`);
-      const cart = await cartResponse.json();
-      return reply.send(cart);
+      // Create order items
+      const orderItems = cart.items.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.menu_item_id,
+        quantity: item.qty,
+        unit_price: item.price,
+        total_price: item.total,
+        tenant_id: cart.tenant_id
+      }));
       
-    } catch (err: any) {
-      app.log.error(err, 'Failed to update cart item');
-      return reply.code(500).send({ error: 'failed_to_update_item' });
-    }
-  });
-  
-  // DELETE /cart/items/:id - Remove cart item
-  app.delete('/cart/items/:id', async (req, reply) => {
-    const params = z.object({
-      id: z.string().uuid()
-    }).parse(req.params);
-    
-    try {
-      const { data: item, error } = await app.supabase
-        .from('cart_items')
-        .delete()
-        .eq('id', params.id)
-        .select('session_id')
-        .single();
+      const { error: itemsError } = await app.supabase
+        .from('order_items')
+        .insert(orderItems);
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return reply.code(404).send({ error: 'cart_item_not_found' });
-        }
-        throw error;
-      }
+      if (itemsError) throw itemsError;
       
-      // Return full cart
-      const cartResponse = await fetch(`${req.protocol}://${req.hostname}/cart/session/${item.session_id}`);
-      const cart = await cartResponse.json();
-      return reply.send(cart);
+      // Clear cart from memory
+      cartStorage.delete(body.session_id);
+      
+      app.log.info(`Order created: ${orderNumber} for tenant ${cart.tenant_id}`);
+      
+      return reply.code(201).send({
+        order_id: order.id,
+        order_number: orderNumber,
+        status: order.status,
+        total_amount: order.total_amount
+      });
       
     } catch (err: any) {
-      app.log.error(err, 'Failed to remove cart item');
-      return reply.code(500).send({ error: 'failed_to_remove_item' });
+      app.log.error(err, 'Failed to checkout cart');
+      return reply.code(500).send({ error: 'failed_to_checkout' });
     }
   });
 }

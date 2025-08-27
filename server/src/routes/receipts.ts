@@ -36,24 +36,23 @@ export default async function receiptsRoutes(app: FastifyInstance) {
       }
 
       // Create receipt delivery record (dev-mode simulation)
-      const { data: receipt, error: receiptError } = await app.supabase
-        .from('receipt_deliveries')
-        .insert({
-          tenant_id: tenantId,
-          order_id: params.order_id,
-          via: body.via,
-          recipient: body.recipient,
-          status: 'queued', // In dev mode, just queue it
-          content: {
-            order_number: order.order_number,
-            total_amount: order.total_amount,
-            generated_at: new Date().toISOString()
-          }
-        })
-        .select()
-        .single();
-
-      if (receiptError) throw receiptError;
+      const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      
+      // In dev mode, just simulate the receipt delivery
+      const receipt = {
+        id: receiptId,
+        tenant_id: tenantId,
+        order_id: params.order_id,
+        via: body.via,
+        recipient: body.recipient || 'customer@example.com',
+        status: 'queued',
+        content: {
+          order_number: order.order_number,
+          total_amount: order.total_amount,
+          generated_at: new Date().toISOString()
+        },
+        created_at: new Date().toISOString()
+      };
 
       app.log.info(`Receipt queued for order ${order.order_number} via ${body.via}`);
 
@@ -89,26 +88,9 @@ export default async function receiptsRoutes(app: FastifyInstance) {
     }
 
     try {
-      let queryBuilder = app.supabase
-        .from('receipt_deliveries')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false })
-        .limit(query.limit);
-
-      if (query.order_id) {
-        queryBuilder = queryBuilder.eq('order_id', query.order_id);
-      }
-
-      if (query.status) {
-        queryBuilder = queryBuilder.eq('status', query.status);
-      }
-
-      const { data, error } = await queryBuilder;
-
-      if (error) throw error;
-
-      return reply.send({ receipts: data || [] });
+      // In dev mode, return empty array since we don't persist receipts
+      // In production, this would query receipt_deliveries table
+      return reply.send({ receipts: [] });
 
     } catch (err: any) {
       app.log.error(err, 'Failed to fetch receipts');
