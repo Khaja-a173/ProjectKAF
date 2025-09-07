@@ -1,0 +1,11 @@
+.env
+server/.env
+.env
+dist/.DS_Store
+node_modules/
+server/.env
+.env
+server/.env
+node_modules/
+dist/
+.DS_Store
