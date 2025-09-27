@@ -1,4 +1,6 @@
 import fp from 'fastify-plugin';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isUuid(s) { return !!s && UUID_RE.test(s); }
 export default fp(async (app) => {
     // Extract Supabase JWT from Authorization header, cookie, or x-supabase-auth
     function extractToken(req) {
@@ -35,6 +37,7 @@ export default fp(async (app) => {
     }
     // --- Keep existing auth parsing & membership load unchanged ---
     app.addHook('preHandler', async (req) => {
+        req.tenantId = undefined;
         const token = extractToken(req);
         if (!token)
             return;
@@ -86,14 +89,31 @@ export default fp(async (app) => {
                 }
             }
         }
-        // Default tenant header if client did not provide one
-        const hasTenantHeader = typeof req.headers['x-tenant-id'] === 'string' && req.headers['x-tenant-id'].length > 0;
-        if (!hasTenantHeader) {
-            const tid = req.auth.primaryTenantId || null;
-            if (tid) {
-                req.headers['x-tenant-id'] = tid; // make tenant context available to downstream handlers expecting the header
+        // Pick per-request tenantId
+        const headerTid = (typeof req.headers['x-tenant-id'] === 'string' ? req.headers['x-tenant-id'] : null) || null;
+        if (req.auth?.userId) {
+            if (headerTid && isUuid(headerTid) && req.auth.tenantIds.includes(headerTid)) {
+                req.tenantId = headerTid;
+            }
+            else if (req.auth.primaryTenantId) {
+                req.tenantId = req.auth.primaryTenantId;
             }
         }
+        else {
+            if (headerTid && isUuid(headerTid)) {
+                req.tenantId = headerTid;
+            }
+        }
+        if (req.tenantId && !isUuid(headerTid || undefined)) {
+            req.headers['x-tenant-id'] = req.tenantId;
+        }
+        // Default tenant header if client did not provide one and tenantId is set
+        const hasTenantHeader = typeof req.headers['x-tenant-id'] === 'string' && req.headers['x-tenant-id'].length > 0;
+        if (!hasTenantHeader && req.tenantId) {
+            req.headers['x-tenant-id'] = req.tenantId;
+        }
+        // Debug context (safe): who/which-tenant is this request for?
+        app.log.debug({ tenantId: req.tenantId ?? null, userId: req.auth?.userId ?? null }, 'auth.derived_context');
     });
     // ---- Guards (now idempotent) ----
     // A) Reply-level guard for handlers using reply.requireAuth()
@@ -118,6 +138,16 @@ export default fp(async (app) => {
             const ok = !!req.auth?.memberships?.some(m => roles.includes(m.role));
             if (!ok)
                 return reply.code(403).send({ error: 'forbidden' });
+        });
+    }
+    // D) Tenant guard for routes that require a tenant (cart/menu/etc.)
+    if (!app.requireTenant) {
+        app.decorate('requireTenant', async (req, reply) => {
+            const headerTid = typeof req.headers['x-tenant-id'] === 'string' ? req.headers['x-tenant-id'] : null;
+            const tid = req.tenantId || headerTid;
+            if (!tid || !isUuid(tid)) {
+                return reply.code(400).send({ error: 'missing_or_invalid_tenant' });
+            }
         });
     }
 }, { name: 'auth-plugin' }); // meta name helps debugging duplicate loads

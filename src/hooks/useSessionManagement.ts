@@ -64,6 +64,40 @@ interface UseSessionManagementProps {
   locationId: string;
 }
 
+// Helper: Map archived API row to DineInOrder shape
+type ArchivedRow = {
+  id: string;
+  tenant_id: string;
+  status: string;
+  currency?: string;
+  total?: number;
+  created_at?: string;
+  archived_at?: string;
+  mode?: string;
+};
+
+function mapArchivedRowToOrder(row: ArchivedRow, tenantId: string, locationId: string): DineInOrder {
+  return {
+    id: row.id,
+    orderNumber: `#ORD-${row.id.slice(0,6).toUpperCase()}`,
+    tenantId,
+    locationId,
+    sessionId: `session_${row.id.slice(0,6)}`,
+    tableId: '-/',
+    status: row.status as any,
+    items: [],
+    subtotal: 0,
+    taxAmount: 0,
+    tipAmount: 0,
+    totalAmount: typeof row.total === 'number' ? row.total : 0,
+    specialInstructions: undefined,
+    priority: 'normal',
+    placedAt: row.created_at ? new Date(row.created_at) : new Date(),
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    updatedAt: row.archived_at ? new Date(row.archived_at) : new Date(),
+  };
+}
+
 export function useSessionManagement({
   tenantId,
   locationId,
@@ -75,6 +109,29 @@ export function useSessionManagement({
   const [loading, setLoading] = useState(true);
   const [error] = useState<string | null>(null);
   const [archivedOrders, setArchivedOrders] = useState<DineInOrder[]>([]);
+
+  // Fetch archived orders from API and reload
+  const fetchArchivedOrders = useCallback(async () => {
+    const res = await fetch(`/api/orders/archived?limit=50&offset=0`, {
+      headers: { 'x-tenant-id': tenantId },
+    });
+    if (!res.ok) {
+      console.error('Failed to fetch archived orders', res.status);
+      return [] as DineInOrder[];
+    }
+    const json = await res.json();
+    const rows: ArchivedRow[] = Array.isArray(json?.orders) ? json.orders : [];
+    return rows.map((r) => mapArchivedRowToOrder(r, tenantId, locationId));
+  }, [tenantId, locationId]);
+
+  const reloadArchivedOrders = useCallback(async () => {
+    try {
+      const mapped = await fetchArchivedOrders();
+      updateGlobalSession((prev) => ({ ...prev, archivedOrders: mapped }));
+    } catch (e) {
+      console.error('reloadArchivedOrders error', e);
+    }
+  }, [fetchArchivedOrders]);
 
   // Subscribe to global session changes
   useEffect(() => {
@@ -100,13 +157,22 @@ export function useSessionManagement({
     };
   }, []);
 
+  // Hydrate archived orders on first mount or tenant/location change
+  useEffect(() => {
+    reloadArchivedOrders();
+  }, [reloadArchivedOrders]);
+
   const createTableSession = useCallback(
     async (tableId: string, customerData?: Partial<TableSession>) => {
       try {
         console.log("🪑 Creating table session for:", tableId);
 
         const existingSession = globalSessionState.sessions.find(
-          (s) => s.tableId === tableId && s.status === "active",
+          (s) =>
+            s.status === "active" &&
+            s.tableId === tableId &&           // tableId here represents the human table code (e.g., T01)
+            s.tenantId === tenantId &&
+            s.locationId === locationId,
         );
 
         if (existingSession) {
@@ -1078,11 +1144,16 @@ export function useSessionManagement({
   // Helper functions
   const getSessionByTable = useCallback(
     (tableId: string) => {
+      // Ensure strict tenant/location scoping
       return sessions.find(
-        (s) => s.tableId === tableId && s.status === "active",
+        (s) =>
+          s.status === "active" &&
+          s.tableId === tableId &&
+          s.tenantId === tenantId &&
+          s.locationId === locationId,
       );
     },
-    [sessions],
+    [sessions, tenantId, locationId],
   );
 
   const getCartBySession = useCallback(
@@ -1102,12 +1173,20 @@ export function useSessionManagement({
 
   const getOrdersByTable = useCallback(
     (tableId: string) => {
-      const tableSessions = sessions.filter((s) => s.tableId === tableId);
-      return orders.filter((o) =>
-        tableSessions.some((s) => s.id === o.sessionId),
+      // Constrain by table + tenant/location
+      const tableSessions = sessions.filter(
+        (s) =>
+          s.tableId === tableId &&
+          s.tenantId === tenantId &&
+          s.locationId === locationId
+      );
+      return orders.filter(
+        (o) =>
+          tableSessions.some((s) => s.id === o.sessionId) &&
+          o.tenantId === tenantId
       );
     },
-    [sessions, orders],
+    [sessions, orders, tenantId, locationId],
   );
 
   return {
@@ -1137,5 +1216,6 @@ export function useSessionManagement({
     getCartBySession,
     getOrdersBySession,
     getOrdersByTable,
+    reloadArchivedOrders,
   };
 }

@@ -2,12 +2,18 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { ReactNode } from 'react';
 
-export default function ProtectedRoute() {
+interface ProtectedRouteProps {
+  children?: ReactNode;
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const loc = useLocation();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [hasSession, setHasSession] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Public routes where we never force redirect to login
   const publicPaths = ['/', '/menu', '/events', '/gallery', '/live-orders', '/contact', '/login', '/auth/callback', '/book-table'];
@@ -18,6 +24,7 @@ export default function ProtectedRoute() {
       const { data } = await supabase.auth.getSession();
       setHasSession(!!data.session);
       setLoading(false);
+      setIsInitialized(true);
 
       const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
         setHasSession(!!session);
@@ -40,7 +47,7 @@ export default function ProtectedRoute() {
     }
   }, [hasSession, loc.pathname, loc.search, navigate]);
 
-  if (loading) {
+  if (loading || !isInitialized) {
     return (
       <div className="min-h-[40vh] grid place-items-center text-gray-500">
         Checking session…
@@ -55,5 +62,5 @@ export default function ProtectedRoute() {
   }
 
   // For authenticated users, always render Outlet to support nested routes like dashboard
-  return <Outlet />;
+  return <>{children ?? <Outlet />}</>;
 }

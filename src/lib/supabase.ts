@@ -33,7 +33,10 @@ export async function signInWithEmail(email: string) {
     email,
     options: { emailRedirectTo: redirectTo },
   });
-  if (error) throw error;
+  if (error) {
+    console.error('[Supabase] Magic link sign-in failed:', error);
+    throw error;
+  }
 }
 
 // ✅ Helper: finalize session after magic link callback
@@ -45,8 +48,13 @@ export async function finalizeSessionFromHash() {
   const refresh_token = params.get('refresh_token');
   if (access_token && refresh_token) {
     const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) throw error;
+    if (error) {
+      console.error('[Supabase] Failed to finalize magic link session:', error);
+      throw error;
+    }
     return true;
   }
   return false;
 }
+
+(window as any).supabase = supabase;

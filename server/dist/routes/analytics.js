@@ -55,16 +55,17 @@ export default async function analyticsRoutes(app) {
         const h = req?.headers?.['x-tenant-id'];
         const fromHeader = (typeof h === 'string' && h.length > 0) ? h : null;
         const fromAuth = req?.auth?.primaryTenantId || null;
-        return fromHeader || fromAuth;
+        return fromAuth || fromHeader;
     };
+    const authGuard = app.kafRequireAuth || app.requireAuth;
     // Backward-compat: some UIs call /analytics without a subpath. Redirect to summary.
-    app.get('/analytics', { preHandler: [app.requireAuth] }, async (_req, reply) => {
+    app.get('/analytics', { preHandler: [authGuard] }, async (_req, reply) => {
         return reply.redirect('/analytics/summary');
     });
     // -----------------------------
     // GET /analytics/summary
     // -----------------------------
-    app.get('/analytics/summary', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/summary', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId) {
             return reply.code(403).send({ error: 'no tenant context' });
@@ -136,7 +137,7 @@ export default async function analyticsRoutes(app) {
     // -----------------------------
     // GET /analytics/revenue (simple series derived from payments)
     // -----------------------------
-    app.get('/analytics/revenue', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/revenue', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId) {
             return reply.code(403).send({ error: 'no tenant context' });
@@ -188,7 +189,7 @@ export default async function analyticsRoutes(app) {
     // -----------------------------
     // GET /analytics/top-items
     // -----------------------------
-    app.get('/analytics/top-items', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/top-items', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId) {
             return reply.code(403).send({ error: 'no tenant context' });
@@ -255,7 +256,7 @@ export default async function analyticsRoutes(app) {
     // Part‑2 endpoints (Supabase RPC first, safe fallbacks)
     // -----------------------------
     // GET /analytics/payment-funnel
-    app.get('/analytics/payment-funnel', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/payment-funnel', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -281,7 +282,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/peak-hours
-    app.get('/analytics/peak-hours', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/peak-hours', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -307,7 +308,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/revenue-series (DB‑driven buckets)
-    app.get('/analytics/revenue-series', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/revenue-series', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -347,7 +348,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/revenue-breakdown
-    app.get('/analytics/revenue-breakdown', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/revenue-breakdown', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -462,7 +463,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/fulfillment-timeline
-    app.get('/analytics/fulfillment-timeline', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/fulfillment-timeline', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -499,7 +500,7 @@ export default async function analyticsRoutes(app) {
     // Aliases for snake_case endpoints expected by frontend
     // -----------------------------
     // GET /analytics/payment_conversion_funnel  (alias for /analytics/payment-funnel)
-    app.get('/analytics/payment_conversion_funnel', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/payment_conversion_funnel', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -525,7 +526,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/peak_hours_heatmap  (alias for /analytics/peak-hours)
-    app.get('/analytics/peak_hours_heatmap', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/peak_hours_heatmap', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -551,7 +552,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/revenue_timeseries  (alias for /analytics/revenue-series)
-    app.get('/analytics/revenue_timeseries', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/revenue_timeseries', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -591,7 +592,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/order_fulfillment_timeline  (alias for /analytics/fulfillment-timeline)
-    app.get('/analytics/order_fulfillment_timeline', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/order_fulfillment_timeline', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });
@@ -625,7 +626,7 @@ export default async function analyticsRoutes(app) {
         }
     });
     // GET /analytics/revenue_breakdown  (alias for /analytics/revenue-breakdown, accepts `interval`)
-    app.get('/analytics/revenue_breakdown', { preHandler: [app.requireAuth] }, async (req, reply) => {
+    app.get('/analytics/revenue_breakdown', { preHandler: [authGuard] }, async (req, reply) => {
         const tenantId = resolveTenantId(req);
         if (!tenantId)
             return reply.code(400).send({ error: 'tenant_missing' });

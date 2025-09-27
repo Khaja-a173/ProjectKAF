@@ -6,6 +6,7 @@ export default function CheckoutSuccess() {
   const params = new URLSearchParams(search);
   const orderId = params.get("order_id") || "";
   const intentId = params.get("intent_id") || "";
+  const pricingMode = params.get("pricing_mode") || "tax_inclusive";
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -13,6 +14,13 @@ export default function CheckoutSuccess() {
         <h1 className="text-2xl font-semibold">Payment Successful 🎉</h1>
         {!!orderId && <p className="text-sm text-gray-600">Order ID: {orderId}</p>}
         {!!intentId && <p className="text-sm text-gray-600">Payment Intent: {intentId}</p>}
+        {pricingMode && (
+          <p className="text-xs text-gray-500">
+            {pricingMode === 'tax_exclusive'
+              ? 'Tax exclusive (added on top)'
+              : 'Tax inclusive'}
+          </p>
+        )}
         <p className="text-gray-700">
           Thanks! Your order has been placed. You can track its progress in real time.
         </p>

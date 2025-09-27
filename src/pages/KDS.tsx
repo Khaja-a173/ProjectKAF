@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE, getErrorMessage } from '@/lib/api';
+import { useAccessControl } from '@/contexts/AccessControlContext';
+import { Navigate } from 'react-router-dom';
+import { API_BASE, getErrorMessage, withTenantHeaders } from '@/lib/api';
 import { subscribeOrders } from '@/lib/realtime';
 import {
   ChefHat,
@@ -11,7 +13,11 @@ import {
   Users,
   Timer,
   AlertTriangle,
+  CornerUpLeft,
+  ChevronDown,
 } from 'lucide-react';
+
+type OrderSub = { unsubscribe: () => void } | (() => void) | void;
 
 interface OrderItem {
   id: string;
@@ -54,7 +60,7 @@ interface KdsLaneCounts {
 async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...withTenantHeaders() },
     credentials: 'include',
     signal: opts.signal,
   });
@@ -68,7 +74,7 @@ async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Pr
 async function postJSON<T>(path: string, body: any, opts: { signal?: AbortSignal } = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', ...withTenantHeaders() },
     credentials: 'include',
     body: JSON.stringify(body),
     signal: opts.signal,
@@ -101,6 +107,7 @@ async function apiFetchKdsLanes(): Promise<KdsLaneCounts> {
   return {
     tenant_id: data?.tenant_id,
     queued: Number(data?.queued ?? 0),
+    
     preparing: Number(data?.preparing ?? 0),
     ready: Number(data?.ready ?? 0),
   };
@@ -112,23 +119,34 @@ async function apiAdvanceOrder(orderId: string, toState: string): Promise<void> 
 }
 
 export default function KDS() {
+  const { role, tenantId } = useAccessControl();
+
+  if (!tenantId) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role !== 'tenant_admin' && role !== 'manager') {
+    return <Navigate to="/paywall" replace />;
+  }
   const [orders, setOrders] = useState<KdsOrders>({ queued: [], preparing: [], ready: [] });
   const [laneCounts, setLaneCounts] = useState<KdsLaneCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [qaOpen, setQaOpen] = useState(false);
 
   useEffect(() => {
     loadKdsData();
 
     // Subscribe to real-time updates (tenant-aware)
     const tenantId = localStorage.getItem('tenant_id') || undefined;
-    let subscription: { unsubscribe: () => void } | null = null;
+    let subscription: OrderSub = undefined;
 
     try {
       if (tenantId && typeof subscribeOrders === 'function') {
-        subscription = subscribeOrders(tenantId, () => {
+        const sub = subscribeOrders(tenantId, () => {
           Promise.resolve().then(loadKdsData);
         });
+        subscription = sub as OrderSub;
       }
     } catch (e) {
       console.warn('KDS realtime subscription not available:', e);
@@ -138,8 +156,10 @@ export default function KDS() {
     const pollingInterval = setInterval(loadKdsData, 5000);
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
+      if (typeof subscription === 'function') {
+        (subscription as () => void)();
+      } else if (subscription && typeof (subscription as any).unsubscribe === 'function') {
+        (subscription as { unsubscribe: () => void }).unsubscribe();
       }
       clearInterval(pollingInterval);
     };
@@ -180,71 +200,74 @@ export default function KDS() {
     return `${hours}h ${remainingMinutes}m`;
   };
 
-  const renderOrderCard = (order: Order) => (
-    <div key={order.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
-          <p className="text-sm text-gray-500">
-            {order.restaurant_tables?.table_number || 'Takeaway'} • {formatElapsedTime(order.created_at)}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-lg font-bold text-gray-900">${Number(order.total_amount || 0).toFixed(2)}</div>
-        </div>
-      </div>
-
-      <div className="space-y-2 mb-4">
-        {order.order_items.map((item, index) => (
-          <div key={index} className="flex items-center justify-between text-sm">
-            <span className="font-medium">{item.quantity}x {item.menu_items.name}</span>
-            {item.menu_items.preparation_time && (
-              <div className="flex items-center space-x-1 text-gray-500">
-                <Timer className="w-3 h-3" />
-                <span>{item.menu_items.preparation_time}m</span>
-              </div>
-            )}
+  const renderOrderCard = (order: Order) => {
+    const kState = (order as any).kitchen_state || order.status;
+    return (
+      <div key={order.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
+            <p className="text-sm text-gray-500">
+              {order.restaurant_tables?.table_number || 'Takeaway'} • {formatElapsedTime(order.created_at)}
+            </p>
           </div>
-        ))}
-      </div>
-
-      {order.special_instructions && (
-        <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
-          <p className="text-sm text-yellow-800">
-            <strong>Note:</strong> {order.special_instructions}
-          </p>
+          <div className="text-right">
+            <div className="text-lg font-bold text-gray-900">${Number(order.total_amount || 0).toFixed(2)}</div>
+          </div>
         </div>
-      )}
 
-      <div className="flex space-x-2">
-        {order.status === 'new' || order.status === 'pending' || order.status === 'confirmed' ? (
-          <button
-            onClick={() => handleStateChange(order.id, 'preparing')}
-            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
-          >
-            <Play className="w-4 h-4" />
-            <span>Start</span>
-          </button>
-        ) : order.status === 'preparing' ? (
-          <button
-            onClick={() => handleStateChange(order.id, 'ready')}
-            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>Ready</span>
-          </button>
-        ) : order.status === 'ready' ? (
-          <button
-            onClick={() => handleStateChange(order.id, 'served')}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
-          >
-            <ArrowRight className="w-4 h-4" />
-            <span>Served</span>
-          </button>
-        ) : null}
+        <div className="space-y-2 mb-4">
+          {order.order_items.map((item, index) => (
+            <div key={index} className="flex items-center justify-between text-sm">
+              <span className="font-medium">{item.quantity}x {item.menu_items.name}</span>
+              {item.menu_items.preparation_time && (
+                <div className="flex items-center space-x-1 text-gray-500">
+                  <Timer className="w-3 h-3" />
+                  <span>{item.menu_items.preparation_time}m</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {order.special_instructions && (
+          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-sm text-yellow-800">
+              <strong>Note:</strong> {order.special_instructions}
+            </p>
+          </div>
+        )}
+
+        <div className="flex space-x-2">
+          {kState === 'queued' || kState === 'new' || kState === 'pending' || kState === 'confirmed' ? (
+            <button
+              onClick={() => handleStateChange(order.id, 'preparing')}
+              className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
+            >
+              <Play className="w-4 h-4" />
+              <span>Start</span>
+            </button>
+          ) : kState === 'preparing' ? (
+            <button
+              onClick={() => handleStateChange(order.id, 'ready')}
+              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Ready</span>
+            </button>
+          ) : kState === 'ready' ? (
+            <button
+              onClick={() => handleStateChange(order.id, 'served')}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>Served</span>
+            </button>
+          ) : null}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -263,61 +286,61 @@ export default function KDS() {
     <div className="min-h-screen bg-gray-50">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
+        {/* Page Header */}
+        <div className="mb-8 flex items-center justify-between">
+          {/* Left: Title & Subtitle */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <ChefHat className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Kitchen Dashboard</h1>
+              <p className="text-sm text-gray-500">Live orders by lane</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Dashboard button (orange, rounded) */}
             <Link
               to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition-colors shadow-sm"
+              aria-label="Back to Dashboard"
             >
-              Dashboard
+              <CornerUpLeft className="w-4 h-4" />
+              <span>Dashboard</span>
             </Link>
-            <Link
-              to="/admin/menu"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Menu Management
-            </Link>
-            <Link
-              to="/orders"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Orders
-            </Link>
-            <Link
-              to="/table-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Table Management
-            </Link>
-            <Link
-              to="/staff-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Staff Management
-            </Link>
-            <Link
-              to="/admin/kitchen"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Kitchen Dashboard
-            </Link>
-            <Link
-              to="/analytics"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Analytics
-            </Link>
-            
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Settings
-            </Link>
+
+            {/* Quick actions dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQaOpen(v => !v)}
+                onBlur={() => setTimeout(() => setQaOpen(false), 150)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-sm"
+                aria-haspopup="menu"
+                aria-expanded={qaOpen}
+              >
+                <span>Quick actions</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {qaOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-gray-900 text-white rounded-xl shadow-lg ring-1 ring-black/10 overflow-hidden">
+                  <div className="py-2">
+                    <Link to="/dashboard" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Dashboard</Link>
+                    <Link to="/menu-management" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Menu Management</Link>
+                    <Link to="/orders" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Orders</Link>
+                    <Link to="/table-management" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Table Management</Link>
+                    <Link to="/staff" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Staff Management</Link>
+                    <Link to="/kds" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Kitchen Dashboard</Link>
+                    <Link to="/analytics" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Analytics</Link>
+                    <Link to="/settings" onClick={() => setQaOpen(false)} className="block px-4 py-2 hover:bg-white/10">Settings</Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </nav>
+        </div>
 
         {/* Error State */}
         {error && (

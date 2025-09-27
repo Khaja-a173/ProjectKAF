@@ -4,7 +4,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch --env-file=../.env src/index.ts"
+    "dev": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first CHOKIDAR_USEPOLLING=1 DOTENV_CONFIG_PATH=../.env node --import=dotenv/config --import=tsx --watch src/index.ts"
   },
   "dependencies": {
     "@fastify/cors": "^8.5.0",
@@ -15,14 +15,17 @@
     "fastify-plugin": "^4.5.1",
     "jose": "^5.2.4",
     "nanoid": "^5.0.7",
+    "pg": "^8.16.3",
     "qrcode": "^1.5.3",
     "uuid": "^11.1.0",
-    "zod": "^3.23.8"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.19.11",
+    "@types/pg": "^8.15.5",
     "@types/qrcode": "^1.5.5",
     "@types/uuid": "^10.0.0",
+    "cross-env": "^10.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"
   }

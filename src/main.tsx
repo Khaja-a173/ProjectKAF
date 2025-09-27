@@ -11,6 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLoader } from "@/components/AppLoader";
 import { useAccessControl } from "@/contexts/AccessControlContext";
+import { ZonesProvider } from "@/contexts/ZonesContext";
 
 function BrandingWithTenant({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAccessControl();
@@ -23,13 +24,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <AccessControlProvider>
         <TenantProvider>
-          <BrandingWithTenant>
-            <HashRouter>
-              <React.Suspense fallback={<AppLoader />}>
-                <App />
-              </React.Suspense>
-            </HashRouter>
-          </BrandingWithTenant>
+          <ZonesProvider>
+            <BrandingWithTenant>
+              <HashRouter>
+                <React.Suspense fallback={<AppLoader />}>
+                  <App />
+                </React.Suspense>
+              </HashRouter>
+            </BrandingWithTenant>
+          </ZonesProvider>
         </TenantProvider>
       </AccessControlProvider>
     </ErrorBoundary>

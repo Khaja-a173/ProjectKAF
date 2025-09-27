@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { useTenant } from "@/contexts/TenantContext";
+import { toast } from 'react-hot-toast';
+import React from "react";
+import { useTenant } from "../contexts/TenantContext";
+import { useZones } from "@/contexts/ZonesContext";
 import { Link } from "react-router-dom";
 import {
   ChefHat,
@@ -33,7 +36,27 @@ import {
   TrendingUp,
   Activity,
   X,
+  ArrowLeft,
+  CornerUpLeft,
+  ChevronDown,
 } from "lucide-react";
+
+import {
+  listTables as sbListTables,
+  upsertTablesBulk as sbUpsertTablesBulk,
+  deleteTablesBulk as sbDeleteTablesBulk,
+  createOrderForTable as sbCreateOrderForTable,
+  closeOrderForTable as sbCloseOrderForTable,
+  getTMSettings,
+  saveTMSettings,
+} from "../lib/api";
+
+import {
+  subscribeTables,
+  subscribeTableSessions,
+  subscribeReservations,
+  subscribeZones,
+} from "../lib/realtime";
 // QR generation is loaded on-demand via dynamic import('qrcode')
 
 interface Table {
@@ -46,6 +69,8 @@ interface Table {
   position: { x: number; y: number };
   qrCode: string;
   notes?: string;
+  _pendingCreate?: boolean;
+  _pendingDelete?: boolean;
 }
 
 interface TableSession {
@@ -61,43 +86,151 @@ interface TableSession {
   elapsedTime: string;
 }
 
+interface TMSettings {
+  holdMinutes: number;
+  cleaningMinutes: number;
+  allowTransfers: boolean;
+  allowMergeSplit: boolean;
+  requireManagerOverride: boolean;
+}
+
+
 interface Zone {
   id: string;
   name: string;
   color: string;
   tables: number;
   capacity: number;
+  ord?: number; // optional for safety, context provides it
 }
 
-// --- lightweight table API helpers (fallback to fetch) ---
-async function apiListTables(tenantId: string) {
-  const res = await fetch(`/tables?tenantId=${encodeURIComponent(tenantId)}`);
-  if (!res.ok) throw new Error('Failed to load tables');
-  return res.json();
-}
-async function apiCreateTable(tenantId: string, payload: any) {
-  const res = await fetch(`/tables?tenantId=${encodeURIComponent(tenantId)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Failed to create table');
-  return res.json();
-}
-async function apiDeleteTable(tenantId: string, tableId: string) {
-  const res = await fetch(`/tables/${encodeURIComponent(tableId)}?tenantId=${encodeURIComponent(tenantId)}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete table');
-  return res.json();
-}
+// ---------- Zones helpers (tenant-scoped) ----------
+
+const ZONE_COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444",
+  "#06B6D4", "#D946EF", "#F97316", "#22C55E"
+];
+
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+
 
 export default function TableManagement() {
   const { tenantId = "" } = useTenant?.() || ({} as any);
   const [isSaving, setIsSaving] = useState(false);
+  // Persistence state (for Save Changes flow)
+  const [dirty, setDirty] = useState(false);
+  const [isPersisting, setIsPersisting] = useState(false);
+  const [original, setOriginal] = useState<Table[]>([]);
+  const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
+
+  // Table Management settings (tenant-scoped, persisted locally for now)
+  const [settings, setSettings] = useState<TMSettings>({
+    holdMinutes: 15,
+    cleaningMinutes: 10,
+    allowTransfers: true,
+    allowMergeSplit: true,
+    requireManagerOverride: false,
+  });
+  const [settingsSaveState, setSettingsSaveState] = useState<'idle'|'saving'|'success'|'error'>('idle');
+  const [settingsSaveMsg, setSettingsSaveMsg] = useState<string>('');
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  // Quick actions dropdown open state
+  const [qaOpen, setQaOpen] = useState(false);
+
+  // Force a re-render every minute for live elapsed/analytics
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => (t + 1) % 1_000_000), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  // Load settings from backend (fallback to localStorage)
+    useEffect(() => {
+      let alive = true;
+      (async () => {
+        const key = `pkaf:tm:settings:${tenantId || 'default'}`;
+        try {
+          if (tenantId) {
+            const s = await getTMSettings(tenantId);
+            if (!alive) return;
+            if (s) {
+              setSettings({
+                holdMinutes: s.hold_minutes,
+                cleaningMinutes: s.cleaning_minutes,
+                allowTransfers: s.allow_transfers,
+                allowMergeSplit: s.allow_merge_split,
+                requireManagerOverride: s.require_manager_override,
+              });
+              try {
+                localStorage.setItem(
+                  key,
+                  JSON.stringify({
+                    holdMinutes: s.hold_minutes,
+                    cleaningMinutes: s.cleaning_minutes,
+                    allowTransfers: s.allow_transfers,
+                    allowMergeSplit: s.allow_merge_split,
+                    requireManagerOverride: s.require_manager_override,
+                  })
+                );
+              } catch {}
+              return;
+            }
+          }
+        } catch {}
+        // fallback to local
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            setSettings((prev) => ({ ...prev, ...parsed }));
+          }
+        } catch {}
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [tenantId]);
+
+  const persistSettings = async () => {
+    const key = `pkaf:tm:settings:${tenantId || 'default'}`;
+    try {
+      if (tenantId) {
+        await saveTMSettings(tenantId, {
+          hold_minutes: settings.holdMinutes,
+          cleaning_minutes: settings.cleaningMinutes,
+          allow_transfers: settings.allowTransfers,
+          allow_merge_split: settings.allowMergeSplit,
+          require_manager_override: settings.requireManagerOverride,
+        });
+      }
+    } catch {}
+    try {
+      localStorage.setItem(key, JSON.stringify(settings));
+    } catch {}
+    setSettings({ ...settings }); // force rerender
+  };
 
   // QR Modal state
   const [qrTable, setQrTable] = useState<Table | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+
+  // Quick View (Eye) panel state
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+
+  // Add Tables modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addMode, setAddMode] = useState<"single" | "bulk">("single");
+  const [formZone, setFormZone] = useState<string>("");
+  const [formTableNo, setFormTableNo] = useState<string>("");
+  const [formStatus, setFormStatus] = useState<Table["status"]>("available");
+  const [bulkZone, setBulkZone] = useState<string>("");
+  const [bulkCount, setBulkCount] = useState<number>(1);
+
+  // Seats for add flow
+  const [formSeats, setFormSeats] = useState<number>(4);
+  const [bulkSeats, setBulkSeats] = useState<number>(4);
 
   // Build the customer-facing deep link for a table (keeps multi-tenant in mind)
   const buildTableUrl = (t: Table) => {
@@ -128,147 +261,219 @@ export default function TableManagement() {
     }
   };
 
-  // Replace mock data gradually with server when tenantId exists
+  // Normalize rows from API into our UI shape
+  const toTable = (row: any): Table => {
+    const id = String(row?.id ?? row?.table_id ?? row?.code ?? row?.table_number);
+    const number = String(row?.number ?? row?.table_number ?? row?.code ?? id);
+    // If the backend row has no identifier/number, drop it — never fabricate demo codes
+    if (!id || !number) {
+      throw new Error('Malformed table row: missing id/number');
+    }
+    const capacity = Number(row?.capacity ?? row?.seats ?? 4);
+    const zone = String(row?.zone ?? row?.location ?? "");
+    const statusRaw = String(row?.status ?? row?.computed_status ?? "available") as Table["status"];
+    const locked = Boolean(row?.locked ?? row?.is_locked);
+    const activeSession =
+      row?.session ??
+      row?.active_session ??
+      (Array.isArray(row?.sessions)
+        ? row.sessions.find((s: any) => ["active", "pending", "paying"].includes(s?.status))
+        : undefined);
+    // derive status precedence: occupied > held > cleaning > out-of-service > available
+    let status: Table["status"] = statusRaw;
+    if (activeSession) status = "occupied";
+    else if (locked && status !== "occupied") status = "held";
+
+    return {
+      id,
+      number,
+      capacity,
+      zone,
+      status,
+      position: row?.position ?? { x: 0, y: 0 },
+      qrCode: row?.qr_code ?? row?.qrCode ?? "",
+      notes: row?.notes,
+      session: activeSession
+        ? {
+            id: String(activeSession?.id ?? activeSession?.session_id),
+            tableId: id,
+            customerName: activeSession?.customerName ?? activeSession?.customer_name,
+            partySize: Number(activeSession?.partySize ?? activeSession?.party_size ?? 0),
+            startTime: new Date(activeSession?.startTime ?? activeSession?.start_time ?? Date.now()),
+            status: activeSession?.status ?? "active",
+            waiter: activeSession?.waiter ?? undefined,
+            orderCount: Number(activeSession?.orderCount ?? 0),
+            totalAmount: Number(activeSession?.totalAmount ?? activeSession?.total ?? 0),
+            elapsedTime: activeSession?.elapsedTime ?? "",
+          }
+        : undefined,
+    };
+  };
+
+  // Guard: keep only rows that belong to the current tenant when backend includes tenant_id
+  const belongsToTenant = (row: any) => {
+    if (!tenantId) return false;
+    const rid = row?.tenant_id ?? row?.tenantId ?? row?.tenant;
+    // If backend already scopes by tenant header, some rows may omit tenant_id. Accept those.
+    if (rid == null) return true;
+    return String(rid) === String(tenantId);
+  };
+
+  // Initial load
   useEffect(() => {
     let alive = true;
-    if (!tenantId) return;
     (async () => {
+      if (!tenantId) return;
       try {
-        const data = await apiListTables(tenantId);
+        const rows: any[] = await sbListTables(tenantId);
         if (!alive) return;
-        if (Array.isArray(data?.tables)) {
-          setTables((prev) => {
-            // Keep shape compatible with our UI
-            return data.tables.map((t: any) => ({
-              id: t.id || t.number,
-              number: t.number,
-              capacity: t.capacity ?? 4,
-              zone: t.zone || 'main-hall',
-              status: t.status || 'available',
-              position: t.position || { x: 0, y: 0 },
-              qrCode: t.qrCode || '',
-              session: t.session || undefined,
-            }));
-          });
-        }
-      } catch (e) {
-        // silent: stay with mock if backend not ready
+        const mapped = rows
+          .filter(belongsToTenant)
+          .map((r) => { try { return toTable(r); } catch { return null as any; } })
+          .filter(Boolean) as Table[];
+        setTables(mapped as Table[]);
+        setOriginal(mapped as Table[]);
+        setDirty(false);
+        setPendingDeletes([]);
+      } catch (_) {
+        // Backend unreachable or empty → strictly no defaults
+        if (!alive) return;
+        setTables([]);
+        setOriginal([]);
+        setDirty(false);
+        setPendingDeletes([]);
       }
     })();
-
-    const id = setInterval(() => {
-      apiListTables(tenantId).then((data) => {
-        if (Array.isArray(data?.tables)) setTables(data.tables);
-      }).catch(() => {});
-    }, 10000);
-
-    return () => { alive = false; clearInterval(id); };
+    return () => { alive = false; };
   }, [tenantId]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!tenantId) return;
+    const unsubTables = (subscribeTables as any)?.(tenantId, {
+      onInsert: (row: any) => setTables(prev => {
+        if (!belongsToTenant(row)) return prev;
+        const next = [...prev, toTable(row)];
+        return next.sort((a,b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+      }),
+      onUpdate: (row: any) => setTables(prev => {
+        if (!belongsToTenant(row)) return prev;
+        const rid = String(row?.id ?? row?.table_id);
+        return prev.map(t => (t.id === rid) ? toTable({ ...t, ...row }) : t);
+      }),
+      onDelete: (row: any) => setTables(prev => {
+        if (!belongsToTenant(row)) return prev;
+        const rid = String(row?.id ?? row?.table_id);
+        return prev.filter(t => t.id !== rid);
+      }),
+    }) ?? (() => {});
+
+    const unsubSessions = (subscribeTableSessions as any)?.(tenantId, {
+      onInsert: (s: any) => setTables(prev => {
+        if (!belongsToTenant(s) && !belongsToTenant(s?.table)) return prev;
+        const tableId = String(s?.tableId ?? s?.table_id);
+        return prev.map(t => {
+          if (t.id !== tableId) return t;
+          return toTable({ ...t, session: s, status: "occupied" });
+        });
+      }),
+      onUpdate: (s: any) => setTables(prev => {
+        if (!belongsToTenant(s) && !belongsToTenant(s?.table)) return prev;
+        const tableId = String(s?.tableId ?? s?.table_id);
+        return prev.map(t => {
+          if (t.id !== tableId) return t;
+          const status = (s?.status === "closed" ? "available" : "occupied") as Table["status"];
+          return toTable({ ...t, session: s, status });
+        });
+      }),
+      onDelete: (s: any) => setTables(prev => {
+        if (!belongsToTenant(s) && !belongsToTenant(s?.table)) return prev;
+        const tableId = String(s?.tableId ?? s?.table_id);
+        return prev.map(t => t.id === tableId ? { ...t, session: undefined, status: "available" } : t);
+      }),
+    }) ?? (() => {});
+
+    const unsubResv = (subscribeReservations as any)?.(tenantId, {
+      onInsert: (r: any) => setTables(prev => {
+        if (!belongsToTenant(r)) return prev;
+        return prev.map(t => {
+          const code = String(r?.table_number ?? r?.code ?? r?.table?.number);
+          if (t.number !== code) return t;
+          return { ...t, status: t.status === "occupied" ? t.status : "held" };
+        });
+      }),
+      onDelete: (r: any) => setTables(prev => {
+        if (!belongsToTenant(r)) return prev;
+        return prev.map(t => {
+          const code = String(r?.table_number ?? r?.code ?? r?.table?.number);
+          if (t.number !== code) return t;
+          return { ...t, status: t.session ? "occupied" : "available" };
+        });
+      }),
+    }) ?? (() => {});
+
+    return () => {
+      unsubTables?.();
+      unsubSessions?.();
+      unsubResv?.();
+    };
+  }, [tenantId]);
+
+  const { zones, setZones, persistZones, reloadZones, removeZones } = useZones();
+  // Map zone id -> name for consistent rendering across the page
+  const zoneIdToName = React.useMemo(() => new Map(zones.map(z => [z.id, z.name])), [zones]);
+  const zoneNameFor = (id?: string) => (id ? (zoneIdToName.get(id) || '—') : '—');
+  // Zones realtime subscription for instant updates
+  useEffect(() => {
+    if (!tenantId) return;
+    const unsub = subscribeZones(tenantId, async () => {
+      await reloadZones();
+      // Also refetch tables so any zone-driven changes are reflected immediately
+      try {
+        const rows: any[] = await sbListTables(tenantId);
+        setTables(
+          rows
+            .filter(belongsToTenant)
+            .map((r:any) => { try { return toTable(r); } catch { return null as any; } })
+            .filter(Boolean) as Table[]
+        );
+      } catch {}
+    });
+    return () => {
+      try { unsub(); } catch {}
+    };
+  }, [tenantId, reloadZones]);
   const [activeView, setActiveView] = useState<
     "floor" | "sessions" | "analytics" | "settings"
   >("floor");
   const [selectedZone, setSelectedZone] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  // Initialize form zone selections from current zones/filters
+  useEffect(() => {
+    if (!zones.length) return;
+    const fallback = zones[0].id;
+    if (!formZone) setFormZone(selectedZone === 'all' ? fallback : selectedZone);
+    if (!bulkZone) setBulkZone(selectedZone === 'all' ? fallback : selectedZone);
+  }, [zones, selectedZone]);
 
-  // Mock data - in real app this would come from API
-  const [tables, setTables] = useState<Table[]>([
-    {
-      id: "T01",
-      number: "T01",
-      capacity: 4,
-      zone: "main-hall",
-      status: "occupied",
-      position: { x: 100, y: 150 },
-      qrCode: "QR_T01_ABC123",
-      session: {
-        id: "S001",
-        tableId: "T01",
-        customerName: "John Smith",
-        partySize: 3,
-        startTime: new Date(Date.now() - 45 * 60 * 1000),
-        status: "active",
-        waiter: "Sarah",
-        orderCount: 2,
-        totalAmount: 67.5,
-        elapsedTime: "45m",
-      },
-    },
-    {
-      id: "T02",
-      number: "T02",
-      capacity: 2,
-      zone: "window",
-      status: "available",
-      position: { x: 200, y: 100 },
-      qrCode: "QR_T02_DEF456",
-    },
-    {
-      id: "T03",
-      number: "T03",
-      capacity: 6,
-      zone: "main-hall",
-      status: "held",
-      position: { x: 150, y: 250 },
-      qrCode: "QR_T03_GHI789",
-    },
-    {
-      id: "T04",
-      number: "T04",
-      capacity: 4,
-      zone: "patio",
-      status: "cleaning",
-      position: { x: 300, y: 200 },
-      qrCode: "QR_T04_JKL012",
-    },
-    {
-      id: "T05",
-      number: "T05",
-      capacity: 8,
-      zone: "private",
-      status: "occupied",
-      position: { x: 250, y: 300 },
-      qrCode: "QR_T05_MNO345",
-      session: {
-        id: "S002",
-        tableId: "T05",
-        customerName: "Corporate Event",
-        partySize: 8,
-        startTime: new Date(Date.now() - 90 * 60 * 1000),
-        status: "paying",
-        waiter: "Mike",
-        orderCount: 5,
-        totalAmount: 245.8,
-        elapsedTime: "1h 30m",
-      },
-    },
-  ]);
+  // Loaded from backend (Supabase) + kept in sync via realtime
 
-  const zones: Zone[] = [
-    {
-      id: "main-hall",
-      name: "Main Hall",
-      color: "#3B82F6",
-      tables: 12,
-      capacity: 48,
-    },
-    {
-      id: "window",
-      name: "Window Seating",
-      color: "#10B981",
-      tables: 8,
-      capacity: 24,
-    },
-    { id: "patio", name: "Patio", color: "#F59E0B", tables: 6, capacity: 32 },
-    {
-      id: "private",
-      name: "Private Dining",
-      color: "#8B5CF6",
-      tables: 3,
-      capacity: 24,
-    },
-    { id: "bar", name: "Bar Area", color: "#EF4444", tables: 5, capacity: 15 },
-  ];
+// Loaded from backend (Supabase) + kept in sync via realtime
+  const [tables, setTables] = useState<Table[]>([]);
+
+// Derived counts for each zone (tables/capacity)
+const zonesWithMetrics: Zone[] = zones.map(z => {
+  const zTables = tables.filter(t => t.zone === z.id);
+  return {
+    id: z.id,
+    name: z.name,
+    color: z.color,
+    ord: (z as any).ord,
+    tables: zTables.length,
+    capacity: zTables.reduce((sum, t) => sum + (t.capacity || 0), 0),
+  };
+});
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -322,14 +527,18 @@ export default function TableManagement() {
         if (table.id === tableId) {
           switch (action) {
             case "hold":
+              // Optimistic UI only — locking is managed via order/session lifecycle
               return { ...table, status: "held" as const };
             case "seat":
+              if (tenantId) {
+                (sbCreateOrderForTable as any)(tenantId, { tableId: table.id, partySize: 2 }).catch(()=>{});
+              }
               return {
                 ...table,
                 status: "occupied" as const,
                 session: {
                   id: `S${Date.now()}`,
-                  tableId,
+                  tableId: table.id,
                   partySize: 2,
                   startTime: new Date(),
                   status: "active" as const,
@@ -339,23 +548,14 @@ export default function TableManagement() {
                 },
               };
             case "clean":
-              return {
-                ...table,
-                status: "cleaning" as const,
-                session: undefined,
-              };
+              return { ...table, status: "cleaning" as const, session: undefined };
             case "available":
-              return {
-                ...table,
-                status: "available" as const,
-                session: undefined,
-              };
+              if (table.session?.id) {
+                (sbCloseOrderForTable as any)(table.session.id, "closed", "Set to Ready").catch(()=>{});
+              }
+              return { ...table, status: "available" as const, session: undefined };
             case "out-of-service":
-              return {
-                ...table,
-                status: "out-of-service" as const,
-                session: undefined,
-              };
+              return { ...table, status: "out-of-service" as const, session: undefined };
             default:
               return table;
           }
@@ -365,47 +565,261 @@ export default function TableManagement() {
     );
   };
 
-  const nextTableNumber = () => {
-    const nums = tables.map(t => parseInt(t.number.replace(/[^0-9]/g, ''), 10)).filter(n => !Number.isNaN(n));
-    const max = nums.length ? Math.max(...nums) : 0;
-    return `T${String(max + 1).padStart(2, '0')}`;
+
+  // Compute the next numeric suffix across all existing and pending tables
+  const nextNumeric = () => {
+    const nums = tables
+      .map(t => parseInt(t.number.replace(/[^0-9]/g, ''), 10))
+      .filter(n => Number.isFinite(n));
+    return nums.length ? Math.max(...nums) + 1 : 1;
   };
 
-  const handleAddTable = async () => {
-    const number = nextTableNumber();
+  const formatTableCode = (n: number) => `T${String(n).padStart(2, '0')}`;
+
+  const minutesBetween = (a?: Date | string, b?: Date | string) => {
+    if (!a) return 0;
+    const t0 = new Date(a).getTime();
+    const t1 = b ? new Date(b).getTime() : Date.now();
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return 0;
+    return Math.max(0, Math.floor((t1 - t0) / 60000));
+  };
+
+  const fmtElapsed = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+
+  // Small concurrency helper (limit parallel requests)
+  async function pMap<T, R>(items: T[], limit: number, mapper: (item: T, index: number) => Promise<R>): Promise<R[]> {
+    const ret: R[] = new Array(items.length);
+    let next = 0;
+    const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+      while (true) {
+        const i = next++;
+        if (i >= items.length) break;
+        ret[i] = await mapper(items[i], i);
+      }
+    });
+    await Promise.all(workers);
+    return ret;
+  }
+
+  const handleAddTable = () => {
+    if (!zones.length) {
+      toast("Please create a zone in Settings first");
+      return;
+    }
+    setAddMode("single");
+    const fallback = zones[0]?.id || '';
+    const chosen = selectedZone === 'all' ? (formZone || fallback) : selectedZone || fallback;
+    setFormZone(chosen);
+    setBulkZone(chosen);
+    setFormTableNo("");
+    setFormStatus("available");
+    setFormSeats(4);
+    setBulkZone(chosen || fallback);
+    setBulkCount(1);
+    setBulkSeats(4);
+    setShowAddModal(true);
+  };
+
+  const handleAddSingleConfirm = () => {
+    if (!zones.length) {
+      toast("Please create a zone in Settings first");
+      return;
+    }
+    let input = (formTableNo || "").trim().toUpperCase();
+    let code: string;
+    if (!input) {
+      code = formatTableCode(nextNumeric()); // Txx
+    } else {
+      const asNum = parseInt(input.replace(/[^0-9]/g, ''), 10);
+      code = Number.isFinite(asNum) ? formatTableCode(asNum) : input;
+    }
     const optimistic: Table = {
-      id: number,
-      number,
-      capacity: 4,
-      zone: selectedZone === 'all' ? 'main-hall' : selectedZone,
-      status: 'available',
+      id: code,
+      number: code,
+      capacity: Math.max(1, Math.floor(formSeats || 1)),
+      zone: formZone || zones[0]?.id || "",
+      status: formStatus,
       position: { x: 0, y: 0 },
-      qrCode: '',
+      qrCode: "",
+      _pendingCreate: true,
     };
-    setTables((prev) => [...prev, optimistic]);
+    setTables(prev => {
+      if (prev.some(t => t.number === code)) return prev; // prevent duplicates
+      return [...prev, optimistic].sort((a,b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+    });
+    setDirty(true);
+    setShowAddModal(false);
+  };
+
+  const handleAddBulkConfirm = () => {
+    if (!zones.length) {
+      toast("Please create a zone in Settings first");
+      return;
+    }
+    const count = Math.max(1, Math.floor(bulkCount || 0));
+    const start = nextNumeric();
+    const items: Table[] = [];
+    for (let i = 0; i < count; i++) {
+      const code = formatTableCode(start + i);
+      items.push({
+        id: code,
+        number: code,
+        capacity: Math.max(1, Math.floor(bulkSeats || 1)),
+        zone: bulkZone || zones[0]?.id || "",
+        status: 'available',
+        position: { x: 0, y: 0 },
+        qrCode: '',
+        _pendingCreate: true,
+      });
+    }
+    setTables(prev => {
+      const dedup = [...prev];
+      for (const it of items) {
+        if (!dedup.some(t => t.number === it.number)) dedup.push(it);
+      }
+      return dedup.sort((a,b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+    });
+    setDirty(true);
+    setShowAddModal(false);
+  };
+
+  const handleDeleteTable = (tableId: string) => {
+    setTables((prev) => prev.filter(t => t.id !== tableId));
+    setPendingDeletes((prev) => Array.from(new Set([...prev, tableId])));
+    setDirty(true);
+  };
+
+  // Optimistically remove all tables in a given zone (for bulk delete)
+  const handleClearZone = (zoneId: string) => {
+    const idsToDelete = tables.filter(t => t.zone === zoneId).map(t => t.id);
+    if (!idsToDelete.length) return;
+    if (!confirm(`Remove all ${idsToDelete.length} tables in this zone? This can’t be undone until you Save.`)) return;
+    setTables(prev => prev.filter(t => t.zone !== zoneId));
+    setPendingDeletes(prev => Array.from(new Set([...prev, ...idsToDelete])));
+    setDirty(true);
+  };
+
+  const handleSaveChanges = async () => {
+    if (!tenantId) return;
+    setIsPersisting(true);
     try {
-      setIsSaving(true);
-      if (tenantId) {
-        const created = await apiCreateTable(tenantId, optimistic);
-        // sync id if backend generated a different one
-        if (created?.id && created.id !== optimistic.id) {
-          setTables((prev) => prev.map(t => t.id === optimistic.id ? { ...t, id: created.id } : t));
+      // Determine creates/updates and deletes relative to the original snapshot
+      const current = tables;
+      const origIds = new Set(original.map(t => t.id));
+      const currIds = new Set(current.map(t => t.id));
+
+      // Pending creates/updates: items present in current (not deleted)
+      // (The backend bulk upsert endpoint will create or update as needed)
+      const upsertTables = current.map(t => ({
+        code: t.number,
+        label: t.number,
+        seats: t.capacity,
+        status: t.status,
+        zone: t.zone,
+      }));
+
+      // Pending deletes: union of explicit pendingDeletes and items removed from original
+      const deletes = [
+        ...pendingDeletes,
+        ...original.filter(t => !currIds.has(t.id)).map(t => t.id),
+      ];
+      const uniqueDeletes = Array.from(new Set(deletes));
+
+      // Persist upserts (always via bulk endpoint)
+      let upsertedRows: any[] = [];
+      if (upsertTables.length) {
+        try {
+          upsertedRows = await sbUpsertTablesBulk(tenantId, upsertTables as any);
+        } catch (e) {
+          console.error("Bulk upsert failed", e);
         }
       }
-    } catch {}
-    finally { setIsSaving(false); }
-  };
 
-  const handleDeleteTable = async (tableId: string) => {
-    const prev = tables;
-    setTables(tables.filter(t => t.id !== tableId));
-    try {
-      setIsSaving(true);
-      if (tenantId) await apiDeleteTable(tenantId, tableId);
-    } catch {
-      // rollback on failure
-      setTables(prev);
-    } finally { setIsSaving(false); }
+      // Persist deletes (always via bulk endpoint)
+      if (uniqueDeletes.length) {
+        try {
+          // Resolve any optimistic IDs (like 'T01') to real IDs using the original snapshot
+          const resolvedIds = uniqueDeletes.map(pid =>
+            original.find(o => o.id === pid || o.number === pid)?.id
+          ).filter((x): x is string => Boolean(x));
+          if (resolvedIds.length) {
+            await sbDeleteTablesBulk(tenantId, resolvedIds);
+          }
+        } catch (e) {
+          console.error("Bulk delete failed", e);
+        }
+      }
+
+      // If API returned upserted rows, try to map and merge immediately to avoid flicker
+      let optimisticBase = tables;
+      if (upsertedRows && upsertedRows.length) {
+        try {
+          const mappedUpserted = upsertedRows
+            .map(toTable)
+            .filter(t => t && t.number);
+          const byCode = new Set(mappedUpserted.map(t => t.number));
+          const optimisticByCode = new Map(optimisticBase.map(t => [t.number, t] as const));
+          const enriched = mappedUpserted.map(mc => {
+            const opt = optimisticByCode.get(mc.number);
+            return opt ? { ...opt, ...mc } : mc;
+          });
+          optimisticBase = [
+            ...optimisticBase.filter(t => !byCode.has(t.number)),
+            ...enriched,
+          ]
+            .filter(t => !uniqueDeletes.includes(t.id))
+            .sort((a,b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+          setTables(optimisticBase);
+        } catch {}
+      }
+
+      // Fetch with small retries to wait for eventual consistency
+      const fetchOnce = async () => {
+        const rows: any[] = await sbListTables(tenantId);
+        return rows
+          .filter(belongsToTenant)
+          .map((r:any) => { try { return toTable(r); } catch { return null as any; } })
+          .filter(Boolean) as Table[];
+      };
+
+      let mapped: Table[] = [];
+      const maxAttempts = 5;
+      for (let i = 0; i < maxAttempts; i++) {
+        mapped = await fetchOnce();
+        const backendCodes = new Set(mapped.map(t => t.number));
+        let allPresent = true;
+        for (const t of upsertTables) { if (!backendCodes.has(t.code)) { allPresent = false; break; } }
+        if (allPresent) break;
+        await new Promise(r => setTimeout(r, 700));
+      }
+
+      if (!mapped.length) {
+        mapped = original.length ? original : tables;
+      }
+
+      // Merge: keep any optimistic created tables that have not yet appeared from backend
+      const backendByCode = new Map(mapped.map(t => [t.number, t] as const));
+      const stillMissing = current.filter(t => !backendByCode.has(t.number));
+      const merged = [
+        ...mapped.filter(t => !uniqueDeletes.includes(t.id)),
+        ...stillMissing,
+      ]
+        .filter((t, idx, arr) => arr.findIndex(x => x.number === t.number) === idx)
+        .sort((a,b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+      setTables(merged);
+      setOriginal(merged);
+      setPendingDeletes([]);
+      setDirty(false);
+      try { await reloadZones(); } catch {}
+    } finally {
+      setIsPersisting(false);
+    }
   };
 
   const renderFloorView = () => (
@@ -453,21 +867,30 @@ export default function TableManagement() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button onClick={handleAddTable} disabled={isSaving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+            <button
+                onClick={handleAddTable}
+                disabled={!zones.length}
+                title={!zones.length ? 'Create a zone in Settings first' : undefined}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${!zones.length ? 'bg-blue-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+              >
               <Plus className="w-4 h-4" />
-              <span>{isSaving ? 'Saving…' : 'Add Table'}</span>
+              <span>Add Table</span>
             </button>
             <button className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2">
               <Download className="w-4 h-4" />
               <span>Export QR</span>
+            </button>
+            <button onClick={handleSaveChanges} disabled={!dirty || isPersisting || zones.length===0} className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${dirty && zones.length>0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-600/40 text-white/70 cursor-not-allowed'}`} title={zones.length===0 ? 'Create at least one zone in Settings first' : undefined}>
+              <CheckCircle className="w-4 h-4" />
+              <span>{isPersisting ? 'Saving…' : 'Save Changes'}</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Zone Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {zones.map((zone) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {zonesWithMetrics.map((zone) => {
           const zoneTables = tables.filter((t) => t.zone === zone.id);
           const occupied = zoneTables.filter(
             (t) => t.status === "occupied",
@@ -480,10 +903,19 @@ export default function TableManagement() {
             <div key={zone.id} className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-900">{zone.name}</h3>
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: zone.color }}
-                ></div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleClearZone(zone.id)}
+                    className="text-xs px-2 py-1 rounded-md border border-red-200 text-red-700 hover:bg-red-50"
+                    title="Remove all tables in this zone"
+                  >
+                    Clear Zone
+                  </button>
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: zone.color }}
+                  ></div>
+                </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -502,7 +934,7 @@ export default function TableManagement() {
                   <div
                     className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                     style={{
-                      width: `${(occupied / zoneTables.length) * 100}%`,
+                      width: `${zoneTables.length ? (occupied / zoneTables.length) * 100 : 0}%`,
                     }}
                   ></div>
                 </div>
@@ -512,10 +944,10 @@ export default function TableManagement() {
         })}
       </div>
 
-      {/* Floor Map */}
+      {/* Floor Layout & Status (combined) */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">Floor Layout</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Floor Layout &amp; Status</h3>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
@@ -535,11 +967,13 @@ export default function TableManagement() {
             </div>
           </div>
         </div>
+
+        {/* Floor grid */}
         <div className="bg-gradient-to-b from-gray-50 to-gray-100 rounded-xl p-4 ring-1 ring-gray-200">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-5 gap-4">
             {filteredTables
               .slice()
-              .sort((a,b) => a.number.localeCompare(b.number))
+              .sort((a, b) => a.number.localeCompare(b.number))
               .map((table) => {
                 const statusToTailwind = {
                   available: 'bg-green-500',
@@ -559,184 +993,89 @@ export default function TableManagement() {
 
                 return (
                   <div key={table.id} className="group">
-                    <div className={`w-full h-[96px] bg-white rounded-lg shadow-sm ring-1 ring-gray-200 border-l-4 ${borderColor} flex items-center px-4 transition-all duration-200 group-hover:shadow-md`}>
-                      <div className="relative mr-3">
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
-                        {table.status === 'occupied' && (
-                          <span className={`absolute inset-0 rounded-full ${dotColor} opacity-40 animate-ping`}></span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div className="truncate font-semibold text-gray-900">{table.number}</div>
-                          <div className="ml-3 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{table.capacity}p</div>
+                    <div className={`w-full bg-white rounded-lg shadow-sm ring-1 ring-gray-200 border-l-4 ${borderColor} px-4 py-3 min-h-[120px] transition-all duration-200 group-hover:shadow-md`}>
+                      {/* Header: status dot + code + capacity pill */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center min-w-0">
+                          <div className="relative mr-3">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
+                            {table.status === 'occupied' && (
+                              <span className={`absolute inset-0 rounded-full ${dotColor} opacity-40 animate-ping`}></span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-gray-900">{table.number}</div>
+                            <div className="mt-0.5 text-xs text-gray-500">
+                              {zoneNameFor(table.zone)}
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs text-gray-500 capitalize">
+                        <div className="ml-3 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{table.capacity}p</div>
+                      </div>
+
+                      {/* Meta line: status + elapsed + session snippet */}
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <div className="text-gray-600 capitalize">
                           {table.status.replace('-', ' ')}
                           {table.session ? <span className="ml-2 text-gray-400">• {table.session.elapsedTime}</span> : null}
                         </div>
-                        {table.session && (
-                          <div className="mt-1 text-xs text-gray-700 truncate">
-                            {table.session.customerName || 'Guest'} • {table.session.partySize} guests
-                          </div>
-                        )}
+                        <div className="text-gray-700 truncate">
+                          {table.session ? (
+                            <span>{table.session.customerName || 'Guest'} • {table.session.partySize} guests</span>
+                          ) : (
+                            <span className="text-gray-400">No session</span>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => openQrForTable(table)}
-                        title="Show QR for this table"
-                        className="ml-3 text-gray-400 hover:text-blue-600"
-                      >
-                        <QrCode className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTable(table.id)}
-                        title="Remove table"
-                        className="ml-3 text-gray-400 hover:text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      {/* Actions tray: conditional status actions + utility icons */}
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm">
+                          {table.status === 'available' && (
+                            <button onClick={() => handleTableAction(table.id, 'hold')} className="px-2.5 py-1 rounded-md bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200">Hold</button>
+                          )}
+                          {table.status === 'held' && (
+                            <button onClick={() => handleTableAction(table.id, 'seat')} className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Seat</button>
+                          )}
+                          {table.status === 'occupied' && (
+                            <button onClick={() => handleTableAction(table.id, 'clean')} className="px-2.5 py-1 rounded-md bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">Clean</button>
+                          )}
+                          {table.status === 'cleaning' && (
+                            <button onClick={() => handleTableAction(table.id, 'available')} className="px-2.5 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">Ready</button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openQrForTable(table)}
+                            title="Show QR"
+                            className="p-2 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedTable(table)}
+                            title="View details"
+                            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTable(table.id)}
+                            title="Remove table"
+                            className="p-2 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
           </div>
         </div>
-      </div>
 
-      {/* Table List */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Table Details</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Table
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Zone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Session
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Elapsed
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTables.map((table) => (
-                <tr key={table.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div
-                        className={`w-3 h-3 rounded-full mr-3 ${getStatusColor(table.status)}`}
-                      ></div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {table.number}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {table.capacity} seats
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                      {zones.find((z) => z.id === table.zone)?.name}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${getStatusColor(table.status)}`}
-                    >
-                      {getStatusIcon(table.status)}
-                      <span className="ml-1 capitalize">
-                        {table.status.replace("-", " ")}
-                      </span>
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {table.session ? (
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {table.session.customerName || "Guest"}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {table.session.partySize} guests • $
-                          {table.session.totalAmount}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">
-                        No active session
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {table.session ? (
-                      <span className="text-sm text-gray-900">
-                        {table.session.elapsedTime}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-2">
-                      {table.status === "available" && (
-                        <button
-                          onClick={() => handleTableAction(table.id, "hold")}
-                          className="text-yellow-600 hover:text-yellow-900"
-                        >
-                          Hold
-                        </button>
-                      )}
-                      {table.status === "held" && (
-                        <button
-                          onClick={() => handleTableAction(table.id, "seat")}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Seat
-                        </button>
-                      )}
-                      {table.status === "occupied" && (
-                        <button
-                          onClick={() => handleTableAction(table.id, "clean")}
-                          className="text-orange-600 hover:text-orange-900"
-                        >
-                          Clean
-                        </button>
-                      )}
-                      {table.status === "cleaning" && (
-                        <button
-                          onClick={() =>
-                            handleTableAction(table.id, "available")
-                          }
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Ready
-                        </button>
-                      )}
-                      <button className="text-gray-600 hover:text-gray-900">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
@@ -744,319 +1083,402 @@ export default function TableManagement() {
   const renderSessionsView = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">
-          Active Sessions
-        </h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Active Sessions</h3>
+          <div className="text-sm text-gray-500">Updates every minute</div>
+        </div>
+
         <div className="space-y-4">
+          {tables.filter((t) => t.session && t.status === 'occupied').length === 0 && (
+            <div className="text-sm text-gray-500">No active sessions.</div>
+          )}
+
           {tables
-            .filter((t) => t.session)
-            .map((table) => (
-              <div
-                key={table.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div
-                      className={`w-12 h-12 rounded-lg ${getStatusColor(table.status)} flex items-center justify-center text-white font-semibold`}
-                    >
-                      {table.number}
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        {table.session?.customerName || "Guest"}
-                      </h4>
-                      <p className="text-sm text-gray-500">
-                        {table.session?.partySize} guests •{" "}
-                        {zones.find((z) => z.id === table.zone)?.name}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold text-gray-900">
-                      ${table.session?.totalAmount}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {table.session?.elapsedTime}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">
-                      Waiter: {table.session?.waiter}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      Orders: {table.session?.orderCount}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900 text-sm">
-                      Transfer
-                    </button>
-                    <button className="text-orange-600 hover:text-orange-900 text-sm">
-                      Split
-                    </button>
-                    <button className="text-red-600 hover:text-red-900 text-sm">
-                      Close
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAnalyticsView = () => (
-    <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Table Utilization
-              </p>
-              <p className="text-2xl font-bold text-gray-900">73%</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-sm text-green-600">
-              ↗ +5.2% from last week
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg Turn Time</p>
-              <p className="text-2xl font-bold text-gray-900">1h 24m</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Clock className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-sm text-red-600">
-              ↘ -3.1% from last week
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Revenue/Seat/Hour
-              </p>
-              <p className="text-2xl font-bold text-gray-900">$18.50</p>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-sm text-green-600">
-              ↗ +8.7% from last week
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">No-Show Rate</p>
-              <p className="text-2xl font-bold text-gray-900">4.2%</p>
-            </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-sm text-green-600">
-              ↘ -1.3% from last week
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Utilization by Zone
-          </h3>
-          <div className="space-y-4">
-            {zones.map((zone) => {
-              const utilization = Math.floor(Math.random() * 40) + 60; // Mock data
+            .filter((t) => t.session && t.status === 'occupied')
+            .sort((a,b) => {
+              const am = minutesBetween(a.session?.startTime as any);
+              const bm = minutesBetween(b.session?.startTime as any);
+              return bm - am; // longest running first
+            })
+            .map((table) => {
+              const mins = minutesBetween(table.session?.startTime as any);
+              const elapsed = fmtElapsed(mins);
               return (
-                <div key={zone.id}>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {zone.name}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      {utilization}%
-                    </span>
+                <div key={table.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-12 h-12 rounded-lg ${getStatusColor(table.status)} flex items-center justify-center text-white font-semibold`}>
+                        {table.number}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">{table.session?.customerName || 'Guest'}</h4>
+                        <p className="text-sm text-gray-500">{table.session?.partySize} guests • {zoneNameFor(table.zone)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-gray-900">${table.session?.totalAmount ?? 0}</div>
+                      <div className="text-sm text-gray-500">{elapsed}</div>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${utilization}%`,
-                        backgroundColor: zone.color,
-                      }}
-                    ></div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-gray-600">Waiter: {table.session?.waiter || '—'}</span>
+                      <span className="text-sm text-gray-600">Orders: {table.session?.orderCount ?? 0}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button disabled={!settings.allowTransfers} className={`text-blue-600 hover:text-blue-800 text-sm ${settings.allowTransfers ? '' : 'opacity-40 cursor-not-allowed'}`}>Transfer</button>
+                      <button disabled={!settings.allowMergeSplit} className={`text-orange-600 hover:text-orange-800 text-sm ${settings.allowMergeSplit ? '' : 'opacity-40 cursor-not-allowed'}`}>Split</button>
+                      <button
+                        onClick={() => handleTableAction(table.id, 'available')}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >Close &amp; Ready</button>
+                    </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Turn Time Distribution
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">&lt; 1 hour</span>
-              <span className="text-sm font-medium">23%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">1-2 hours</span>
-              <span className="text-sm font-medium">45%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">2-3 hours</span>
-              <span className="text-sm font-medium">28%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">&gt; 3 hours</span>
-              <span className="text-sm font-medium">4%</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 
-  const renderSettingsView = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">
-          Table Management Settings
-        </h3>
+  const renderAnalyticsView = () => {
+    const total = tables.length || 0;
+    const occupied = tables.filter(t => t.status === 'occupied').length;
+    const held = tables.filter(t => t.status === 'held').length;
+    const cleaning = tables.filter(t => t.status === 'cleaning').length;
+    const available = tables.filter(t => t.status === 'available').length;
 
-        <div className="space-y-6">
-          <div>
-            <h4 className="text-md font-medium text-gray-900 mb-4">
-              Status Timers
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    const utilization = total ? Math.round((occupied / total) * 100) : 0;
+
+    const sessions = tables.filter(t => t.session && t.status === 'occupied');
+    const turnMins = sessions.map(t => minutesBetween(t.session?.startTime as any));
+    const avgTurn = turnMins.length ? Math.round(turnMins.reduce((a,b) => a+b, 0) / turnMins.length) : 0;
+
+    const totalRevenue = sessions.reduce((sum, t) => sum + (t.session?.totalAmount || 0), 0);
+    const seatHours = sessions.reduce((sum, t) => sum + ((minutesBetween(t.session?.startTime as any) / 60) * (t.capacity || 1)), 0);
+    const revenuePerSeatHour = seatHours > 0 ? (totalRevenue / seatHours) : 0;
+
+    return (
+      <div className="space-y-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hold Timer (minutes)
-                </label>
-                <input
-                  type="number"
-                  defaultValue="15"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <p className="text-sm font-medium text-gray-600">Table Utilization</p>
+                <p className="text-2xl font-bold text-gray-900">{utilization}%</p>
               </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">Occupied {occupied} / {total} tables</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cleaning Timer (minutes)
-                </label>
-                <input
-                  type="number"
-                  defaultValue="10"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <p className="text-sm font-medium text-gray-600">Avg Turn Time</p>
+                <p className="text-2xl font-bold text-gray-900">{fmtElapsed(avgTurn)}</p>
               </div>
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">Across {sessions.length} active sessions</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Revenue/Seat/Hour</p>
+                <p className="text-2xl font-bold text-gray-900">${revenuePerSeatHour.toFixed(2)}</p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-yellow-600" />
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">Revenue ${totalRevenue.toFixed(2)} today (active)</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Held & Cleaning</p>
+                <p className="text-2xl font-bold text-gray-900">{held} / {cleaning}</p>
+              </div>
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">Available {available}</div>
+          </div>
+        </div>
+
+        {/* Utilization by Zone */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Utilization by Zone</h3>
+            <div className="space-y-4">
+              {zones.map((zone) => {
+                const zoneTables = tables.filter(t => t.zone === zone.id);
+                const occ = zoneTables.filter(t => t.status === 'occupied').length;
+                const util = zoneTables.length ? Math.round((occ / zoneTables.length) * 100) : 0;
+                return (
+                  <div key={zone.id}>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">{zone.name}</span>
+                      <span className="text-sm text-gray-600">{util}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="h-2 rounded-full transition-all duration-300" style={{ width: `${util}%`, backgroundColor: zone.color }}></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div>
-            <h4 className="text-md font-medium text-gray-900 mb-4">
-              Zone Configuration
-            </h4>
+          {/* Status distribution */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
             <div className="space-y-3">
-              {zones.map((zone) => (
-                <div
-                  key={zone.id}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
-                >
+              {[
+                { label: 'Available', value: available, color: 'bg-green-500' },
+                { label: 'Held', value: held, color: 'bg-yellow-500' },
+                { label: 'Occupied', value: occupied, color: 'bg-blue-500' },
+                { label: 'Cleaning', value: cleaning, color: 'bg-orange-500' },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: zone.color }}
-                    ></div>
-                    <span className="font-medium text-gray-900">
-                      {zone.name}
-                    </span>
+                    <span className={`w-3 h-3 rounded-full ${row.color}`}></span>
+                    <span className="text-sm text-gray-700">{row.label}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">
-                      {zone.tables} tables
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <span className="text-sm font-medium text-gray-900">{row.value}</span>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Zones CRUD in settings
+const [newZoneName, setNewZoneName] = useState("");
+
+const addZone = () => {
+  const name = newZoneName.trim();
+  if (!name) return;
+  let baseId = slugify(name) || `zone-${zones.length+1}`;
+  let id = baseId, i = 2;
+  while (zones.some(z => z.id === id)) id = `${baseId}-${i++}`;
+  const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
+  setZones(prev => [
+    ...prev,
+    { id, name, color, tables: 0, capacity: 0, ord: prev.length }
+  ]);
+  setNewZoneName("");
+};
+
+const renameZone = (id: string, name: string) =>
+  setZones(prev => prev.map(z => z.id === id ? { ...z, name } : z));
+
+const moveZone = (id: string, dir: -1 | 1) =>
+  setZones(prev => {
+    const idx = prev.findIndex(z => z.id === id);
+    if (idx < 0) return prev;
+    const to = idx + dir;
+    if (to < 0 || to >= prev.length) return prev;
+    const copy = [...prev];
+    const [it] = copy.splice(idx,1);
+    copy.splice(to,0,it);
+    return copy;
+  });
+
+  // Handler to delete a single zone
+  const handleDeleteZone = async (id: string) => {
+    const z = zones.find(zz => zz.id === id);
+    const name = z?.name || id;
+    if (!confirm(`Delete zone "${name}"? Tables in this zone will remain but lose their zone assignment.`)) return;
+    try {
+      // Persist deletion via context (backend + cache)
+      await removeZones([id]);
+      // Detach zone from existing tables locally to avoid orphan rendering
+      setTables(prev => prev.map(t => t.zone === id ? { ...t, zone: '' } : t));
+      // Reload zones to reflect order/gaps
+      await reloadZones();
+    } catch (e) {
+      console.error('Failed to delete zone', id, e);
+      toast('Failed to delete zone. Please try again.');
+    }
+  };
+
+  const renderSettingsView = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Table Management Settings</h3>
+
+        <div className="space-y-6">
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-4">Status Timers</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Hold Timer (minutes)</label>
+                <input
+                  type="number"
+                  value={settings.holdMinutes}
+                  onChange={(e) => setSettings(s => ({ ...s, holdMinutes: Math.max(0, Number(e.target.value || 0)) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cleaning Timer (minutes)</label>
+                <input
+                  type="number"
+                  value={settings.cleaningMinutes}
+                  onChange={(e) => setSettings(s => ({ ...s, cleaningMinutes: Math.max(0, Number(e.target.value || 0)) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
 
           <div>
-            <h4 className="text-md font-medium text-gray-900 mb-4">
-              Permissions
-            </h4>
+            <h4 className="text-md font-medium text-gray-900 mb-4">Permissions</h4>
             <div className="space-y-3">
               <label className="flex items-center">
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={settings.allowTransfers}
+                  onChange={(e) => setSettings(s => ({ ...s, allowTransfers: e.target.checked }))}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="ml-2 text-sm text-gray-700">
-                  Allow table transfers
-                </span>
+                <span className="ml-2 text-sm text-gray-700">Allow table transfers</span>
               </label>
               <label className="flex items-center">
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={settings.allowMergeSplit}
+                  onChange={(e) => setSettings(s => ({ ...s, allowMergeSplit: e.target.checked }))}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="ml-2 text-sm text-gray-700">
-                  Allow session merge/split
-                </span>
+                <span className="ml-2 text-sm text-gray-700">Allow session merge/split</span>
               </label>
               <label className="flex items-center">
                 <input
                   type="checkbox"
+                  checked={settings.requireManagerOverride}
+                  onChange={(e) => setSettings(s => ({ ...s, requireManagerOverride: e.target.checked }))}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="ml-2 text-sm text-gray-700">
-                  Require manager override for status changes
-                </span>
+                <span className="ml-2 text-sm text-gray-700">Require manager override for status changes</span>
               </label>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-            Save Settings
-          </button>
+        <div>
+          <h4 className="text-md font-medium text-gray-900 mb-4">Zones</h4>
+          <div className="space-y-3">
+            {zones.map((z, idx) => (
+              <div key={z.id} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: z.color }}></div>
+                <input
+                  value={z.name}
+                  onChange={(e) => renameZone(z.id, e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => moveZone(z.id, -1)}
+                    disabled={idx===0}
+                    className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-700 disabled:opacity-30"
+                    title="Move up"
+                  >
+                    Up
+                  </button>
+                  <button
+                    onClick={() => moveZone(z.id, 1)}
+                    disabled={idx===zones.length-1}
+                    className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-700 disabled:opacity-30"
+                    title="Move down"
+                  >
+                    Down
+                  </button>
+                  <button
+                    onClick={() => handleDeleteZone(z.id)}
+                    className="text-xs px-2 py-1 rounded-md border border-red-200 text-red-700 hover:bg-red-50"
+                    title="Delete zone"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              value={newZoneName}
+              onChange={(e) => setNewZoneName(e.target.value)}
+              placeholder="New zone name"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+            />
+            <button onClick={addZone} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+              Add Zone
+            </button>
+          </div>
+
+          <p className="mt-2 text-xs text-gray-500">
+            Zone order here controls order across the app. Use Save Settings to persist per-tenant.
+          </p>
+      </div>
+
+        <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="text-xs text-gray-500">Tenant: {tenantId || '—'}</div>
+
+          <div className="flex items-center gap-3">
+            {settingsSaveState !== 'idle' && (
+              <div className={`text-sm ${settingsSaveState==='success' ? 'text-emerald-600' : settingsSaveState==='error' ? 'text-red-600' : 'text-gray-600'}`}>
+                {settingsSaveState==='saving' && (settingsSaveMsg || 'Saving…')}
+                {settingsSaveState==='success' && (
+                  <>Saved{lastSavedAt ? ` at ${new Date(lastSavedAt).toLocaleTimeString()}` : ''}</>
+                )}
+                {settingsSaveState==='error' && (settingsSaveMsg || 'Failed to save')}
+              </div>
+            )}
+
+            <button
+              onClick={async () => {
+                try {
+                  setSettingsSaveState('saving');
+                  setSettingsSaveMsg('Saving…');
+                  await persistSettings();
+                  await persistZones();
+                  setLastSavedAt(Date.now());
+                  setSettingsSaveState('success');
+                  setSettingsSaveMsg('Saved');
+                  try {
+                  await reloadZones();
+                  const rows: any[] = await sbListTables(tenantId);
+                  setTables(rows.filter(belongsToTenant).map(toTable));
+                  } catch {}
+                } catch (e) {
+                  setSettingsSaveState('error');
+                  setSettingsSaveMsg('Failed to save');
+                } finally {
+                  // Auto-hide status after a short delay
+                  setTimeout(() => setSettingsSaveState('idle'), 2500);
+                }
+              }}
+              disabled={settingsSaveState==='saving'}
+              className={`px-6 py-2 rounded-lg transition-colors text-white ${settingsSaveState==='saving' ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}
+            >
+              {settingsSaveState==='saving' ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1066,66 +1488,58 @@ export default function TableManagement() {
     <div className="min-h-screen bg-gray-50">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
+        {/* Page header with Dashboard pill + Quick actions */}
+        <div className="mb-8 flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Grid3X3 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Table Management</h1>
+              <p className="mt-1 text-sm text-gray-500">Seating &amp; sessions</p>
+            </div>
+          </div>
+
+          <div className="relative flex items-center gap-3">
             <Link
               to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-white shadow-sm bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
             >
-              Dashboard
+              <CornerUpLeft className="w-4 h-4" />
+              <span>Dashboard</span>
             </Link>
-            <Link to="/menu" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu Management
-            </Link>
-            <Link
-              to="/orders"
-              className="text-gray-500 hover:text-gray-700 pb-2"
+
+            <button
+              type="button"
+              onClick={() => setQaOpen((v) => !v)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              aria-haspopup="menu"
+              aria-expanded={qaOpen ? 'true' : 'false'}
             >
-              Orders
-            </Link>
-            <Link
-              to="/table-management"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Table Management
-            </Link>
-            <Link
-              to="/staff-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Staff Management
-            </Link>
-            <Link
-              to="/admin/kitchen"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Kitchen Dashboard
-            </Link>
-            <Link
-              to="/analytics"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Analytics
-            </Link>
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Settings
-            </Link>
+              Quick actions
+              <ChevronDown className={`w-4 h-4 transition-transform ${qaOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {qaOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-xl bg-white shadow-xl ring-1 ring-black/5 py-2">
+                <Link to="/dashboard" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Dashboard</Link>
+                <Link to="/menu-management" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Menu Management</Link>
+                <Link to="/orders" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Orders</Link>
+                <Link to="/table-management" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Table Management</Link>
+                <Link to="/staff" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Staff Management</Link>
+                <Link to="/kds" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Kitchen Dashboard</Link>
+                <Link to="/analytics" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Analytics</Link>
+                <Link to="/settings" onClick={() => setQaOpen(false)} className="block px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50">Settings</Link>
+              </div>
+            )}
           </div>
-        </nav>
+        </div>
 
         {/* Sub-navigation for Table Management */}
         <nav className="mb-8">
           <div className="flex space-x-8">
-            <Link
-              to="/table-management"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Table Management
-            </Link>
             <button
               onClick={() => setActiveView("floor")}
               className={`pb-2 font-medium ${activeView === "floor" ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500 hover:text-gray-700"}`}
@@ -1158,6 +1572,239 @@ export default function TableManagement() {
         {activeView === "sessions" && renderSessionsView()}
         {activeView === "analytics" && renderAnalyticsView()}
         {activeView === "settings" && renderSettingsView()}
+
+        {/* Quick View Drawer */}
+        {selectedTable && (
+          <div className="fixed inset-0 z-50 flex">
+            {/* Backdrop */}
+            <div
+              className="flex-1 bg-black/40"
+              onClick={() => setSelectedTable(null)}
+            />
+            {/* Panel */}
+            <div className="w-full max-w-md bg-white h-full shadow-2xl animate-[slideIn_.2s_ease-out]">
+              <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs text-white ${getStatusColor(selectedTable.status)}`}>
+                        {selectedTable.status.replace('-', ' ')}
+                      </span>
+                      <span className="text-xs text-gray-400">{zoneNameFor(selectedTable.zone)}</span>
+                    </div>
+                    <h3 className="mt-1 text-xl font-semibold text-gray-900">{selectedTable.number}</h3>
+                    <p className="text-sm text-gray-500">{selectedTable.capacity} seats</p>
+                  </div>
+                  <button onClick={() => setSelectedTable(null)} className="text-gray-500 hover:text-gray-900">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                  {/* Session section */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Session</h4>
+                    {selectedTable.session ? (
+                      <div className="rounded-lg border border-gray-200 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-800">
+                            <div className="font-medium">{selectedTable.session.customerName || 'Guest'}</div>
+                            <div className="text-gray-500">{selectedTable.session.partySize} guests</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-gray-900">${selectedTable.session.totalAmount ?? 0}</div>
+                            <div className="text-xs text-gray-500">{selectedTable.session.elapsedTime || fmtElapsed(minutesBetween(selectedTable.session.startTime))}</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                          <div>Waiter: <span className="text-gray-800">{selectedTable.session.waiter || '—'}</span></div>
+                          <div>Orders: <span className="text-gray-800">{selectedTable.session.orderCount ?? 0}</span></div>
+                          <div>Started: <span className="text-gray-800">{new Date(selectedTable.session.startTime).toLocaleTimeString()}</span></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">No active session</div>
+                    )}
+                  </div>
+
+                  {/* Utilities */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Utilities</h4>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openQrForTable(selectedTable)}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200"
+                      >
+                        <QrCode className="w-4 h-4" /> QR Code
+                      </button>
+                      <Link
+                        to={`/orders?table=${encodeURIComponent(selectedTable.id)}`}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                        onClick={() => setSelectedTable(null)}
+                      >
+                        <Utensils className="w-4 h-4" /> View Orders
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {selectedTable.notes && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Notes</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTable.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer actions */}
+                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                  <div className="text-xs text-gray-500">Table ID: {selectedTable.id}</div>
+                  <div className="flex items-center gap-2">
+                    {selectedTable.status === 'available' && (
+                      <button onClick={() => { handleTableAction(selectedTable.id, 'hold'); }} className="px-3 py-2 rounded-md bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200">Hold</button>
+                    )}
+                    {selectedTable.status === 'held' && (
+                      <button onClick={() => { handleTableAction(selectedTable.id, 'seat'); }} className="px-3 py-2 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Seat</button>
+                    )}
+                    {selectedTable.status === 'occupied' && (
+                      <button onClick={() => { handleTableAction(selectedTable.id, 'clean'); }} className="px-3 py-2 rounded-md bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">Clean</button>
+                    )}
+                    {selectedTable.status === 'cleaning' && (
+                      <button onClick={() => { handleTableAction(selectedTable.id, 'available'); }} className="px-3 py-2 rounded-md bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">Ready</button>
+                    )}
+                    <button onClick={() => { handleDeleteTable(selectedTable.id); setSelectedTable(null); }} className="px-3 py-2 rounded-md bg-red-50 text-red-700 hover:bg-red-100 border border-red-200">Delete</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Tables Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Add Tables</h3>
+                <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-800">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => setAddMode('single')}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${addMode==='single' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >Single</button>
+                <button
+                  onClick={() => setAddMode('bulk')}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${addMode==='bulk' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >Bulk</button>
+              </div>
+
+              {addMode === 'single' ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Zone</label>
+                    <select
+                      value={formZone}
+                      onChange={(e) => setFormZone(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    >
+                      {zones.length === 0 ? (
+                        <option value="" disabled>(create a zone in Settings)</option>
+                      ) : zones.map((z) => (
+                        <option key={z.id} value={z.id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Table No (optional)</label>
+                    <input
+                      value={formTableNo}
+                      onChange={(e) => setFormTableNo(e.target.value)}
+                      placeholder={`e.g., ${formatTableCode(nextNumeric())}`}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Status</label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as any)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 capitalize"
+                    >
+                      <option value="available">Available</option>
+                      <option value="held">Held</option>
+                      <option value="occupied">Occupied</option>
+                      <option value="cleaning">Cleaning</option>
+                      <option value="out-of-service">Out of Service</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Seats</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={formSeats}
+                      onChange={(e) => setFormSeats(Number(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Zone</label>
+                    <select
+                      value={bulkZone}
+                      onChange={(e) => setBulkZone(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    >
+                      {zones.length === 0 ? (
+                        <option value="" disabled>(create a zone in Settings)</option>
+                      ) : zones.map((z) => (
+                        <option key={z.id} value={z.id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">How many tables?</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={bulkCount}
+                      onChange={(e) => setBulkCount(Number(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">They will be created as sequential codes starting from {formatTableCode(nextNumeric())}.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Seats per table</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={bulkSeats}
+                      onChange={(e) => setBulkSeats(Number(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex items-center justify-end gap-2">
+                <button onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Cancel</button>
+                {addMode === 'single' ? (
+                  <button onClick={handleAddSingleConfirm} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Add Table</button>
+                ) : (
+                  <button onClick={handleAddBulkConfirm} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Add Tables</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* QR Modal */}
         {qrTable && (

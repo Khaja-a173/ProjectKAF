@@ -3,6 +3,9 @@ import { apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { User as AccessUser, Role, AccessPolicy, AccessAuditLog, DASHBOARD_REGISTRY, DEFAULT_ROLES } from '@/types/access';
 
+export type { AccessControlContextType };
+export { AccessControlContext };
+
 // --- ADD backward compatibility for legacy hooks ---
 export type AccessRole = { key: string; name: string; capabilities: string[] };
 export type AccessState = {
@@ -36,10 +39,16 @@ interface AccessControlContextType {
   auditLogs: AccessAuditLog[];
   loading: boolean;
   error: string | null;
+  isInitialized: boolean;
+  isAuthenticated: boolean;
   hasCapability: (capability: string, locationId?: string) => boolean;
   canAccessDashboard: (dashboardKey: string) => boolean;
   refreshPolicy: () => Promise<void>;
   switchUser: (userId: string) => void; // no-op in SaaS session model
+  subscriptionStatus?: string;
+  currentTenantId?: string;
+  tenantId?: string;
+  role?: string;
 }
 
 const AccessControlContext = createContext<AccessControlContextType | undefined>(undefined);
@@ -57,6 +66,13 @@ const ROLE_CAPS: Record<string, string[]> = {
     'RESERVATIONS_VIEW', 'RESERVATIONS_MANAGE',
     'PAYMENTS_VIEW', 'PAYMENTS_PROCESS', 'PAYMENTS_REFUND',
     'REPORTS_VIEW', 'REPORTS_EXPORT',
+    'ANALYTICS_VIEW',
+    'ORDERS_VIEW',
+    'KDS_VIEW',
+    'RECEIPTS_VIEW',
+    'BRANDING_VIEW',
+    'QR_VIEW',
+    'CHECKOUT_VIEW',
   ],
   MANAGER: [
     'KITCHEN_VIEW', 'KITCHEN_ACTIONS',
@@ -88,13 +104,18 @@ interface WhoAmI {
     locations?: string[];
   }>;
   primary_tenant_id?: string | null;
+  subscription_status?: string;
 }
 
 function toAccessUser(who: WhoAmI): AccessUser | null {
   if (!who.authenticated || !who.user) return null;
-  const primaryTenant = who.primary_tenant_id || who.memberships[0]?.tenant_id || null;
-  const roleKey = (who.memberships.find(m => m.tenant_id === primaryTenant)?.role || '').toUpperCase();
+  const primaryTenant = who.primary_tenant_id || who.memberships?.[0]?.tenant_id || null;
+  const roleKey = (
+    who.memberships?.find((m) => m.tenant_id === primaryTenant)?.role || ''
+  ).toUpperCase();
   const capabilities = mapRoleToCapabilities(roleKey);
+  console.log('🧩 Mapping role to capabilities:', roleKey, capabilities);
+  const status = who.subscription_status ?? 'unknown';
   return {
     id: who.user.id,
     tenantId: primaryTenant || 'unknown_tenant',
@@ -103,12 +124,14 @@ function toAccessUser(who: WhoAmI): AccessUser | null {
     lastName: '',
     status: 'active',
     roles: [{ key: roleKey || 'GUEST', name: roleKey || 'GUEST', capabilities }] as Role[],
+    role: roleKey || 'GUEST',
     locationIds: [],
     capabilities,
     lastActive: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as AccessUser;
+    subscriptionStatus: status,
+  } as AccessUser & { role: string };
 }
 
 interface AccessControlProviderProps {
@@ -146,10 +169,23 @@ export function AccessControlProvider({ children }: AccessControlProviderProps) 
 
         // Fetch server-side identity + memberships
         console.log('🔍 AccessControlProvider: Fetching whoami...');
-        const who = await apiFetch('/auth/whoami');
-        console.log('✅ AccessControlProvider: WhoAmI response received');
-        const mapped = toAccessUser(who as WhoAmI);
+        const whoJson: WhoAmI = await apiFetch('/auth/whoami');
+        console.log('🔍 Raw whoami response:', whoJson);
+        if (!whoJson || typeof whoJson !== 'object') {
+          throw new Error('Invalid response from /auth/whoami');
+        }
+        if (!whoJson.user || !whoJson.user.id || !whoJson.user.email) {
+          throw new Error('Invalid or missing user object in /auth/whoami response');
+        }
+        const mapped: AccessUser | null = toAccessUser(whoJson);
+        if (!mapped || !mapped.id || !mapped.roles || mapped.roles.length === 0) {
+          console.warn('AccessControlProvider: Mapped user is incomplete', mapped);
+          throw new Error('User mapping is incomplete or invalid');
+        }
         setCurrentUser(mapped);
+        if (mapped) {
+          console.log('Subscription status:', mapped.subscriptionStatus);
+        }
 
         // Optionally fetch a policy from API later; for now synthesize from ROLE_CAPS
         const roleKey = mapped?.roles?.[0]?.key || 'GUEST';
@@ -223,8 +259,15 @@ export function AccessControlProvider({ children }: AccessControlProviderProps) 
   const refreshPolicy = async () => {
     try {
       setLoading(true);
-      const who = await apiFetch('/auth/whoami');
-      const mapped = toAccessUser(who as WhoAmI);
+      const whoJson: WhoAmI = await apiFetch('/auth/whoami');
+      if (!whoJson.user || !whoJson.user.id || !whoJson.user.email) {
+        throw new Error('Invalid or missing user object in /auth/whoami response');
+      }
+      const mapped: AccessUser | null = toAccessUser(whoJson);
+      if (!mapped || !mapped.id || !mapped.roles || mapped.roles.length === 0) {
+        console.warn('AccessControlProvider: Mapped user is incomplete', mapped);
+        throw new Error('User mapping is incomplete or invalid');
+      }
       setCurrentUser(mapped);
       const roleKey = mapped?.roles?.[0]?.key || 'GUEST';
       const roleCaps = mapRoleToCapabilities(roleKey);
@@ -261,10 +304,16 @@ export function AccessControlProvider({ children }: AccessControlProviderProps) 
         auditLogs,
         loading,
         error,
+        isInitialized: !loading,
+        isAuthenticated: !!currentUser,
         hasCapability,
         canAccessDashboard,
         refreshPolicy,
         switchUser,
+        currentTenantId: currentUser?.tenantId,
+        tenantId: currentUser?.tenantId,
+        role: currentUser?.roles?.[0]?.key,
+        subscriptionStatus: currentUser?.subscriptionStatus ?? 'unknown',
       }}
     >
       {loading ? (
@@ -285,6 +334,11 @@ export function useAccessControl() {
   const context = useContext(AccessControlContext);
   if (!context) throw new Error('useAccessControl must be used within an AccessControlProvider');
   return context;
+}
+
+// Backward-compatible alias for older components
+export function useAccess() {
+  return useAccessControl();
 }
 
 export function useCapability(capability: string, locationId?: string) {

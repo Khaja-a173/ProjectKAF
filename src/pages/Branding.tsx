@@ -7,7 +7,9 @@ import {
   Image as ImageIcon,
   Save,
   X,
-  Globe
+  Globe,
+  CornerUpLeft,
+  ChevronDown
 } from 'lucide-react';
 
 // Lightweight HTTP helpers scoped to this page
@@ -79,6 +81,7 @@ export default function Branding() {
     gallery_urls: [] as string[]
   });
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
+  const [quickOpen, setQuickOpen] = useState(false);
 
   useEffect(() => {
     loadBranding();
@@ -157,60 +160,76 @@ export default function Branding() {
     <div className="min-h-screen bg-gray-50">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
+        {/* Header: Title + Dashboard pill + Quick actions */}
+        <div className="mb-8 flex items-start justify-between">
+          {/* Left: Page title and subtitle with icon */}
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Palette className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Branding</h1>
+              <p className="text-gray-500">Theme & assets</p>
+            </div>
+          </div>
+
+          {/* Right: Dashboard pill + Quick actions */}
+          <div className="flex items-center gap-3">
             <Link
               to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
+              className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-white shadow hover:bg-orange-700 transition-colors"
+              aria-label="Back to Dashboard"
             >
-              Dashboard
+              <CornerUpLeft className="h-5 w-5" />
+              <span>Dashboard</span>
             </Link>
-            <Link
-              to="/admin/menu"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Menu Management
-            </Link>
-            <Link
-              to="/orders"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Orders
-            </Link>
-            <Link
-              to="/table-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Table Management
-            </Link>
-            <Link
-              to="/staff-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Staff Management
-            </Link>
-            <Link
-              to="/admin/kitchen"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Kitchen Dashboard
-            </Link>
-            <Link
-              to="/analytics"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Analytics
-            </Link>
-            
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Settings
-            </Link>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQuickOpen((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-xl bg-gray-900 text-white px-4 py-2 shadow hover:bg-black/90"
+                aria-haspopup="menu"
+                aria-expanded={quickOpen}
+              >
+                Quick actions
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {quickOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-10 mt-2 w-64 origin-top-right rounded-xl border border-gray-200 bg-white p-2 shadow-xl"
+                >
+                  <Link to="/dashboard" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Dashboard
+                  </Link>
+                  <Link to="/admin/menu" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Menu Management
+                  </Link>
+                  <Link to="/orders" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    View Orders
+                  </Link>
+                  <Link to="/table-management" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Table Management
+                  </Link>
+                  <Link to="/staff-management" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Staff Management
+                  </Link>
+                  <Link to="/admin/kitchen" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Kitchen Dashboard
+                  </Link>
+                  <Link to="/analytics" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Analytics
+                  </Link>
+                  <Link to="/settings" className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                    Settings
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
-        </nav>
+        </div>
 
         {/* Error State */}
         {error && (

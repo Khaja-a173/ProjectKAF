@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useSessionManagement } from "../hooks/useSessionManagement";
 import {
@@ -21,8 +21,44 @@ import {
   Truck,
   UserPlus,
   AlertTriangle,
+  ShoppingCart,
+  CornerUpLeft,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
+
+type OrderEvent =
+  | "order.created"
+  | "order.confirmed"
+  | "order.queued"
+  | "order.preparing"
+  | "order.ready"
+  | "order.served"
+  | "order.delivering"
+  | "order.paying"
+  | "order.paid"
+  | "order.cancelled"
+  | "order.archived";
+
+function getTenantId(): string {
+  const fromStorage =
+    (typeof window !== "undefined" &&
+      (localStorage.getItem("tenant_id") || localStorage.getItem("tenantId"))) ||
+    "";
+  const fromEnv = (import.meta as any)?.env?.VITE_TENANT_ID || "";
+  return fromStorage || fromEnv || "550e8400-e29b-41d4-a716-446655440000";
+}
+
+async function fetchOrderDetail(orderId: string) {
+  const tenantId = getTenantId();
+  const res = await fetch(`/api/orders/${orderId}`, {
+    headers: { "X-Tenant-Id": tenantId },
+  });
+  if (!res.ok) throw new Error(`fetch order ${orderId} failed: ${res.status}`);
+  const data = await res.json();
+  return data?.order;
+}
+
 
 export default function OrderManagement() {
   const {
@@ -37,9 +73,92 @@ export default function OrderManagement() {
     markOrderPaid,
     loading,
   } = useSessionManagement({
-    tenantId: "tenant_123",
-    locationId: "location_456",
+  tenantId: getTenantId(),
+  locationId:
+    (typeof window !== "undefined" &&
+      (localStorage.getItem("location_id") || localStorage.getItem("locationId"))) ||
+    "default",
   });
+
+  // Local, event-driven mirrors to allow SSE upserts without changing the hook
+  const [liveOrders, setLiveOrders] = useState(orders);
+  const [liveArchived, setLiveArchived] = useState(archivedOrders);
+
+  useEffect(() => {
+  const tenantId = getTenantId();
+  const es = new EventSource(`/api/events/subscribe?tenant_id=${tenantId}`);
+
+  const upsertOrder = (order: any) => {
+    setLiveOrders((prev) => {
+      const idx = prev.findIndex((o) => o.id === order.id);
+      if (idx === -1) return [order, ...prev];
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...order };
+      return next;
+    });
+  };
+
+  const moveToArchiveIfFinal = (order: any) => {
+    const finals = new Set(["paid", "cancelled", "closed"]);
+    if (!finals.has(order.status)) return;
+    setLiveOrders((prev) => prev.filter((o) => o.id !== order.id));
+    setLiveArchived((prev) => (prev.some((o) => o.id === order.id) ? prev : [order, ...prev]));
+  };
+
+  const onEvent = async (ev: MessageEvent) => {
+    if (!ev?.data) return;
+    try {
+      const msg = JSON.parse(ev.data);
+      const type: OrderEvent | string = msg?.event;
+      const payload = msg?.payload || {};
+      const orderId: string = payload?.order_id || payload?.id;
+      if (!type || !orderId) return;
+
+      const order = await fetchOrderDetail(orderId);
+      if (!order) return;
+
+      upsertOrder(order);
+      moveToArchiveIfFinal(order);
+    } catch {
+      // swallow parse/network errors
+    }
+  };
+
+  const names: OrderEvent[] = [
+    "order.created",
+    "order.confirmed",
+    "order.queued",
+    "order.preparing",
+    "order.ready",
+    "order.served",
+    "order.delivering",
+    "order.paying",
+    "order.paid",
+    "order.cancelled",
+    "order.archived",
+  ];
+  names.forEach((n) => es.addEventListener(n, onEvent as any));
+  es.addEventListener("message", onEvent as any); // fallback
+
+  es.onerror = () => {
+    // let browser auto-reconnect
+  };
+
+  return () => {
+    try {
+      es.close();
+    } catch {}
+  };
+}, []);
+
+  // Keep mirrors in sync when the hook updates (poll/initial load)
+  useEffect(() => {
+    setLiveOrders(orders);
+  }, [orders]);
+
+  useEffect(() => {
+    setLiveArchived(archivedOrders);
+  }, [archivedOrders]);
 
   const [selectedStatus, setSelectedStatus] = useState("active");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -51,6 +170,32 @@ export default function OrderManagement() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "digital">("card");
   const [selectedStaff, setSelectedStaff] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [quickOpen, setQuickOpen] = useState(false);
+
+  const [archiving, setArchiving] = useState(false);
+
+  const archiveOldOrders = useCallback(async () => {
+    try {
+      setArchiving(true);
+      const res = await fetch('/api/orders/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beforeDays: 7, statuses: ['paid','served','cancelled'] })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Archive failed: ${data?.error || res.status}`);
+        return;
+      }
+      alert(`Archived ${data.archived || 0} orders (last ${data.beforeDays} days).`);
+      // Optional: refresh current view if your hook reacts to backend changes
+      // window.location.reload();
+    } catch (e: any) {
+      alert(`Archive error: ${e?.message || e}`);
+    } finally {
+      setArchiving(false);
+    }
+  }, []);
 
   // Mock staff data
   const availableStaff = [
@@ -61,31 +206,42 @@ export default function OrderManagement() {
   ];
 
   const statusCounts = {
-    active: orders.filter((o) => 
+    active: liveOrders.filter((o) =>
       ["placed", "confirmed", "preparing", "ready", "served", "delivering", "paying"].includes(o.status)
     ).length,
-    placed: orders.filter((o) => o.status === "placed").length,
-    confirmed: orders.filter((o) => o.status === "confirmed").length,
-    preparing: orders.filter((o) => o.status === "preparing").length,
-    ready: orders.filter((o) => o.status === "ready").length,
-    served: orders.filter((o) => o.status === "served").length,
-    delivering: orders.filter((o) => o.status === "delivering").length,
-    paying: orders.filter((o) => o.status === "paying").length,
-    archived: archivedOrders.length,
+    placed: liveOrders.filter((o) => o.status === "placed").length,
+    confirmed: liveOrders.filter((o) => o.status === "confirmed").length,
+    preparing: liveOrders.filter((o) => o.status === "preparing").length,
+    ready: liveOrders.filter((o) => o.status === "ready").length,
+    served: liveOrders.filter((o) => o.status === "served").length,
+    delivering: liveOrders.filter((o) => o.status === "delivering").length,
+    paying: liveOrders.filter((o) => o.status === "paying").length,
+    archived: liveArchived.length,
   };
 
-  const currentOrders = activeTab === "active" ? orders : archivedOrders;
+  const currentOrders = activeTab === "active" ? liveOrders : liveArchived;
 
   const filteredOrders = currentOrders.filter((order) => {
     const matchesStatus = activeTab === "active" 
       ? (selectedStatus === "active" 
           ? ["placed", "confirmed", "preparing", "ready", "served", "delivering", "paying"].includes(order.status)
           : order.status === selectedStatus)
-      : ["paid", "closed", "cancelled"].includes(order.status);
+      : ["paid", "served", "cancelled"].includes(order.status);
     
+    const idText =
+      order.orderNumber?.toLowerCase?.() ||
+      (order as any).order_code?.toLowerCase?.() ||
+      (order as any).code?.toLowerCase?.() ||
+      `order-${order.id?.slice?.(-6)}`;
+
+    const tableText =
+      (order as any).tableId?.toLowerCase?.() ||
+      (order as any).table_code?.toLowerCase?.() ||
+      "";
+
     const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.tableId?.toLowerCase().includes(searchTerm.toLowerCase());
+      idText.includes(searchTerm.toLowerCase()) ||
+      tableText.includes(searchTerm.toLowerCase());
     
     return matchesStatus && matchesSearch;
   });
@@ -217,35 +373,63 @@ export default function OrderManagement() {
     <div className="min-h-screen bg-gray-50">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
-            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
-              Dashboard
-            </Link>
-            <Link to="/admin/menu" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu Management
-            </Link>
-            <Link to="/orders" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
-              View Orders
-            </Link>
-            <Link to="/table-management" className="text-gray-500 hover:text-gray-700 pb-2">
-              Table Management
-            </Link>
-            <Link to="/staff-management" className="text-gray-500 hover:text-gray-700 pb-2">
-              Staff Management
-            </Link>
-            <Link to="/kitchen-dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
-              Kitchen Dashboard
-            </Link>
-            <Link to="/analytics" className="text-gray-500 hover:text-gray-700 pb-2">
-              Analytics
-            </Link>
-            <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
-              Settings
-            </Link>
+        {/* Page Header */}
+        <div className="mb-8 flex items-center justify-between">
+          {/* Left: Title & Subtitle */}
+          <div className="flex items-start gap-3">
+            <div className="mt-1 rounded-lg bg-blue-50 p-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+              <p className="text-gray-500">All orders</p>
+            </div>
           </div>
-        </nav>
+
+          {/* Right: Dashboard (orange pill) + Quick actions */}
+          <div className="flex items-center gap-3">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white shadow transition-colors"
+              aria-label="Back to Dashboard"
+            >
+              <CornerUpLeft className="w-4 h-4" />
+              <span>Dashboard</span>
+            </Link>
+
+            {/* Quick actions dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQuickOpen((v) => !v)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={quickOpen ? 'true' : 'false'}
+              >
+                Quick actions
+                <ChevronDown className="w-4 h-4 opacity-80" />
+              </button>
+
+              {quickOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-64 rounded-xl bg-white shadow-lg ring-1 ring-black/5 overflow-hidden z-20"
+                >
+                  <nav className="py-2 text-sm text-gray-900">
+                    <Link to="/dashboard" className="block px-4 py-2.5 hover:bg-gray-50">Dashboard</Link>
+                    <Link to="/menu-management" className="block px-4 py-2.5 hover:bg-gray-50">Menu Management</Link>
+                    <Link to="/orders" className="block px-4 py-2.5 hover:bg-gray-50">View Orders</Link>
+                    <Link to="/table-management" className="block px-4 py-2.5 hover:bg-gray-50">Table Management</Link>
+                    <Link to="/staff" className="block px-4 py-2.5 hover:bg-gray-50">Staff Management</Link>
+                    <Link to="/kds" className="block px-4 py-2.5 hover:bg-gray-50">Kitchen Dashboard</Link>
+                    <Link to="/analytics" className="block px-4 py-2.5 hover:bg-gray-50">Analytics</Link>
+                    <Link to="/settings" className="block px-4 py-2.5 hover:bg-gray-50">Settings</Link>
+                  </nav>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -280,9 +464,9 @@ export default function OrderManagement() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Revenue Today</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${[...orders, ...archivedOrders]
+                  ${[...liveOrders, ...liveArchived]
                     .filter((o) => ["paid", "served"].includes(o.status))
-                    .reduce((sum, o) => sum + o.totalAmount, 0)
+                    .reduce((sum, o: any) => sum + Number(o.totalAmount ?? o.total_amount ?? o.total ?? 0), 0)
                     .toFixed(2)}
                 </p>
               </div>
@@ -310,7 +494,7 @@ export default function OrderManagement() {
           <h4 className="font-medium text-blue-900 mb-2">📊 Real-time Order Status</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm text-blue-800">
             <div>Total: {orders.length}</div>
-            <div>Placed: {statusCounts.placed}</div>
+            <div>New Orders: {statusCounts.placed}</div>
             <div>Confirmed: {statusCounts.confirmed}</div>
             <div>Preparing: {statusCounts.preparing}</div>
             <div>Ready: {statusCounts.ready}</div>
@@ -358,6 +542,15 @@ export default function OrderManagement() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
+              <button
+                onClick={archiveOldOrders}
+                disabled={archiving}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${archiving ? 'opacity-60 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 border-gray-300 text-gray-700'}`}
+                title="Archive paid/served/cancelled orders older than 7 days"
+              >
+                <Archive className="w-4 h-4" />
+                {archiving ? 'Archiving…' : 'Archive (7d)'}
+              </button>
             </div>
           </div>
         </div>
@@ -378,7 +571,9 @@ export default function OrderManagement() {
                         : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
+                    {status === "placed"
+                      ? "New Orders"
+                      : status.charAt(0).toUpperCase() + status.slice(1)} ({count})
                   </button>
                 ))}
             </div>
@@ -415,12 +610,14 @@ export default function OrderManagement() {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <p className="font-medium text-gray-900">{order.orderNumber}</p>
+                        <p className="font-medium text-gray-900">
+                          {order.orderNumber || (order as any).order_code || (order as any).code || `Order #${order.id?.slice?.(-6)}`}
+                        </p>
                         <p className="text-sm text-gray-500">
-                          {order.tableId} • Session #{order.sessionId.slice(-6)}
+                          {(order as any).tableId || (order as any).table_code || "—"} • Session #{(order as any).sessionId?.slice?.(-6) || "—"}
                         </p>
                         <p className="text-xs text-gray-400">
-                          Placed: {format(order.placedAt, "HH:mm:ss")}
+                          Placed: {format(new Date((order as any).placedAt || (order as any).createdAt || (order as any).created_at || Date.now()), "HH:mm:ss")}
                         </p>
                       </div>
                       <div
@@ -431,18 +628,20 @@ export default function OrderManagement() {
                       </div>
                     </div>
 
-                    <div className="space-y-2 mb-4">
-                      {order.items.map((item, index) => (
-                        <div key={index} className="flex justify-between text-sm">
-                          <span className="text-gray-600">
-                            {item.quantity}x {item.name}
-                          </span>
-                          <span className="font-medium">
-                            ${(item.unitPrice * item.quantity).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                      <div className="space-y-2 mb-4">
+                        {(order.items || []).map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-gray-600">
+                              {(item.quantity ?? item.qty ?? 1)}x {item.name ?? item.title ?? "Item"}
+                            </span>
+                            <span className="font-medium">
+                              ${Number(
+                                (item.unitPrice ?? item.price ?? 0) * (item.quantity ?? item.qty ?? 1)
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
 
                     {order.specialInstructions && (
                       <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -455,16 +654,16 @@ export default function OrderManagement() {
                     <div className="border-t border-gray-200 pt-4 mb-4">
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-900">
-                          Total: ${order.totalAmount.toFixed(2)}
+                          Total: ${Number(order.totalAmount ?? (order as any).total_amount ?? (order as any).total ?? 0).toFixed(2)}
                         </span>
                         <button className="p-1 text-gray-400 hover:text-blue-600">
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
 
-                      {order.estimatedReadyAt && (
+                      {(order as any).estimatedReadyAt && (
                         <div className="text-xs text-gray-500 mt-2">
-                          Est. Ready: {format(order.estimatedReadyAt, "HH:mm")}
+                          Est. Ready: {format(new Date((order as any).estimatedReadyAt), "HH:mm")}
                         </div>
                       )}
                     </div>
@@ -552,8 +751,12 @@ export default function OrderManagement() {
                       {/* Archive section - show completion info */}
                       {activeTab === "archived" && (order.status === "paid" || order.status === "closed") && (
                         <div className="mt-2 text-xs text-gray-500 p-2 bg-green-50 rounded">
-                          Completed: {order.paidAt ? format(order.paidAt, "HH:mm:ss") : "N/A"}
-                          {order.closedAt && ` • Closed: ${format(order.closedAt, "HH:mm:ss")}`}
+                          Completed: {(order as any).paidAt || (order as any).paid_at
+                            ? format(new Date((order as any).paidAt || (order as any).paid_at), "HH:mm:ss")
+                            : "N/A"}
+                          {(order as any).closedAt || (order as any).closed_at
+                            ? ` • Closed: ${format(new Date((order as any).closedAt || (order as any).closed_at), "HH:mm:ss")}`
+                            : ""}
                         </div>
                       )}
                     </div>
@@ -640,7 +843,12 @@ export default function OrderManagement() {
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-900">Total Amount:</span>
                     <span className="text-xl font-bold text-gray-900">
-                      ${currentOrders.find((o) => o.id === selectedOrderId)?.totalAmount.toFixed(2)}
+                      ${Number(
+                        (currentOrders.find((o: any) => o.id === selectedOrderId)?.totalAmount) ??
+                        (currentOrders.find((o: any) => o.id === selectedOrderId) as any)?.total_amount ??
+                        (currentOrders.find((o: any) => o.id === selectedOrderId) as any)?.total ??
+                        0
+                      ).toFixed(2)}
                     </span>
                   </div>
                 </div>

@@ -19,7 +19,9 @@ import {
   Smartphone,
   Wallet,
   DollarSign,
-  Landmark
+  Landmark,
+  ChevronDown,
+  CornerUpLeft
 } from 'lucide-react';
 
 // --- UI Config (normalized view over provider records) ---
@@ -67,6 +69,7 @@ export default function AdminPayments() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [existing, setExisting] = useState<ApiPaymentProvider[]>([]);
+  const [qaOpen, setQaOpen] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -175,35 +178,60 @@ export default function AdminPayments() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Simple shared header (no external dependency) */}
+      {/* Header with Dashboard pill and Quick actions */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <CreditCard className="w-6 h-6 text-blue-600 mr-2" />
-            Payment Settings
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">Configure payment providers and methods</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+                <CreditCard className="w-6 h-6 text-blue-600 mr-2" />
+                Payment Settings
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">Configure payment providers and methods</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center rounded-full px-5 py-2.5 bg-[#E85A0C] text-white hover:bg-[#cf4f0a] transition-colors"
+                aria-label="Go back to Dashboard"
+              >
+                <CornerUpLeft className="w-5 h-5 mr-2" />
+                Dashboard
+              </Link>
+
+              <div className="relative" tabIndex={0} onBlur={() => setQaOpen(false)}>
+                <button
+                  type="button"
+                  onClick={() => setQaOpen((v) => !v)}
+                  className="inline-flex items-center rounded-full px-5 py-2.5 bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+                >
+                  Quick actions
+                  <ChevronDown className="w-4 h-4 ml-2 opacity-80" />
+                </button>
+
+                {qaOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white shadow-xl rounded-2xl ring-1 ring-black/5 overflow-hidden z-20">
+                    <div className="py-2">
+                      <Link to="/dashboard" className="block px-4 py-2.5 hover:bg-gray-50">Dashboard</Link>
+                      <Link to="/menu-management" className="block px-4 py-2.5 hover:bg-gray-50">Menu Management</Link>
+                      <Link to="/orders" className="block px-4 py-2.5 hover:bg-gray-50">Orders</Link>
+                      <Link to="/table-management" className="block px-4 py-2.5 hover:bg-gray-50">Table Management</Link>
+                      <Link to="/staff-management" className="block px-4 py-2.5 hover:bg-gray-50">Staff Management</Link>
+                      <Link to="/kds" className="block px-4 py-2.5 hover:bg-gray-50">Kitchen Dashboard</Link>
+                      <Link to="/analytics" className="block px-4 py-2.5 hover:bg-gray-50">Analytics</Link>
+                      <Link to="/settings" className="block px-4 py-2.5 hover:bg-gray-50">Settings</Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
-            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
-              Dashboard
-            </Link>
-            <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
-              Orders
-            </Link>
-            <Link to="/settings" className="text-gray-500 hover:text-gray-700 pb-2">
-              Settings
-            </Link>
-            <Link to="/admin/payments" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
-              Payments
-            </Link>
-          </div>
-        </nav>
+
 
         {/* Configuration Status */}
         <div

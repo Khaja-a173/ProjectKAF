@@ -1,4 +1,6 @@
+import React, { useEffect, useMemo, useCallback } from "react";
 import { DineInOrder } from "../types/session";
+import { useCartStore } from "../state/cartStore";
 import { CheckCircle, Clock, Eye, ChefHat, X } from "lucide-react";
 
 interface OrderSuccessModalProps {
@@ -16,17 +18,68 @@ export default function OrderSuccessModal({
   onTrackOrder,
   onBrowseMenu,
 }: OrderSuccessModalProps) {
+  const clearAfterCheckout = useCartStore((s) => s.clearAfterCheckout);
+
+  const clearClientCart = useCallback(() => {
+    try {
+      clearAfterCheckout?.();
+    } catch {}
+    try {
+      localStorage.removeItem('cart_id');
+      localStorage.removeItem('cart_mode');
+      localStorage.removeItem('table_code');
+    } catch {}
+  }, [clearAfterCheckout]);
+
+  const handleTrack = useCallback(() => {
+    clearClientCart();
+    try { onTrackOrder(); } catch {}
+  }, [clearClientCart, onTrackOrder]);
+
+  const handleBrowse = useCallback(() => {
+    clearClientCart();
+    try { onBrowseMenu(); } catch {}
+  }, [clearClientCart, onBrowseMenu]);
+
+  const handleClose = useCallback(() => {
+    clearClientCart();
+    try { onBrowseMenu(); } catch {}
+    try { onClose(); } catch {}
+  }, [clearClientCart, onBrowseMenu, onClose]);
+
+  // Prefer order-provided currency; fall back to INR
+  const currency = (order as any)?.currency || (order as any)?.cartCurrency || "INR";
+  const formatMoney = useMemo(() => {
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency });
+    } catch {
+      return { format: (n: number) => `${currency} ${n.toFixed(2)}` } as Intl.NumberFormat;
+    }
+  }, [currency]);
+
+  // When the modal opens with a confirmed order, clear client cart state so next add starts a fresh cart
+  useEffect(() => {
+    if (isOpen && order) {
+      clearClientCart();
+    }
+  }, [isOpen, order, clearClientCart]);
+
   if (!isOpen || !order) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md">
+      <div
+        className="bg-white rounded-xl w-full max-w-md relative"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-success-title"
+      >
         <div className="p-6 text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 id="order-success-title" className="text-2xl font-bold text-gray-900 mb-2">
             Order Placed!
           </h2>
           <p className="text-gray-600 mb-6">
@@ -58,7 +111,7 @@ export default function OrderSuccessModal({
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Total</span>
               <span className="text-sm font-bold text-gray-900">
-                ${order.totalAmount.toFixed(2)}
+                {formatMoney.format(Number((order as any).totalAmount ?? 0))}
               </span>
             </div>
           </div>
@@ -77,7 +130,7 @@ export default function OrderSuccessModal({
 
           <div className="space-y-3">
             <button
-              onClick={onTrackOrder}
+              onClick={handleTrack}
               className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center justify-center space-x-2"
             >
               <Eye className="w-5 h-5" />
@@ -85,7 +138,7 @@ export default function OrderSuccessModal({
             </button>
 
             <button
-              onClick={onBrowseMenu}
+              onClick={handleBrowse}
               className="w-full bg-gray-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2"
             >
               <ChefHat className="w-5 h-5" />
@@ -101,7 +154,7 @@ export default function OrderSuccessModal({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
           >
             <X className="w-5 h-5" />

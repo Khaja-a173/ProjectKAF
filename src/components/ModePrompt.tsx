@@ -19,7 +19,7 @@ export default function ModePrompt({ open, hasTableSession, onSelect, onClose }:
         <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
           <button aria-label="choose-takeaway" onClick={() => onSelect('takeaway')} style={btn}>Takeaway</button>
           <button
-            aria-label="choose-dinein"
+            aria-label="choose-table"
             onClick={() => hasTableSession ? onSelect('table') : undefined}
             disabled={!hasTableSession}
             style={{ ...btn, opacity: hasTableSession ? 1 : 0.5 }}

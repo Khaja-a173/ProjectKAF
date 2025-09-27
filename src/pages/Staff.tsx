@@ -18,17 +18,17 @@ import {
 
 // Lightweight HTTP helpers (aligned with our unified API layer)
 async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const res = await apiFetch(path, { method: 'GET', signal: opts.signal });
+  const res = await apiFetch(path, { method: 'GET', signal: opts.signal } as any);
   return res as T;
 }
 
 async function postJSON<T>(path: string, body: any, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const res = await apiFetch(path, { method: 'POST', body, signal: opts.signal });
+  const res = await apiFetch(path, { method: 'POST', body, signal: opts.signal } as any);
   return res as T;
 }
 
 async function del(path: string, opts: { signal?: AbortSignal } = {}): Promise<void> {
-  await apiFetch(path, { method: 'DELETE', signal: opts.signal });
+  await apiFetch(path, { method: 'DELETE', signal: opts.signal } as any);
 }
 const toStaffRole = (r: string): string => {
   const k = String(r || '').toLowerCase();

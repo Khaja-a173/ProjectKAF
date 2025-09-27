@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
+import { useContext } from "react";
+import { AccessControlContext, AccessControlContextType } from "@/contexts/AccessControlContext";
+import { useNavigate } from "react-router-dom";
 import {
   ChefHat,
   TrendingUp,
@@ -8,6 +11,8 @@ import {
   Users,
   Clock,
   BarChart3,
+  CornerUpLeft,
+  ChevronDown,
 } from "lucide-react";
 
 export default function Analytics() {
@@ -17,6 +22,19 @@ export default function Analytics() {
   const [metrics, setMetrics] = useState<Array<{ name: string; value: string; change: string; trend: "up" | "down" }>>([]);
   const [topItems, setTopItems] = useState<Array<{ name: string; orders: number; revenue: string }>>([]);
   const [hourlyData, setHourlyData] = useState<Array<{ hour: string; orders: number; revenue: number }>>([]);
+  const [qaOpen, setQaOpen] = useState(false);
+
+  const { users } = useContext(AccessControlContext) as AccessControlContextType;
+  const user = users?.[0]; // Temporarily select the first user from the array
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+    } else if (!user.roles?.some((r) => ["tenant_admin", "manager"].includes(String(r)))) {
+      navigate("/paywall");
+    }
+  }, []);
 
   // Preflight to avoid UI stall
   useEffect(() => {
@@ -88,7 +106,7 @@ export default function Analytics() {
   if (!metrics.length && !hourlyData.length && !topItems.length) {
     return (
       <div className="flex justify-center items-center min-h-screen text-gray-500 text-lg">
-        Loading Analytics...
+        Loading Analytics...  
       </div>
     );
   }
@@ -97,56 +115,101 @@ export default function Analytics() {
     <div className="min-h-screen bg-gray-50 overflow-y-auto">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
+        {/* Page Header */}
+        <div className="mb-6 flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+              <p className="mt-1 text-sm text-gray-500">Revenue &amp; funnel</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
             <Link
               to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition-colors shadow-sm"
             >
+              <CornerUpLeft className="w-5 h-5" />
               Dashboard
             </Link>
-            <Link to="/menu" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu Management
-            </Link>
-            <Link
-              to="/orders"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Orders
-            </Link>
-            <Link
-              to="/table-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Table Management
-            </Link>
-            <Link
-              to="/staff-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Staff Management
-            </Link>
-            <Link
-              to="/admin/kitchen"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Kitchen Dashboard
-            </Link>
-            <Link
-              to="/analytics"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Analytics
-            </Link>
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Settings
-            </Link>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQaOpen((s) => !s)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-sm"
+              >
+                Quick actions
+                <ChevronDown className={`w-4 h-4 transition-transform ${qaOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {qaOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                  <div className="py-2">
+                    <Link
+                      to="/dashboard"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/menu-management"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Menu Management
+                    </Link>
+                    <Link
+                      to="/orders"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      View Orders
+                    </Link>
+                    <Link
+                      to="/table-management"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Table Management
+                    </Link>
+                    <Link
+                      to="/staff-management"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Staff Management
+                    </Link>
+                    <Link
+                      to="/kds"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Kitchen Dashboard
+                    </Link>
+                    <Link
+                      to="/analytics"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Analytics
+                    </Link>
+                    <Link
+                      to="/settings"
+                      className="block px-4 py-2.5 hover:bg-gray-50 text-gray-900"
+                      onClick={() => setQaOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </nav>
+        </div>
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createPaymentIntent, confirmPaymentIntent, getErrorMessage } from "@/lib/api";
+import { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { createPaymentIntent, confirmPaymentIntent, getErrorMessage, closeOrderForTable } from "@/lib/api";
+import { useCartStore } from "@/state/cartStore";
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { 
@@ -16,22 +17,21 @@ export default function Checkout() {
   const navigate = useNavigate();
   const orderId = searchParams.get('order');
   
+  const location = useLocation();
+  const navState = (location.state || {}) as any;
+  const store = useCartStore();
+
+  // Prefer nav-passed summary (fast, no fetch), then store, else zeros
+  const summary = useMemo(() => {
+    const fromNav = navState?.summary; // { items, totals, currency }
+    if (fromNav?.totals?.total != null) return fromNav;
+    if (store?.totals?.total != null) return { items: store.items, totals: store.totals, currency: 'INR' };
+    return { items: [], totals: { subtotal: 0, tax: 0, total: 0, tax_breakdown: [], pricing_mode: 'tax_inclusive' }, currency: 'INR' };
+  }, [navState, store.items, store.totals]);
+
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'upi' | 'wallet'>('card');
   const [processing, setProcessing] = useState(false);
   const [completed, setCompleted] = useState(false);
-
-  // Mock order data - in real app this would come from API
-  const orderData = {
-    id: orderId,
-    number: 'ORD-123456',
-    total: 48.60, // dollars for UI only
-    subtotal: 45.00,
-    tax: 3.60,
-    items: [
-      { name: 'Truffle Arancini', qty: 2, price: 16.00 },
-      { name: 'Grilled Salmon', qty: 1, price: 13.00 }
-    ]
-  };
 
   const paymentMethods = [
     {
@@ -70,7 +70,7 @@ export default function Checkout() {
       setProcessing(true);
 
       // Amount in the smallest currency unit (e.g., cents)
-      const amountCents = Math.round(orderData.total * 100);
+      const amountCents = Math.round(Number(summary?.totals?.total ?? 0) * 100);
 
       const intent = await createPaymentIntent({
         order_id: orderId as string,
@@ -87,6 +87,13 @@ export default function Checkout() {
 
       if (confirmed.status === 'succeeded') {
         setCompleted(true);
+        try {
+          // End the active table session and unlock the table server-side
+         await closeOrderForTable(orderId as string, 'paid');
+        } catch (e) {
+          // Do not block the user on this; log and continue to success page
+          console.warn('closeOrderForTable failed (non-blocking):', e);
+        }
         // Redirect to success page with context
         setTimeout(() => {
           navigate(`/CheckoutSuccess?intent=${confirmed.id}&order=${orderId}`);
@@ -116,8 +123,8 @@ export default function Checkout() {
             </p>
             <div className="bg-white rounded-xl p-4">
               <div className="text-sm text-gray-600">
-                <p><strong>Order:</strong> {orderData.number}</p>
-                <p><strong>Amount:</strong> ${orderData.total.toFixed(2)}</p>
+                <p><strong>Order:</strong> {orderId}</p>
+                <p><strong>Amount:</strong> {(summary.currency || 'INR')} {Number(summary?.totals?.total ?? 0).toFixed(2)}</p>
                 <p><strong>Method:</strong> {paymentMethod.toUpperCase()}</p>
               </div>
             </div>
@@ -139,10 +146,10 @@ export default function Checkout() {
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Order Summary</h2>
             
             <div className="space-y-4 mb-6">
-              {orderData.items.map((item, index) => (
+              {summary.items.map((item: any, index: number) => (
                 <div key={index} className="flex justify-between">
                   <span className="text-gray-600">{item.qty}x {item.name}</span>
-                  <span className="font-medium">${(item.price * item.qty).toFixed(2)}</span>
+                  <span className="font-medium">{(summary.currency || 'INR')} {(Number(item.price) * Number(item.qty)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -150,16 +157,33 @@ export default function Checkout() {
             <div className="border-t border-gray-200 pt-4 space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal</span>
-                <span className="font-medium">${orderData.subtotal.toFixed(2)}</span>
+                <span className="font-medium">{summary.currency || 'INR'} {Number(summary.totals.subtotal).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Tax</span>
-                <span className="font-medium">${orderData.tax.toFixed(2)}</span>
+                <span className="font-medium">{summary.currency || 'INR'} {Number(summary.totals.tax).toFixed(2)}</span>
               </div>
+              {summary.totals.tax_breakdown && summary.totals.tax_breakdown.length > 0 && (
+                <div className="space-y-1 pl-2">
+                  {summary.totals.tax_breakdown.map((tb: any) => (
+                    <div key={tb.name} className="flex justify-between text-xs text-gray-500">
+                      <span>{tb.name} ({(Number(tb.rate) * 100).toFixed(0)}%)</span>
+                      <span>{summary.currency || 'INR'} {Number(tb.amount).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span className="text-blue-600">${orderData.total.toFixed(2)}</span>
+                <span className="text-blue-600">{summary.currency || 'INR'} {Number(summary.totals.total).toFixed(2)}</span>
               </div>
+              {summary?.totals?.pricing_mode && (
+                <div className="text-xs text-gray-500 text-right">
+                  {summary.totals.pricing_mode === 'tax_exclusive'
+                    ? 'Tax exclusive (added on top)'
+                    : 'Tax inclusive'}
+                </div>
+              )}
             </div>
           </div>
 
@@ -205,7 +229,7 @@ export default function Checkout() {
               ) : (
                 <>
                   <DollarSign className="w-5 h-5" />
-                  <span>Pay ${orderData.total.toFixed(2)}</span>
+                  <span>Pay {(summary.currency || 'INR')} {Number(summary?.totals?.total ?? 0).toFixed(2)}</span>
                 </>
               )}
             </button>

@@ -27,6 +27,7 @@ import {
   Edit,
   Save,
   X,
+  ArrowLeft,
 } from 'lucide-react';
 
 // UI-facing types mapped from API types
@@ -228,34 +229,15 @@ export default function PaymentManagement() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
-            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
-              Dashboard
-            </Link>
-            <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
-              Orders
-            </Link>
-            <Link to="/menu-admin" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu
-            </Link>
-            <Link to="/tables" className="text-gray-500 hover:text-gray-700 pb-2">
-              Tables
-            </Link>
-            <Link to="/staff" className="text-gray-500 hover:text-gray-700 pb-2">
-              Staff
-            </Link>
-            <Link to="/kds" className="text-gray-500 hover:text-gray-700 pb-2">
-              Kitchen
-            </Link>
-            <Link to="/branding" className="text-gray-500 hover:text-gray-700 pb-2">
-              Branding
-            </Link>
-            <Link to="/payments" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
-              Payments
-            </Link>
-          </div>
-        </nav>
+        <div className="mb-6">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 bg-gradient-to-r from-indigo-600 via-sky-600 to-cyan-500 text-white shadow hover:opacity-95 transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Dashboard</span>
+          </Link>
+        </div>
 
         {/* Tabs */}
         <div className="mb-8">

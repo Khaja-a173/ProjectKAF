@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { useAccessControl } from "../contexts/AccessControlContext";
+  import { Link } from "react-router-dom";
+import { useAccessControl } from "@/contexts/AccessControlContext";
 import { useState, useEffect } from "react";
 import { apiFetch, getErrorMessage } from "@/lib/api";
 import KpiCards from "../components/analytics/KpiCards";
@@ -54,27 +54,44 @@ const LINK_GUARDS: Record<string, string> = {
   '/checkout': 'CHECKOUT_VIEW',
 };
 
-const __DEV_BYPASS_PROTECTED__ = import.meta?.env?.MODE === 'development' || process.env.NODE_ENV === 'development';
+const __DEV_BYPASS_PROTECTED__ = false;
 
-// --- Local HTTP helper ---
-async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  return await apiFetch<T>(path, { signal: opts.signal });
-}
 
 // --- Analytics endpoint wrappers (decouple from lib export names) ---
 async function revenueTimeseriesSafe(params: { range: string; interval: string }) {
-  const q = new URLSearchParams({ range: params.range, interval: params.interval });
-  return await getJSON<any>(`/analytics/revenue_timeseries?${q.toString()}`);
+  try {
+    const q = new URLSearchParams({ range: params.range, interval: params.interval });
+    const response = await apiFetch(`/analytics/revenue_timeseries?${q.toString()}`);
+    if (!response || typeof response !== 'object') return [];
+    return response;
+  } catch (err) {
+    console.warn('revenueTimeseriesSafe failed:', err);
+    return [];
+  }
 }
 
 async function paymentConversionFunnelSafe(params: { range: string }) {
-  const q = new URLSearchParams({ range: params.range });
-  return await getJSON<any>(`/analytics/payment_conversion_funnel?${q.toString()}`);
+  try {
+    const q = new URLSearchParams({ range: params.range });
+    const response = await apiFetch(`/analytics/payment_conversion_funnel?${q.toString()}`);
+    if (!response || typeof response !== 'object') return [];
+    return response;
+  } catch (err) {
+    console.warn('paymentConversionFunnelSafe failed:', err);
+    return [];
+  }
 }
 
 async function orderFulfillmentTimelineSafe(params: { range: string }) {
-  const q = new URLSearchParams({ range: params.range });
-  return await getJSON<any>(`/analytics/order_fulfillment_timeline?${q.toString()}`);
+  try {
+    const q = new URLSearchParams({ range: params.range });
+    const response = await apiFetch(`/analytics/order_fulfillment_timeline?${q.toString()}`);
+    if (!response || typeof response !== 'object') return [];
+    return response;
+  } catch (err) {
+    console.warn('orderFulfillmentTimelineSafe failed:', err);
+    return [];
+  }
 }
 
 // --- Local analytics shims (preserve old names without touching other files) ---
@@ -173,44 +190,54 @@ async function getTopItems(win: WindowKey, limit = 10) {
 }
 
 export default function Dashboard() {
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [revenueData, setRevenueData] = useState<any>(null);
-  const [topItemsData, setTopItemsData] = useState<any>(null);
+  const [summaryData, setSummaryData] = useState<any>({ totalRevenue: 0, successRate: null, avgOrderTimeMin: null });
+  const [revenueData, setRevenueData] = useState<any>([]);
+  const [topItemsData, setTopItemsData] = useState<any>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeWindow, setTimeWindow] = useState<WindowKey>('7d');
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
 
-  const { canAccessDashboard, currentUser, switchUser, users } =
-    useAccessControl();
+  const access = useAccessControl();
+  const isInitialized = (access as any)?.isInitialized ?? false;
+  const currentUser = (access as any)?.currentUser ?? null;
+  const canAccessDashboard = (access as any)?.canAccessDashboard ?? (() => false);
+  const tenantId = (access as any)?.tenantId ?? (currentUser as any)?.tenantId ?? null;
+  const isAuthenticated = (access as any)?.isAuthenticated ?? !!currentUser;
 
-  // Preflight: ensure auth + health are ok so the dashboard doesn't stall
+  // Redirect staff or manager to limited dashboards if needed
+
   useEffect(() => {
-    let aborted = false;
-    const ctrl = new AbortController();
+    if (!currentUser) return;
+
+    // Redirect staff or manager to limited dashboards if needed
+    const role = currentUser.roles?.[0]?.name;
+    if (role === 'staff') {
+      window.location.href = '/staff-dashboard';
+    } else if (role === 'manager') {
+      window.location.href = '/manager-dashboard';
+    }
+  }, [currentUser]);
+
+  // Preflight: ensure auth is ok so the dashboard doesn't stall
+  useEffect(() => {
+    if (!isInitialized || !isAuthenticated || !tenantId) return;
     (async () => {
       try {
-        await getJSON('/auth/whoami', { signal: ctrl.signal });
-        await getJSON('/health/supabase', { signal: ctrl.signal });
+        await apiFetch('/auth/whoami');
       } catch (e) {
-        // In dev we soft-fail so the rest of the dashboard can proceed
         console.warn('Preflight checks failed (continuing in dev):', e);
       }
-      if (!aborted) {
-        // nothing else to do; analytics loader will run in the other effect
-      }
     })();
-    return () => {
-      aborted = true;
-      ctrl.abort();
-    };
-  }, []);
+  }, [isInitialized, isAuthenticated, tenantId]);
 
   useEffect(() => {
+    if (!isInitialized || !isAuthenticated || !tenantId) return;
     loadAnalyticsData();
-  }, [timeWindow, granularity]);
+  }, [isInitialized, isAuthenticated, tenantId, timeWindow, granularity]);
 
   const loadAnalyticsData = async () => {
+    if (!isAuthenticated || !tenantId) return;
     try {
       setLoading(true);
       setError(null);
@@ -222,9 +249,9 @@ export default function Dashboard() {
         getTopItems(timeWindow, 10)
       ]);
 
-      setSummaryData(summary);
-      setRevenueData(revenue);
-      setTopItemsData(topItems);
+      setSummaryData(summary || { totalRevenue: 0, successRate: null, avgOrderTimeMin: null });
+      setRevenueData(Array.isArray(revenue) ? revenue : []);
+      setTopItemsData(Array.isArray(topItems) ? topItems : []);
     } catch (err) {
       console.error('Failed to load analytics:', err);
       setError(getErrorMessage(err));
@@ -268,7 +295,7 @@ export default function Dashboard() {
     const guard = LINK_GUARDS[to as keyof typeof LINK_GUARDS];
     // While access control is still resolving (no currentUser yet), don't hide tiles
     if (!currentUser) return true;
-    return guard ? canAccessDashboard(guard) : true;
+    return guard ? canAccessDashboard?.(guard) : true;
   };
   const recentOrders = [
     {
@@ -304,8 +331,24 @@ export default function Dashboard() {
       time: "15 min ago",
     },
   ];
-  const PageBody = () => (
+  const PageBody = () => {
+    if (!isInitialized) {
+      return <div className="p-6 text-gray-600">Initializing access control...</div>;
+    }
+
+    if (!currentUser) {
+      window.location.href = '/login';
+      return null;
+    }
+    return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* Tenant label */}
+      {currentUser?.tenantId && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <p className="text-sm text-gray-500 mb-2">Tenant ID: {currentUser.tenantId}</p>
+        </div>
+      )}
 
       {/* Quick Links */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
@@ -485,7 +528,7 @@ export default function Dashboard() {
                 Quick Actions
               </h3>
               <div className="space-y-3">
-                {canAccessDashboard("MENU_VIEW") && (
+                {canAccessDashboard?.("MENU_VIEW") && (
                   <Link
                     to="/menu-management"
                     className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -496,7 +539,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("LIVE_ORDERS_VIEW") && (
+                {canAccessDashboard?.("LIVE_ORDERS_VIEW") && (
                   <Link
                     to="/orders"
                     className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
@@ -507,7 +550,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("TABLES_VIEW") && (
+                {canAccessDashboard?.("TABLES_VIEW") && (
                   <Link
                     to="/table-management"
                     className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
@@ -518,7 +561,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("STAFF_VIEW") && (
+                {canAccessDashboard?.("STAFF_VIEW") && (
                   <Link
                     to="/staff"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -529,7 +572,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("KITCHEN_VIEW") && (
+                {canAccessDashboard?.("KITCHEN_VIEW") && (
                   <Link
                     to="/kds"
                     className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
@@ -540,7 +583,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("CUSTOMIZATION_VIEW") && (
+                {canAccessDashboard?.("CUSTOMIZATION_VIEW") && (
                   <Link
                     to="/branding"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -551,7 +594,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 )}
-                {canAccessDashboard("REPORTS_VIEW") && (
+                {canAccessDashboard?.("REPORTS_VIEW") && (
                   <Link
                     to="/analytics"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -589,7 +632,8 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return __DEV_BYPASS_PROTECTED__ ? (
     <PageBody />

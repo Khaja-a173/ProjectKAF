@@ -12,6 +12,9 @@ export interface User {
   lastActive: Date;
   createdAt: Date;
   updatedAt: Date;
+  subscriptionStatus?: string;
+  currentTenantId?: string;
+  entitlements?: string[];
 }
 
 export interface Role {
@@ -363,6 +366,50 @@ export const DASHBOARD_REGISTRY: Record<string, Dashboard> = {
       staff: [],
     },
   },
+  QR: {
+    key: "QR",
+    name: "QR Management",
+    description: "Manage QR codes for tables and entry points",
+    icon: "Qrcode",
+    category: "management",
+    capabilities: [
+      {
+        key: "QR_VIEW",
+        name: "View QR",
+        description: "Access to QR management dashboard",
+        type: "view",
+      },
+      {
+        key: "QR_MANAGE",
+        name: "Manage QR",
+        description: "Create, regenerate, and deactivate QR codes",
+        type: "manage",
+      },
+    ],
+    defaultRoles: {
+      manager: ["QR_VIEW", "QR_MANAGE"],
+      staff: ["QR_VIEW"],
+    },
+  },
+  CHECKOUT: {
+    key: "CHECKOUT",
+    name: "Checkout",
+    description: "POS-style checkout, cart review, and order placement",
+    icon: "ShoppingCart",
+    category: "operations",
+    capabilities: [
+      {
+        key: "CHECKOUT_VIEW",
+        name: "View Checkout",
+        description: "Access to checkout page and flows",
+        type: "view",
+      },
+    ],
+    defaultRoles: {
+      manager: ["CHECKOUT_VIEW"],
+      staff: [],
+    },
+  },
   REPORTS: {
     key: "REPORTS",
     name: "Analytics & Reports",
@@ -436,6 +483,9 @@ export const DEFAULT_ROLES: Omit<
       "PAYMENTS_REFUND",
       "REPORTS_VIEW",
       "REPORTS_EXPORT",
+      "QR_VIEW",
+      "QR_MANAGE",
+      "CHECKOUT_VIEW",
     ],
     isDefault: true,
     isCustom: false,
@@ -459,6 +509,8 @@ export const DEFAULT_ROLES: Omit<
       "RESERVATIONS_MANAGE",
       "PAYMENTS_VIEW",
       "REPORTS_VIEW",
+      "QR_VIEW",
+      "CHECKOUT_VIEW",
     ],
     isDefault: true,
     isCustom: false,

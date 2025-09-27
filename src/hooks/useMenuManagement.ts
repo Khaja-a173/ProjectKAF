@@ -1,601 +1,793 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  MenuSection,
-  MenuItem,
-  MenuFilters,
-  BulkUploadResult,
-  BulkUploadItem,
-} from "../types/menu";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import type { MenuSection, MenuItem } from "../types/menu";
 
-// Global state for menu data (simulating real-time sync)
-let globalMenuState: MenuSection[] = [
-  {
-    id: "sec_1",
-    tenantId: "tenant_123",
-    locationId: "location_456",
-    name: "Appetizers",
-    description: "Start your meal with our delicious appetizers",
-    sortIndex: 100,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    items: [
-      {
-        id: "itm_1",
-        sectionId: "sec_1",
-        tenantId: "tenant_123",
-        locationId: "location_456",
-        name: "Truffle Arancini",
-        description: "Crispy risotto balls with black truffle and parmesan",
-        price: 16.0,
-        currency: "USD",
-        cost: 6.5,
-        imageUrl:
-          "https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400",
-        isAvailable: true,
-        sortIndex: 10,
-        tags: ["signature", "popular"],
-        allergens: ["dairy", "gluten"],
-        isVegetarian: true,
-        isVegan: false,
-        spicyLevel: 0,
-        preparationTime: 15,
-        calories: 280,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: "itm_2",
-        sectionId: "sec_1",
-        tenantId: "tenant_123",
-        locationId: "location_456",
-        name: "Pan-Seared Scallops",
-        description: "Fresh diver scallops with cauliflower purée",
-        price: 24.0,
-        currency: "USD",
-        cost: 12.0,
-        imageUrl:
-          "https://images.pexels.com/photos/842571/pexels-photo-842571.jpeg?auto=compress&cs=tinysrgb&w=400",
-        isAvailable: true,
-        sortIndex: 20,
-        tags: ["premium", "seafood"],
-        allergens: ["shellfish"],
-        isVegetarian: false,
-        isVegan: false,
-        spicyLevel: 0,
-        preparationTime: 12,
-        calories: 180,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ],
-  },
-  {
-    id: "sec_2",
-    tenantId: "tenant_123",
-    locationId: "location_456",
-    name: "Main Courses",
-    description: "Our signature main dishes",
-    sortIndex: 200,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    items: [
-      {
-        id: "itm_3",
-        sectionId: "sec_2",
-        tenantId: "tenant_123",
-        locationId: "location_456",
-        name: "Wagyu Beef Tenderloin",
-        description: "Premium wagyu beef with seasonal vegetables",
-        price: 65.0,
-        currency: "USD",
-        cost: 28.0,
-        imageUrl:
-          "https://images.pexels.com/photos/361184/asparagus-steak-veal-steak-veal-361184.jpeg?auto=compress&cs=tinysrgb&w=400",
-        isAvailable: true,
-        sortIndex: 10,
-        tags: ["premium", "signature"],
-        allergens: [],
-        isVegetarian: false,
-        isVegan: false,
-        spicyLevel: 0,
-        preparationTime: 25,
-        calories: 420,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: "itm_4",
-        sectionId: "sec_2",
-        tenantId: "tenant_123",
-        locationId: "location_456",
-        name: "Grilled Atlantic Salmon",
-        description: "Fresh salmon with herb crust and quinoa pilaf",
-        price: 32.0,
-        currency: "USD",
-        cost: 14.0,
-        imageUrl:
-          "https://images.pexels.com/photos/842571/pexels-photo-842571.jpeg?auto=compress&cs=tinysrgb&w=400",
-        isAvailable: true,
-        sortIndex: 20,
-        tags: ["healthy", "seafood"],
-        allergens: ["fish"],
-        isVegetarian: false,
-        isVegan: false,
-        spicyLevel: 0,
-        preparationTime: 20,
-        calories: 350,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ],
-  },
-];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuidV4 = (v?: string | null) => !!v && typeof v === 'string' && UUID_RE.test(v);
 
-const menuSubscribers: Set<(sections: MenuSection[]) => void> = new Set();
-
-const notifySubscribers = () => {
-  console.log(
-    "🔄 Notifying subscribers of menu changes:",
-    globalMenuState.length,
-    "sections",
-  );
-  menuSubscribers.forEach((callback) => callback([...globalMenuState]));
-};
-
-const updateGlobalMenu = (updater: (prev: MenuSection[]) => MenuSection[]) => {
-  globalMenuState = updater(globalMenuState);
-  console.log("📝 Menu state updated:", {
-    after: globalMenuState.length,
-    totalItems: globalMenuState.reduce(
-      (sum, s) => sum + (s.items?.length || 0),
-      0,
-    ),
-  });
-  notifySubscribers();
-};
-
-interface UseMenuManagementProps {
+export type UseMenuManagementProps = {
   tenantId: string;
-  locationId: string;
+  locationId?: string; // reserved (not used yet)
+};
+
+export type BulkUploadItem = {
+  id?: string;
+  sectionId?: string | null;
+  sectionName?: string | null;
+  name: string;
+  price: number | string;
+  ord?: number;
+  isAvailable?: boolean;
+  imageUrl?: string | null;
+  description?: string | null;
+  tags?: string[];
+  calories?: number | null;
+  spicyLevel?: number | null;
+  preparationTime?: number | null;
+};
+
+export type BulkUploadResult = {
+  sectionsUpserted: number;
+  itemsUpserted: number;
+  itemsSkipped: number;
+  warnings: string[];
+};
+
+const API_BASE = "/api/menu";
+
+async function apiFetch<T = any>(
+  tenantId: string,
+  path: string,
+  init?: RequestInit
+): Promise<T> {
+  // Pull the latest Supabase session token and attach it to headers (Authorization and x-supabase-auth)
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token || null;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...(init || {}),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant-Id": tenantId,
+      ...(token ? { Authorization: `Bearer ${token}`, "x-supabase-auth": token } : {}),
+      ...(init?.headers || {}),
+    },
+    credentials: "include",
+  });
+
+  // Fast path: 204 No Content
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
+
+  // Try to parse JSON once for both success and error cases
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    // ignore JSON parse errors (could be empty body for 2xx)
+  }
+
+  if (!res.ok) {
+    const msg =
+      (payload && (payload.error || payload.message || payload.details)) ||
+      `${res.status} ${res.statusText}`;
+    const err = new Error(msg);
+    (err as any).status = res.status;
+    (err as any).details = payload || null;
+    throw err;
+  }
+
+  return (payload ?? (undefined as any)) as T;
 }
 
-export function useMenuManagement({
-  tenantId,
-  locationId,
-}: UseMenuManagementProps) {
+function sectionCacheKey(tenantId: string) {
+  return `pkaf:menu:sections:${tenantId}`;
+}
+
+/* ---------- mappers API <-> UI ---------- */
+
+function apiToSection(row: any): MenuSection {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id ?? "",
+    locationId: row.location_id ?? null,
+    name: row.name,
+    ord: row.ord ?? 0,
+    sortIndex: row.ord ?? 0,
+    isActive: row.is_active ?? true,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+    items: (row.items || []).map(apiToItem),
+  } as unknown as MenuSection;
+}
+
+function apiToItem(row: any): MenuItem {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id ?? "",
+    locationId: row.location_id ?? null,
+    sectionId: row.section_id ?? null,
+    name: row.name,
+    price: row.price,
+    ord: row.ord ?? 0,
+    isAvailable: row.is_available ?? true,
+    imageUrl: row.image_url ?? null,
+    description: row.description ?? null,
+    tags: row.tags ?? [],
+    calories: row.calories ?? null,
+    spicyLevel: row.spicy_level ?? null,
+    preparationTime: row.preparation_time ?? null,
+  } as unknown as MenuItem;
+}
+
+function sectionToApi(patch: any): any {
+  const out: any = {};
+  if (patch.id !== undefined) out.id = patch.id;
+  if (patch.name !== undefined) out.name = patch.name;
+  // accept either `ord` (legacy) or `sortIndex` (current type)
+  if ((patch as any).ord !== undefined) {
+    out.ord = (patch as any).ord;
+  } else if ((patch as any).sortIndex !== undefined) {
+    out.ord = (patch as any).sortIndex;
+  }
+  if ((patch as any).isActive !== undefined)
+    out.is_active = (patch as any).isActive;
+  if ((patch as any).locationId !== undefined) out.location_id = (patch as any).locationId;
+  return out;
+}
+
+function itemToApi(patch: any): any {
+  const out: any = {};
+  if ((patch as any).id !== undefined) out.id = (patch as any).id;
+  if ((patch as any).sectionId !== undefined)
+    out.section_id = (patch as any).sectionId;
+  if (patch.name !== undefined) out.name = patch.name;
+  if ((patch as any).price !== undefined) out.price = (patch as any).price;
+  if ((patch as any).ord !== undefined) out.ord = (patch as any).ord;
+  if ((patch as any).isAvailable !== undefined)
+    out.is_available = (patch as any).isAvailable;
+  if ((patch as any).imageUrl !== undefined)
+    out.image_url = (patch as any).imageUrl;
+  if ((patch as any).description !== undefined)
+    out.description = (patch as any).description;
+  if ((patch as any).tags !== undefined) out.tags = (patch as any).tags;
+  if ((patch as any).calories !== undefined)
+    out.calories = (patch as any).calories;
+  if ((patch as any).spicyLevel !== undefined)
+    out.spicy_level = (patch as any).spicyLevel;
+  if ((patch as any).preparationTime !== undefined)
+    out.preparation_time = (patch as any).preparationTime;
+  return out;
+}
+
+function attachItemsToSections(
+  sections: MenuSection[],
+  itemsBySection: Record<string, MenuItem[]>
+): MenuSection[] {
+  return sections.map((s) => ({ ...s, items: itemsBySection[s.id] || [] }));
+}
+
+/* ---------- hook ---------- */
+
+export function useMenuManagement({ tenantId }: UseMenuManagementProps) {
   const [sections, setSections] = useState<MenuSection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error] = useState<string | null>(null);
-  const [filters, setFilters] = useState<MenuFilters>({
-    search: "",
-    section: "all",
-    availability: "all",
-    tags: [],
-    allergens: [],
-    dietary: [],
-  });
+  const [error, setError] = useState<string | null>(null);
+  const bcRef = useRef<BroadcastChannel | null>(null);
 
-  // Subscribe to global menu changes
+  const [filters, setFilters] = useState<{
+    query?: string;
+    tags?: string[];
+    allergens?: string[];
+  }>({});
+
+  const notify = () =>
+    bcRef.current?.postMessage({ type: "menu-updated", tenantId });
+
+  const persist = (next: MenuSection[]) => {
+    setSections(next);
+    localStorage.setItem(sectionCacheKey(tenantId), JSON.stringify(next));
+    notify();
+  };
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    sections.forEach((sec) =>
+      sec.items?.forEach((it: any) =>
+        (it.tags || []).forEach((t: string) => set.add(t))
+      )
+    );
+    return Array.from(set).sort();
+  }, [sections]);
+
+  const availableAllergens = useMemo(() => {
+    const set = new Set<string>();
+    return Array.from(set).sort();
+  }, []);
+
+  // initial load: cache-first, then backend
   useEffect(() => {
-    const updateSections = (newSections: MenuSection[]) => {
-      console.log("🔄 Received menu update:", newSections.length, "sections");
-      setSections(newSections);
-      setLoading(false);
-    };
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    menuSubscribers.add(updateSections);
+        const cached = localStorage.getItem(sectionCacheKey(tenantId));
+        if (cached) {
+          try {
+            setSections(JSON.parse(cached));
+          } catch {}
+        }
 
-    // Initialize with current global state
-    if (globalMenuState.length > 0) {
-      setSections([...globalMenuState]);
-      setLoading(false);
-    }
+        const secsRaw = await apiFetch<any[]>(tenantId, "/sections", {
+          method: "GET",
+        });
+        // Strict tenant isolation: ignore any rows not belonging to this tenant
+        const secs = (secsRaw || [])
+          .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId)
+          .map(apiToSection);
+
+        const itemsBySection: Record<string, MenuItem[]> = {};
+        await Promise.all(
+          secs.map(async (s) => {
+            if (!isUuidV4(s.id)) {
+              itemsBySection[s.id] = [];
+              return;
+            }
+            const listRaw = await apiFetch<any[]>(
+              tenantId,
+              `/items?sectionId=${encodeURIComponent(s.id)}`,
+              { method: "GET" }
+            );
+            itemsBySection[s.id] = (listRaw || [])
+              .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId && (r?.section_id ?? s.id) === s.id)
+              .map(apiToItem);
+          })
+        );
+
+        const merged = attachItemsToSections(secs, itemsBySection);
+        if (!cancelled) {
+          setSections(merged);
+          localStorage.setItem(sectionCacheKey(tenantId), JSON.stringify(merged));
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load menu");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
     return () => {
-      menuSubscribers.delete(updateSections);
+      cancelled = true;
     };
-  }, []);
+  }, [tenantId]);
 
-  const createSection = useCallback(
-    async (data: Partial<MenuSection>) => {
-      try {
-        console.log("➕ Creating section:", data.name);
-        const newSection: MenuSection = {
-          id: `sec_${Date.now()}`,
-          tenantId,
-          locationId,
-          name: data.name || "",
-          description: data.description,
-          sortIndex: (globalMenuState.length + 1) * 100,
-          isActive: data.isActive ?? true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          items: [],
-        };
-
-        updateGlobalMenu((prev) =>
-          [...prev, newSection].sort((a, b) => a.sortIndex - b.sortIndex),
-        );
-        return newSection;
-      } catch (err) {
-        console.error("❌ Failed to create section:", err);
-        throw new Error("Failed to create section");
+  // cross-tab sync
+  useEffect(() => {
+    const bc = new BroadcastChannel(`pkaf:menu:${tenantId}`);
+    bcRef.current = bc;
+    bc.onmessage = (ev) => {
+      if (ev?.data?.type === "menu-updated" && ev?.data?.tenantId === tenantId) {
+        try {
+          const cached = localStorage.getItem(sectionCacheKey(tenantId));
+          if (cached) setSections(JSON.parse(cached));
+        } catch {}
       }
-    },
-    [tenantId, locationId],
-  );
+    };
+    return () => {
+      bc.close();
+      bcRef.current = null;
+    };
+  }, [tenantId]);
+
+  // Realtime: subscribe to menu_items changes (granular updates; no full reloads)
+  useEffect(() => {
+    const channel = supabase
+      .channel(`menu-items-${tenantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'menu_items', filter: `tenant_id=eq.${tenantId}` },
+        (payload: any) => {
+          try {
+            const type = payload?.eventType || payload?.event || '';
+            const newRow = payload?.new || payload?.record || null;
+            const oldRow = payload?.old || null;
+            // Drop cross-tenant events defensively on the client
+            const rowTenant = newRow?.tenant_id ?? oldRow?.tenant_id ?? tenantId;
+            if (rowTenant !== tenantId) return;
+
+            setSections((prev) => {
+              let next = prev;
+              if (type === 'INSERT' && newRow) {
+                const item = apiToItem(newRow);
+                next = prev.map((s) =>
+                  s.id === (newRow.section_id ?? null)
+                    ? { ...s, items: [...(s.items || []), item] }
+                    : s
+                );
+              } else if (type === 'UPDATE' && newRow) {
+                const item = apiToItem(newRow);
+                const newSectionId = newRow.section_id ?? null;
+                const oldSectionId = oldRow?.section_id ?? newSectionId;
+                next = prev.map((s) => {
+                  // If section changed, remove from old and add to new
+                  if (s.id === oldSectionId && oldSectionId !== newSectionId) {
+                    return { ...s, items: (s.items || []).filter((it) => it.id !== item.id) };
+                  }
+                  if (s.id === newSectionId) {
+                    const exists = (s.items || []).some((it) => it.id === item.id);
+                    const items = exists
+                      ? (s.items || []).map((it) => (it.id === item.id ? item : it))
+                      : [ ...(s.items || []), item ];
+                    return { ...s, items };
+                  }
+                  return s;
+                });
+              } else if (type === 'DELETE' && oldRow) {
+                const delId = oldRow.id;
+                next = prev.map((s) => ({
+                  ...s,
+                  items: (s.items || []).filter((it) => it.id !== delId),
+                }));
+              }
+              // Persist cache + notify
+              persist(next);
+              return next;
+            });
+          } catch (e) {
+            console.error('Realtime granular update failed:', e);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenantId, persist]);
+
+
+const getSectionOrd = (s: MenuSection) =>
+  ((s as any).ord ?? (s as any).sortIndex ?? 0);
+
+  /* sections */
+
+    const createSection = useCallback(
+      async (data: Partial<MenuSection>): Promise<MenuSection> => {
+        // Find the highest existing ord (fallback to length)
+        const currentMax =
+          sections.length > 0
+            ? Math.max(
+                ...sections.map(s => (('ord' in (s as any) && (s as any).ord != null)
+                  ? (s as any).ord
+                  : (('sortIndex' in (s as any) && (s as any).sortIndex != null) ? (s as any).sortIndex : 0)))
+              )
+            : 0;
+
+        const nextOrd = currentMax > 0 ? currentMax + 1 : sections.length + 1;
+
+        const rows = [
+          sectionToApi({
+            id: data.id,                         // allow server to generate if missing
+            name: (data.name || 'Untitled').trim(),
+            ord: nextOrd,                        // ⬅️ always append at end (1..N)
+            isActive: data.isActive !== false,   // default active
+          }),
+        ];
+
+        const saved = await apiFetch<any[]>(tenantId, "/sections/bulk", {
+          method: "POST",
+          body: JSON.stringify({ rows }),
+        });
+
+        const created = apiToSection(saved[0]);
+        const next = [...sections, { ...created, items: [] }];
+        persist(next);
+        return created;
+      },
+      [sections, tenantId]
+    );
 
   const updateSection = useCallback(
-    async (id: string, data: Partial<MenuSection>) => {
-      try {
-        console.log("✏️ Updating section:", id, data);
-        updateGlobalMenu((prev) =>
-          prev.map((section) =>
-            section.id === id
-              ? { ...section, ...data, updatedAt: new Date() }
-              : section,
-          ),
-        );
-      } catch (err) {
-        console.error("❌ Failed to update section:", err);
-        throw new Error("Failed to update section");
-      }
+    async (id: string, patch: Partial<MenuSection>) => {
+      const rows = [sectionToApi({ id, ...patch })];
+      const saved = await apiFetch<any[]>(tenantId, "/sections/bulk", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      const savedById = new Map(saved.map((s: any) => [s.id, apiToSection(s)]));
+      const next = sections.map((s) =>
+        savedById.has(s.id)
+          ? { ...s, ...savedById.get(s.id)!, items: s.items }
+          : s
+      );
+      persist(next);
     },
-    [],
+    [sections, tenantId]
   );
+
+  const refreshMenu = useCallback(async () => {
+    const secsRaw = await apiFetch<any[]>(tenantId, "/sections", { method: "GET" });
+    const secs = (secsRaw || [])
+      .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId)
+      .map(apiToSection);
+    const itemsBySection: Record<string, MenuItem[]> = {};
+    await Promise.all(
+      secs.map(async (s) => {
+        if (!isUuidV4(s.id)) {
+          itemsBySection[s.id] = [];
+          return;
+        }
+        const listRaw = await apiFetch<any[]>(
+          tenantId,
+          `/items?sectionId=${encodeURIComponent(s.id)}`,
+          { method: "GET" }
+        );
+        // Strict tenant & section isolation on client mapping
+        itemsBySection[s.id] = (listRaw || [])
+          .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId && (r?.section_id ?? s.id) === s.id)
+          .map(apiToItem);
+      })
+    );
+    const merged = attachItemsToSections(secs, itemsBySection);
+    persist(merged);
+  }, [tenantId, persist]);
+
+  // Alias for callers that specifically want to refresh sections (and their items)
+  const refreshSections = useCallback(async () => {
+    await refreshMenu();
+  }, [refreshMenu]);
+
 
   const reorderSections = useCallback(
-    async (order: Array<{ id: string; sortIndex: number }>) => {
-      try {
-        console.log("🔄 Reordering sections:", order);
-        updateGlobalMenu((prev) =>
-          prev
-            .map((section) => {
-              const newOrder = order.find((o) => o.id === section.id);
-              return newOrder
-                ? { ...section, sortIndex: newOrder.sortIndex }
-                : section;
-            })
-            .sort((a, b) => a.sortIndex - b.sortIndex),
-        );
-      } catch (err) {
-        console.error("❌ Failed to reorder sections:", err);
-        throw new Error("Failed to reorder sections");
-      }
+    async (orderedIds: string[]) => {
+      // Server: persist order (expects { order: string[] })
+      await apiFetch<any[]>(tenantId, "/sections/reorder", {
+        method: "POST",
+        body: JSON.stringify({ order: orderedIds }),
+      });
+
+      // Optimistic local update: reorder sections to match orderedIds and update ord/sortIndex (1-based)
+      const indexOf = new Map(orderedIds.map((id, idx) => [id, idx]));
+      const next = sections
+        .slice()
+        .sort((a, b) => (indexOf.get(a.id) ?? 0) - (indexOf.get(b.id) ?? 0))
+        .map((s) => {
+          const idx = indexOf.get(s.id) ?? 0;
+          return { ...s, ord: idx + 1, sortIndex: idx + 1 } as any;
+        });
+      persist(next);
+
+      // Authoritative refresh: ensure UI matches server truth (avoids drift)
+      await refreshSections();
     },
-    [],
+    [sections, tenantId, refreshSections]
   );
 
-  const archiveSection = useCallback(async (id: string) => {
-    try {
-      console.log("🗑️ Archiving section:", id);
-      updateGlobalMenu((prev) =>
-        prev.map((section) =>
-          section.id === id
-            ? { ...section, isActive: false, updatedAt: new Date() }
-            : section,
-        ),
-      );
-    } catch (err) {
-      console.error("❌ Failed to archive section:", err);
-      throw new Error("Failed to archive section");
-    }
-  }, []);
+  const archiveSection = useCallback(
+    async (id: string) => {
+      if (!sections.some(s => s.id === id)) {
+        throw new Error("Section does not belong to this tenant");
+      }
+      await apiFetch<{ deleted: number }>(tenantId, "/sections/delete-bulk", {
+        method: "POST",
+        body: JSON.stringify({ ids: [id] }),
+      });
+      persist(sections.filter((s) => s.id !== id));
+    },
+    [sections, tenantId]
+  );
+
+  /* items */
 
   const createItem = useCallback(
-    async (data: Partial<MenuItem>) => {
-      try {
-        console.log(
-          "➕ Creating item:",
-          data.name,
-          "in section:",
-          data.sectionId,
-        );
-
-        if (!data.sectionId) {
-          throw new Error("Section ID is required");
-        }
-
-        const section = globalMenuState.find((s) => s.id === data.sectionId);
-        if (!section) {
-          throw new Error("Section not found");
-        }
-
-        const newItem: MenuItem = {
-          id: `itm_${Date.now()}`,
-          sectionId: data.sectionId,
-          tenantId,
-          locationId,
-          name: data.name || "",
-          description: data.description,
-          price: data.price || 0,
-          currency: data.currency || "USD",
-          cost: data.cost,
-          imageUrl: data.imageUrl,
-          isAvailable: data.isAvailable ?? true,
-          sortIndex: ((section.items?.length || 0) + 1) * 10,
-          tags: data.tags || [],
-          allergens: data.allergens || [],
-          isVegetarian: data.isVegetarian || false,
-          isVegan: data.isVegan || false,
-          spicyLevel: data.spicyLevel || 0,
-          preparationTime: data.preparationTime,
-          calories: data.calories,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        updateGlobalMenu((prev) =>
-          prev.map((section) =>
-            section.id === data.sectionId
-              ? {
-                  ...section,
-                  items: [...(section.items || []), newItem].sort(
-                    (a, b) => a.sortIndex - b.sortIndex,
-                  ),
-                  updatedAt: new Date(),
-                }
-              : section,
-          ),
-        );
-
-        console.log("✅ Item created successfully:", newItem.id);
-        return newItem;
-      } catch (err) {
-        console.error("❌ Failed to create item:", err);
-        throw new Error("Failed to create item");
+    async (data: Partial<MenuItem>): Promise<MenuItem> => {
+            // Strict tenant validation: provided section must exist in this tenant snapshot
+      const providedSectionId = (data as any).sectionId ?? null;
+      if (providedSectionId && !sections.some(s => s.id === providedSectionId)) {
+        throw new Error("Invalid section for this tenant");
       }
+      const rows = [
+        itemToApi({
+          id: (data as any).id,
+          sectionId: (data as any).sectionId ?? null,
+          name: data.name || "Unnamed",
+          price: (data as any).price ?? 0,
+          ord: typeof (data as any).ord === "number" ? (data as any).ord : 0,
+          isAvailable: (data as any).isAvailable !== false,
+          imageUrl: (data as any).imageUrl ?? null,
+          description: (data as any).description ?? null,
+          tags: (data as any).tags ?? [],
+          calories: (data as any).calories ?? null,
+          spicyLevel: (data as any).spicyLevel ?? null,
+          preparationTime: (data as any).preparationTime ?? null,
+        }),
+      ];
+      const saved = await apiFetch<any[]>(tenantId, "/items/bulk", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      const created = apiToItem(saved[0]);
+      const next = sections.map((s) =>
+        s.id === (created as any).sectionId
+          ? { ...s, items: [...(s.items || []), created] }
+          : s
+      );
+      persist(next);
+      return created;
     },
-    [tenantId, locationId],
+    [sections, tenantId]
   );
 
   const updateItem = useCallback(
-    async (id: string, data: Partial<MenuItem>) => {
-      try {
-        console.log("✏️ Updating item:", id, data);
-        updateGlobalMenu((prev) =>
-          prev.map((section) => ({
-            ...section,
-            items: section.items?.map((item) =>
-              item.id === id
-                ? { ...item, ...data, updatedAt: new Date() }
-                : item,
-            ),
-            updatedAt: new Date(),
-          })),
-        );
-        console.log("✅ Item updated successfully:", id);
-      } catch (err) {
-        console.error("❌ Failed to update item:", err);
-        throw new Error("Failed to update item");
+    async (id: string, patch: Partial<MenuItem>) => {
+            // Ensure the item belongs to this tenant snapshot before updating
+      if (!sections.flatMap(s => s.items || []).some(it => it.id === id)) {
+        throw new Error("Item does not belong to this tenant");
       }
+      const rows = [itemToApi({ id, ...patch })];
+      const saved = await apiFetch<any[]>(tenantId, "/items/bulk", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      const savedById = new Map(saved.map((i: any) => [i.id, apiToItem(i)]));
+      const next = sections.map((s) => ({
+        ...s,
+        items: (s.items || []).map((it) =>
+          savedById.get(it.id) ? savedById.get(it.id)! : it
+        ),
+      }));
+      persist(next);
     },
-    [],
+    [sections, tenantId]
   );
 
   const toggleItemAvailability = useCallback(
-    async (id: string, isAvailable: boolean) => {
-      try {
-        console.log(
-          "🔄 Toggling availability for item:",
-          id,
-          "to:",
-          isAvailable,
-        );
-        updateGlobalMenu((prev) =>
-          prev.map((section) => ({
-            ...section,
-            items: section.items?.map((item) =>
-              item.id === id
-                ? { ...item, isAvailable, updatedAt: new Date() }
-                : item,
-            ),
-            updatedAt: new Date(),
-          })),
-        );
-        console.log("✅ Availability toggled successfully");
-      } catch (err) {
-        console.error("❌ Failed to toggle availability:", err);
-        throw new Error("Failed to toggle availability");
-      }
+    async (id: string) => {
+      const cur = sections
+        .flatMap((s) => s.items || [])
+        .find((i: any) => i.id === id);
+      if (!cur) return;
+
+      const updated = await apiFetch<any>(
+        tenantId,
+        `/items/${encodeURIComponent(id)}/toggle`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ is_available: !cur.isAvailable }),
+        }
+      );
+      const updatedItem = apiToItem(updated);
+      const next = sections.map((s) => ({
+        ...s,
+        items: (s.items || []).map((it) => (it.id === id ? updatedItem : it)),
+      }));
+      persist(next);
     },
-    [],
+    [sections, tenantId]
   );
 
-  const archiveItem = useCallback(async (id: string) => {
-    try {
-      console.log("🗑️ Archiving item:", id);
-      updateGlobalMenu((prev) =>
-        prev.map((section) => ({
-          ...section,
-          items: section.items?.filter((item) => item.id !== id),
-          updatedAt: new Date(),
-        })),
-      );
-      console.log("✅ Item archived successfully");
-    } catch (err) {
-      console.error("❌ Failed to archive item:", err);
-      throw new Error("Failed to archive item");
-    }
-  }, []);
+  const archiveItem = useCallback(
+    async (id: string) => {
+            // Ensure the item belongs to this tenant snapshot before archiving
+      if (!sections.flatMap(s => s.items || []).some(it => it.id === id)) {
+        throw new Error("Item does not belong to this tenant");
+      }
+      await apiFetch<{ deleted: number }>(tenantId, "/items/delete-bulk", {
+        method: "POST",
+        body: JSON.stringify({ ids: [id] }),
+      });
+      const next = sections.map((s) => ({
+        ...s,
+        items: (s.items || []).filter((i) => i.id !== id),
+      }));
+      persist(next);
+    },
+    [sections, tenantId]
+  );
 
   const reorderItems = useCallback(
-    async (
-      sectionId: string,
-      order: Array<{ id: string; sortIndex: number }>,
-    ) => {
-      try {
-        console.log("🔄 Reordering items in section:", sectionId);
-        updateGlobalMenu((prev) =>
-          prev.map((section) =>
-            section.id === sectionId
-              ? {
-                  ...section,
-                  items: section.items
-                    ?.map((item) => {
-                      const newOrder = order.find((o) => o.id === item.id);
-                      return newOrder
-                        ? { ...item, sortIndex: newOrder.sortIndex }
-                        : item;
-                    })
-                    .sort((a, b) => a.sortIndex - b.sortIndex),
-                  updatedAt: new Date(),
-                }
-              : section,
-          ),
-        );
-      } catch (err) {
-        console.error("❌ Failed to reorder items:", err);
-        throw new Error("Failed to reorder items");
-      }
+    async (sectionId: string, orderedIds: string[]) => {
+      const rows = orderedIds.map((id, idx) => itemToApi({ id, ord: idx }));
+      await apiFetch<any[]>(tenantId, "/items/bulk", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      const mapOrd = new Map(rows.map((r: any) => [r.id, r.ord!]));
+      const next = sections.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              items: (s.items || [])
+                .slice()
+                .sort(
+                  (a, b) =>
+                    (mapOrd.get(a.id) ?? 0) - (mapOrd.get(b.id) ?? 0)
+                ),
+            }
+          : s
+      );
+      persist(next);
     },
-    [],
+    [sections, tenantId]
   );
 
   const moveItem = useCallback(
-    async (
-      itemId: string,
-      fromSectionId: string,
-      toSectionId: string,
-      sortIndex: number,
-    ) => {
-      try {
-        console.log(
-          "📦 Moving item:",
-          itemId,
-          "from:",
-          fromSectionId,
-          "to:",
-          toSectionId,
-        );
-        updateGlobalMenu((prev) =>
-          prev.map((section) => {
-            if (section.id === fromSectionId) {
-              return {
-                ...section,
-                items: section.items?.filter((item) => item.id !== itemId),
-                updatedAt: new Date(),
-              };
-            }
-            if (section.id === toSectionId) {
-              const item = prev
-                .find((s) => s.id === fromSectionId)
-                ?.items?.find((i) => i.id === itemId);
-              if (item) {
-                return {
-                  ...section,
-                  items: [
-                    ...(section.items || []),
-                    { ...item, sectionId: toSectionId, sortIndex },
-                  ].sort((a, b) => a.sortIndex - b.sortIndex),
-                  updatedAt: new Date(),
-                };
-              }
-            }
-            return section;
-          }),
-        );
-      } catch (err) {
-        console.error("❌ Failed to move item:", err);
-        throw new Error("Failed to move item");
+    async (itemId: string, toSectionId: string, toIndex = 0) => {
+            // Ensure destination section exists in this tenant snapshot
+      if (!sections.some(s => s.id === toSectionId)) {
+        throw new Error("Destination section does not belong to this tenant");
       }
+      const rows = [itemToApi({ id: itemId, sectionId: toSectionId, ord: toIndex })];
+      await apiFetch<any[]>(tenantId, "/items/bulk", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+
+      const cur = sections
+        .flatMap((s) => s.items || [])
+        .find((i) => i.id === itemId);
+
+      const next = sections.map((s) => {
+        let items = s.items || [];
+        items = items.filter((i) => i.id !== itemId);
+        if (s.id === toSectionId && cur) {
+          const copy = items.slice();
+          copy.splice(toIndex, 0, { ...cur, sectionId: toSectionId } as any);
+          items = copy;
+        }
+        return { ...s, items };
+      });
+      persist(next);
     },
-    [],
+    [sections, tenantId]
   );
+
 
   const bulkUpload = useCallback(
     async (items: BulkUploadItem[]): Promise<BulkUploadResult> => {
-      try {
-        console.log("📤 Starting bulk upload:", items.length, "items");
-        let created = 0;
-        let updated = 0;
-        let skipped = 0;
-        const errors: Array<{ row: number; message: string; data: any }> = [];
+      let sectionsUpserted = 0;
+      const rowsToSave: any[] = [];
+      // Start from current sections snapshot we can mutate
+      let nextSections: MenuSection[] = JSON.parse(JSON.stringify(sections));
 
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          try {
-            // Find or create section
-            let section = globalMenuState.find(
-              (s) => s.name.toLowerCase() === item.section.toLowerCase(),
-            );
-            if (!section) {
-              section = await createSection({ name: item.section });
-            }
+      for (const row of items) {
+        let sectionId = row.sectionId ?? null;
 
-            // Check if item exists
-            const existingItem = section.items?.find(
-              (itm) => itm.name.toLowerCase() === item.name.toLowerCase(),
-            );
-
-            if (existingItem) {
-              await updateItem(existingItem.id, {
-                description: item.description,
-                price: item.price,
-                cost: item.cost,
-                imageUrl: item.imageUrl,
-                tags: item.tags || [],
-                allergens: item.allergens || [],
-                isVegetarian: item.isVegetarian || false,
-                isVegan: item.isVegan || false,
-                spicyLevel: item.spicyLevel || 0,
-              });
-              updated++;
-            } else {
-              await createItem({
-                sectionId: section.id,
-                name: item.name,
-                description: item.description,
-                price: item.price,
-                cost: item.cost,
-                imageUrl: item.imageUrl,
-                tags: item.tags || [],
-                allergens: item.allergens || [],
-                isVegetarian: item.isVegetarian || false,
-                isVegan: item.isVegan || false,
-                spicyLevel: item.spicyLevel || 0,
-              });
-              created++;
-            }
-          } catch (err) {
-            errors.push({
-              row: i + 1,
-              message: err instanceof Error ? err.message : "Unknown error",
-              data: item,
+        // create/find section by name if necessary
+        if (!sectionId && row.sectionName) {
+          const found = nextSections.find(
+            (s) => (s.name || '').trim().toLowerCase() === row.sectionName!.trim().toLowerCase()
+          );
+          if (found) sectionId = found.id;
+          else {
+            const createdRaw = await apiFetch<any[]>(tenantId, '/sections/bulk', {
+              method: 'POST',
+              body: JSON.stringify({
+                rows: [
+                  sectionToApi({
+                    name: row.sectionName,
+                    isActive: true,
+                    ord: nextSections.length + sectionsUpserted,
+                  }),
+                ],
+              }),
             });
+            const created = apiToSection(createdRaw[0]);
+            sectionId = created.id;
+            sectionsUpserted += 1;
+            nextSections = [...nextSections, { ...created, items: [] }];
           }
         }
 
-        console.log("✅ Bulk upload complete:", {
-          created,
-          updated,
-          skipped,
-          errors: errors.length,
-        });
-        return { created, updated, skipped, errors };
-      } catch (err) {
-        console.error("❌ Bulk upload failed:", err);
-        throw new Error("Bulk upload failed");
+        rowsToSave.push(
+          itemToApi({
+            sectionId,
+            name: row.name,
+            price: Number(row.price) || 0,
+            ord: typeof row.ord === 'number' ? row.ord : 0,
+            isAvailable: row.isAvailable !== false,
+            imageUrl: row.imageUrl ?? null,
+            description: row.description ?? null,
+            tags: row.tags ?? [],
+            calories: row.calories ?? null,
+            spicyLevel: row.spicyLevel ?? null,
+            preparationTime: row.preparationTime ?? null,
+          })
+        );
       }
+
+      const saved = await apiFetch<any[]>(tenantId, '/items/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ rows: rowsToSave }),
+      });
+
+      // Merge returned items into local state (upsert per section)
+      const savedItems = saved.map(apiToItem);
+      for (const it of savedItems) {
+        nextSections = nextSections.map((s) => {
+          if (s.id !== (it as any).sectionId) return s;
+          const exists = (s.items || []).some((i) => i.id === it.id);
+          const items = exists
+            ? (s.items || []).map((i) => (i.id === it.id ? it : i))
+            : [ ...(s.items || []), it ];
+          return { ...s, items };
+        });
+      }
+
+      persist(nextSections);
+
+      return {
+        sectionsUpserted,
+        itemsUpserted: saved.length,
+        itemsSkipped: 0,
+        warnings: [],
+      };
     },
-    [createSection, createItem, updateItem],
+    [sections, tenantId]
   );
 
-  // Get all available tags and allergens
-  const availableTags = [
-    ...new Set(
-      globalMenuState.flatMap((s) => s.items?.flatMap((i) => i.tags) || []),
-    ),
-  ];
-  const availableAllergens = [
-    ...new Set(
-      globalMenuState.flatMap(
-        (s) => s.items?.flatMap((i) => i.allergens) || [],
-      ),
-    ),
-  ];
+
+
+  /**
+   * Toggle availability of ALL items inside a section (eye icon behavior)
+   * - Keeps the section visible in management
+   * - Greys out / re-enables items in the customer Menu
+   * - Syncs Manage Sections "Active" pill to item availability
+   */
+  const toggleSectionItems = useCallback(
+    async (sectionId: string, nextAvailable: boolean) => {
+      if (!sections.some(s => s.id === sectionId)) {
+        throw new Error("Section does not belong to this tenant");
+      }
+      // 1) Optimistic local update: flip all items + section.isActive
+      const optimistic = sections.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              isActive: !!nextAvailable, // keep pill in sync immediately
+              items: (s.items || []).map((it) => ({ ...it, isAvailable: nextAvailable, is_available: nextAvailable })),
+            }
+          : s
+      );
+      persist(optimistic);
+
+      try {
+        // 2) Server: toggle items availability for the section (scoped by tenant)
+        await apiFetch<{ updated: number }>(
+          tenantId,
+          `/sections/${encodeURIComponent(sectionId)}/toggle-items`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ available: !!nextAvailable }),
+          }
+        );
+
+        // 3) Best-effort: keep section's is_active in sync (do not fail UX if this errors)
+        try {
+          await apiFetch<any>(
+            tenantId,
+            `/sections/${encodeURIComponent(sectionId)}/toggle`,
+            {
+              method: 'PATCH',
+              body: JSON.stringify({ is_active: !!nextAvailable }),
+            }
+          );
+        } catch (syncErr) {
+          console.warn('Section is_active sync failed (non-fatal):', syncErr);
+        }
+        // No full refresh here; optimistic state already applied
+      } catch (e) {
+        console.error('toggleSectionItems failed, reverting:', e);
+        // Revert to server truth as a fallback only
+        await refreshSections();
+        throw e;
+      }
+    },
+    [sections, tenantId, persist, refreshSections]
+  );
 
   return {
     sections,
@@ -615,6 +807,9 @@ export function useMenuManagement({
     archiveItem,
     reorderItems,
     moveItem,
+    toggleSectionItems,
     bulkUpload,
+    refreshSections,
+    refreshMenu,
   };
 }

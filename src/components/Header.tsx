@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAccess } from "@/contexts/AccessControlContext";
 import { useLogo } from "../contexts/BrandingContext";
-import { useSessionManagement } from "../hooks/useSessionManagement";
 import { ChefHat, Menu as MenuIcon, X, ShoppingCart } from "lucide-react";
 import { supabase } from '@/lib/supabase';
+import { useCartStore } from '@/state/cartStore';
 
 function CartBadge() {
-  const { carts } = useSessionManagement({
-    tenantId: "tenant_123",
-    locationId: "location_456",
-  });
+  // Pull cart counts from the global cart store. Be defensive about shape.
+  const itemCount =
+    useCartStore((s: any) =>
+      typeof s.count === 'number'
+        ? s.count
+        : typeof s.totalQty === 'number'
+        ? s.totalQty
+        : Array.isArray(s.items)
+        ? s.items.reduce((acc: number, it: any) => acc + (Number(it.qty) || 0), 0)
+        : 0
+    );
 
-  // Get total items across all active carts
-  const totalItems = carts
-    .filter((cart) => cart.status === "active")
-    .reduce((total, cart) => {
-      const items = Array.isArray(cart.items) ? cart.items : [];
-      return total + items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-    }, 0);
-
-  if (totalItems === 0) return null;
+  if (!itemCount || itemCount <= 0) return null;
 
   return (
-    <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
-      {totalItems > 99 ? "99+" : totalItems}
+    <span
+      className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] leading-5 text-center font-semibold pointer-events-none"
+      aria-label={`${itemCount} items in cart`}
+    >
+      {itemCount}
     </span>
   );
 }
@@ -49,7 +52,12 @@ export default function Header() {
     };
   }, []);
 
-  const navigation = [
+  const { currentUser } = useAccess();
+  const rolesList = Array.isArray((currentUser as any)?.roles)
+    ? (currentUser as any).roles.map((r: any) => String(r))
+    : ((currentUser as any)?.role ? [String((currentUser as any).role)] : []);
+
+  const publicNavigation = [
     { name: "Home", href: "/" },
     { name: "Menu", href: "/menu" },
     { name: "Events", href: "/events" },
@@ -59,14 +67,27 @@ export default function Header() {
     { name: "Book Table", href: "/book-table" },
   ];
 
+  const isAdmin = rolesList.includes('admin') || rolesList.includes('tenant_admin'); // adjust this check if your app uses roles differently
+  const adminNavigation = isAdmin
+    ? [{ name: "Billing & Plan", href: "/billing" }]
+    : [];
+
+  const dashboardNavigation = [
+    { name: "Dashboard", href: "/dashboard" },
+    ...adminNavigation,
+  ];
+
   const isActive = (href: string) => location.pathname === href;
 
   // Determine if current path is /dashboard or its sub-routes
   const isDashboardRoute = location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
 
+  const navigation = isDashboardRoute ? dashboardNavigation : publicNavigation;
+
   const handleAdminClick = () => {
     if (session) {
-      navigate("/dashboard");
+      // Redirect based on role or just go to dashboard
+      navigate("/dashboard", { replace: true });
     } else {
       navigate("/login?next=/dashboard");
     }
@@ -125,7 +146,15 @@ export default function Header() {
 
           {/* Right Side Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <button className="p-2 text-gray-600 hover:text-orange-600 relative">
+            <button
+              type="button"
+              aria-label="Cart"
+              onClick={() => {
+                // Trigger global cart open event; FloatingCart will handle displaying itself.
+                window.dispatchEvent(new CustomEvent("cart:open"));
+              }}
+              className="p-2 text-gray-600 hover:text-orange-600 relative"
+            >
               <ShoppingCart className="w-5 h-5" />
               <CartBadge />
             </button>
@@ -182,7 +211,18 @@ export default function Header() {
                   {item.name}
                 </Link>
               ))}
-              <div className="pt-4 border-t border-gray-200 mt-4">
+              <div className="pt-4 border-t border-gray-200 mt-4 space-y-2">
+                <button
+                  type="button"
+                  aria-label="Cart"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("cart:open"));
+                  }}
+                  className="p-2 text-gray-600 hover:text-orange-600 relative w-full flex items-center justify-center rounded-lg border border-gray-300"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  <CartBadge />
+                </button>
                 {isDashboardRoute && session ? (
                   <button
                     onClick={async () => {

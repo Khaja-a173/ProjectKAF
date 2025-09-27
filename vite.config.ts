@@ -33,6 +33,15 @@ export default defineConfig({
         }
       },
     },
+    // Catch-all API proxy so /api/* is never served by Vite (prevents HTML responses)
+    '/api': {
+      target: 'http://localhost:8090',
+      changeOrigin: true,
+    },
+    '/events': {
+      target: 'http://localhost:8090',
+      changeOrigin: true,
+    },
     // Forward UI requests to Fastify API (8090) during dev
     '/auth': {
       target: 'http://localhost:8090',

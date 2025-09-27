@@ -1,6 +1,11 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+const DEV_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isUuid(s?: string): s is string { return !!s && UUID_RE.test(s); }
+
 type StaffMembership = {
   tenant_id: string;
   role: 'admin' | 'manager' | 'staff' | 'kitchen' | 'cashier';
@@ -15,14 +20,34 @@ declare module 'fastify' {
       tenantIds: string[];
       primaryTenantId?: string | null;
     }
+    tenantId?: string;
   }
   interface FastifyInstance {
     requireAuth: (req: FastifyRequest, reply: FastifyReply) => void | Promise<void>;
     requireRole: (req: FastifyRequest, reply: FastifyReply, roles: string[]) => void | Promise<void>;
+    requireTenant: (req: FastifyRequest, reply: FastifyReply) => void | Promise<void>;
   }
 }
 
 export default fp(async (app: FastifyInstance) => {
+  // Lightweight CORS (no external deps). Handles preflight and sets CORS headers for all responses.
+  app.addHook('onRequest', async (req, reply) => {
+    const origin = (req.headers.origin as string) || '';
+    const allow = !origin || origin === DEV_ORIGIN;
+
+    if (allow) {
+      reply.header('Access-Control-Allow-Origin', origin || DEV_ORIGIN);
+      reply.header('Vary', 'Origin');
+      reply.header('Access-Control-Allow-Credentials', 'true');
+      reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      reply.header('Access-Control-Allow-Headers', 'Authorization,Content-Type,X-Tenant-Id,X-User-Id,X-Supabase-Auth');
+    }
+
+    // Preflight short-circuit
+    if (req.method === 'OPTIONS') {
+      return reply.code(204).send();
+    }
+  });
   // Extract Supabase JWT from Authorization header, cookie, or x-supabase-auth
   function extractToken(req: FastifyRequest): string | null {
     const h = req.headers.authorization;
@@ -50,6 +75,9 @@ export default fp(async (app: FastifyInstance) => {
       }
     }
 
+    const parsed = (req as any).cookies?.['sb-access-token'];
+    if (typeof parsed === 'string' && parsed.length > 0) return parsed;
+
     // If @fastify/cookie is registered, prefer parsed cookies
     const anyReq = req as any;
     const fromCookie = anyReq.cookies?.['sb-access-token'];
@@ -62,12 +90,43 @@ export default fp(async (app: FastifyInstance) => {
 
   // --- Keep existing auth parsing & membership load unchanged ---
   app.addHook('preHandler', async (req) => {
-    const token = extractToken(req);
+    req.tenantId = undefined;
+
+    let token = extractToken(req);
+    // If token is still missing, fallback to Supabase session cookie (safe fallback)
+    if (!token && typeof req.headers['cookie'] === 'string') {
+      const m = req.headers['cookie'].match(/sb-access-token=([^;]+)/);
+      if (m && m[1]) {
+        try {
+          token = decodeURIComponent(m[1]);
+        } catch {
+          token = m[1];
+        }
+      }
+    }
     if (!token) return;
 
     const { data, error } = await app.supabase.auth.getUser(token);
+    if (!data || typeof data !== 'object' || typeof data.user !== 'object') {
+      app.log.error({ data }, 'Invalid response from auth.getUser');
+      req.auth = {
+        userId: '',
+        email: null,
+        memberships: [],
+        tenantIds: [],
+        primaryTenantId: null,
+      };
+      return;
+    }
     if (error || !data?.user) {
       app.log.warn({ error }, 'auth.getUser failed');
+      req.auth = {
+        userId: '',
+        email: null,
+        memberships: [],
+        tenantIds: [],
+        primaryTenantId: null,
+      };
       return;
     }
 
@@ -121,14 +180,31 @@ export default fp(async (app: FastifyInstance) => {
       }
     }
 
-    // Default tenant header if client did not provide one
-    const hasTenantHeader = typeof req.headers['x-tenant-id'] === 'string' && (req.headers['x-tenant-id'] as string).length > 0;
-    if (!hasTenantHeader) {
-      const tid = req.auth.primaryTenantId || null;
-      if (tid) {
-        (req.headers as any)['x-tenant-id'] = tid; // make tenant context available to downstream handlers expecting the header
+    // Pick per-request tenantId
+    const headerTid = (typeof req.headers['x-tenant-id'] === 'string' ? (req.headers['x-tenant-id'] as string) : null) || null;
+    if (req.auth?.userId) {
+      if (headerTid && isUuid(headerTid) && req.auth.tenantIds.includes(headerTid)) {
+        req.tenantId = headerTid;
+      } else if (req.auth.primaryTenantId) {
+        req.tenantId = req.auth.primaryTenantId;
+      }
+    } else {
+      if (headerTid && isUuid(headerTid)) {
+        req.tenantId = headerTid;
       }
     }
+    if (req.tenantId && !isUuid(headerTid || undefined)) {
+      (req.headers as any)['x-tenant-id'] = req.tenantId;
+    }
+
+    // Default tenant header if client did not provide one and tenantId is set
+    const hasTenantHeader = typeof req.headers['x-tenant-id'] === 'string' && (req.headers['x-tenant-id'] as string).length > 0;
+    if (!hasTenantHeader && req.tenantId) {
+      (req.headers as any)['x-tenant-id'] = req.tenantId;
+    }
+
+    // Debug context (safe): who/which-tenant is this request for?
+    app.log.debug({ tenantId: req.tenantId ?? null, userId: req.auth?.userId ?? null }, 'auth.derived_context');
   });
 
   // ---- Guards (now idempotent) ----
@@ -156,6 +232,17 @@ export default fp(async (app: FastifyInstance) => {
     app.decorate('requireRole', async (req: FastifyRequest, reply: FastifyReply, roles: string[]) => {
       const ok = !!req.auth?.memberships?.some(m => roles.includes(m.role));
       if (!ok) return reply.code(403).send({ error: 'forbidden' });
+    });
+  }
+
+  // D) Tenant guard for routes that require a tenant (cart/menu/etc.)
+  if (!(app as any).requireTenant) {
+    app.decorate('requireTenant', async (req: FastifyRequest, reply: FastifyReply) => {
+      const headerTid = typeof req.headers['x-tenant-id'] === 'string' ? (req.headers['x-tenant-id'] as string) : null;
+      const tid = req.tenantId || headerTid;
+      if (!tid || !isUuid(tid)) {
+        return reply.code(400).send({ error: 'missing_or_invalid_tenant' });
+      }
     });
   }
 }, { name: 'auth-plugin' }); // meta name helps debugging duplicate loads

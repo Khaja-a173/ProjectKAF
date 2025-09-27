@@ -10,12 +10,30 @@ export default fp(async (app) => {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE;
     if (!url || !key) {
-        app.log.error({ hasUrl: Boolean(url), hasKey: Boolean(key) }, "Supabase env missing (SUPABASE_URL or SUPABASE_SERVICE_ROLE)");
+        app.log.error({ hasUrl: Boolean(url), hasKey: Boolean(key), nodeEnv: process.env.NODE_ENV }, "Supabase env missing (SUPABASE_URL or SUPABASE_SERVICE_ROLE)");
         throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE");
     }
     const supabase = createClient(url, key, {
-        auth: { persistSession: false, autoRefreshToken: false }
+        auth: { persistSession: false, autoRefreshToken: false },
+        db: { schema: "public" },
+        global: {
+            fetch: (input, init) => {
+                // Apply a 10s timeout to all Supabase fetches
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10_000);
+                return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+            }
+        }
     });
     app.decorate("supabase", supabase);
-    app.log.info("Supabase client initialized");
+    app.decorate("checkSupabaseHealth", async () => {
+        try {
+            const { error } = await supabase.from("tenants").select("id").limit(1);
+            return !error;
+        }
+        catch {
+            return false;
+        }
+    });
+    app.log.debug("Supabase client initialized");
 });

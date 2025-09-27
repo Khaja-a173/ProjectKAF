@@ -1,0 +1,55 @@
+.
+├── index.ts
+├── lib
+│   ├── codegen.ts
+│   ├── qr.ts
+│   └── slug.ts
+├── plugins
+│   ├── auth.ts
+│   ├── kaf_auth.ts
+│   ├── pg.ts
+│   ├── redis.ts
+│   └── supabase.ts
+├── routes
+│   ├── analytics.ts
+│   ├── auth.ts
+│   ├── authSetTenant.ts
+│   ├── backup_cart.ts
+│   ├── backup_menu.ts
+│   ├── backup_orders.ts
+│   ├── branding.ts
+│   ├── cart.ts
+│   ├── checkout.ts
+│   ├── health.ts
+│   ├── kaf_analytics.ts
+│   ├── kaf_auth_routes.ts
+│   ├── kaf_billing.ts
+│   ├── kaf_payment_providers.ts
+│   ├── kaf_tenants.ts
+│   ├── kds.ts
+│   ├── menu.ts
+│   ├── orders.ts
+│   ├── payments.ts
+│   ├── qr.ts
+│   ├── receipts.ts
+│   ├── reservations.ts
+│   ├── staff.ts
+│   ├── tables.ts
+│   ├── tax.ts
+│   ├── tenants.ts
+│   ├── tmSettings.ts
+│   ├── users.ts
+│   └── zones.ts
+├── services
+│   ├── analytics.service.ts
+│   ├── cartService.ts
+│   ├── payments.service.ts
+│   └── tenant.service.ts
+├── structure.txt
+├── types
+│   ├── fastify-aug.d.ts
+│   └── payments.d.ts
+└── utils
+    └── supabase.ts
+
+7 directories, 46 files

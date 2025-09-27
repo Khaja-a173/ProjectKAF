@@ -48,7 +48,11 @@ import {
   Timer,
   Star,
   Edit,
+  CornerUpLeft,
+  ChevronDown,
 } from "lucide-react";
+
+import { toast } from "react-hot-toast";
 
 interface StaffMember {
   id: string;
@@ -99,6 +103,7 @@ export default function StaffManagement() {
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   // Mock data - in real app this would come from API
   const [staff, setStaff] = useState<StaffMember[]>([
@@ -388,10 +393,13 @@ export default function StaffManagement() {
         if (member.id === staffId) {
           switch (action) {
             case "activate":
+              toast.success("Staff activated");
               return { ...member, status: "active" as const };
             case "suspend":
+              toast("Staff suspended", { icon: "⛔" });
               return { ...member, status: "suspended" as const };
             case "resend-invite":
+              toast.success("Invitation resent");
               // In real app, this would trigger email/SMS
               return member;
             default:
@@ -1115,56 +1123,60 @@ export default function StaffManagement() {
       {/* Header */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
-            <Link
-              to="/dashboard"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Dashboard
-            </Link>
-            <Link to="/menu" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu Management
-            </Link>
-            <Link
-              to="/orders"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Orders
-            </Link>
-            <Link
-              to="/table-management"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Table Management
-            </Link>
-            <Link
-              to="/staff-management"
-              className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium"
-            >
-              Staff Management
-            </Link>
-            <Link
-              to="/admin/kitchen"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Kitchen Dashboard
-            </Link>
-            <Link
-              to="/analytics"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Analytics
-            </Link>
-            <Link
-              to="/settings"
-              className="text-gray-500 hover:text-gray-700 pb-2"
-            >
-              Settings
-            </Link>
+        {/* Page Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">Staff Management</h1>
+              <p className="text-sm text-gray-500">Directory, roles, shifts &amp; device security</p>
+            </div>
           </div>
-        </nav>
+
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 shadow-sm"
+                title="Back to Dashboard"
+              >
+                <CornerUpLeft className="w-4 h-4" />
+                <span>Dashboard</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setQuickOpen((v) => !v)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-black"
+                aria-haspopup="menu"
+                aria-expanded={quickOpen ? "true" : "false"}
+              >
+                Quick actions
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+
+            {quickOpen && (
+              <div
+                className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg ring-1 ring-black/5 z-10"
+                role="menu"
+              >
+                <div className="py-1 text-sm text-gray-700">
+                  <Link to="/dashboard" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Dashboard</Link>
+                  <Link to="/menu" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Menu Management</Link>
+                  <Link to="/orders" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Orders</Link>
+                  <Link to="/table-management" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Table Management</Link>
+                  <Link to="/staff-management" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Staff Management</Link>
+                  <Link to="/admin/kitchen" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Kitchen Dashboard</Link>
+                  <Link to="/analytics" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Analytics</Link>
+                  <Link to="/settings" className="block px-3 py-2 hover:bg-gray-50" role="menuitem">Settings</Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Sub-navigation for Staff Management */}
         <nav className="mb-8">

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 // Local API helpers (decouple from ../lib/api to avoid missing exports)
 import { subscribeMenuItems } from '../lib/realtime';
+// Flexible subscription type for menu updates
+type MenuSub = { unsubscribe: () => void } | (() => void) | void;
 import DashboardHeader from '../components/DashboardHeader';
 import {
   Plus,
@@ -14,6 +16,7 @@ import {
   X,
   Save
 } from 'lucide-react';
+
 
 // --- Local API helpers for Menu Admin ---
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -136,13 +139,19 @@ export default function MenuAdmin() {
     loadData();
     
     // Subscribe to real-time updates
-    const subscription = subscribeMenuItems('550e8400-e29b-41d4-a716-446655440000', (payload) => {
+    let subscription: MenuSub = undefined;
+    const sub = subscribeMenuItems('550e8400-e29b-41d4-a716-446655440000', (payload) => {
       console.log('Menu update:', payload);
       loadData(); // Refresh on any change
     });
+    subscription = sub as MenuSub;
 
     return () => {
-      subscription.unsubscribe();
+      if (typeof subscription === 'function') {
+        (subscription as () => void)();
+      } else if (subscription && typeof (subscription as any).unsubscribe === 'function') {
+        (subscription as { unsubscribe: () => void }).unsubscribe();
+      }
     };
   }, []);
 

@@ -1,312 +1,585 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { API_BASE, getErrorMessage } from '@/lib/api';
-import { subscribeTables, subscribeTableSessions } from '@/lib/realtime';
-import DashboardHeader from '../components/DashboardHeader';
+import React from "react";
+import { Link } from "react-router-dom";
 import {
   Grid3X3,
+  Users,
+  Search as SearchIcon,
+  Plus,
+  QrCode,
+  Eye,
   Lock,
   Unlock,
-  Users,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Search,
-} from 'lucide-react';
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 
-interface Table {
-  id: string;
-  table_number: string;
-  capacity: number;
-  location?: string;
-  status: string;
-  is_locked: boolean;
-  is_occupied: boolean;
-  computed_status: string;
-  qr_code?: string;
-  notes?: string;
+type Props = {
+  // data
+  tables: any[];
+  zones: string[];
+  filtered: any[];
+  loading: boolean;
+  error: string | null;
+
+  // filters
+  search: string;
+  setSearch: (s: string) => void;
+  zoneFilter: string;
+  setZoneFilter: (z: string) => void;
+  statusFilter: string;
+  setStatusFilter: (s: string) => void;
+
+  // actions
+  onSeat: (t: any) => void;
+  onToggleLock: (t: any, lock: boolean) => void;
+  onClean: (t: any) => void;
+  onReady: (t: any) => void;
+  onDelete: (t: any) => void;
+
+  // Add table modal
+  showAdd: boolean;
+  setShowAdd: (b: boolean) => void;
+  newCode: string;
+  setNewCode: (s: string) => void;
+  newSeats: number;
+  setNewSeats: (n: number) => void;
+  newZone: string;
+  setNewZone: (s: string) => void;
+  saving: boolean;
+  onCreateTable: () => void;
+};
+
+function statusBadgeColor(status: string) {
+  switch (status) {
+    case "available":
+      return "bg-emerald-100 text-emerald-700 ring-emerald-200";
+    case "held":
+      return "bg-amber-100 text-amber-700 ring-amber-200";
+    case "occupied":
+      return "bg-blue-100 text-blue-700 ring-blue-200";
+    case "cleaning":
+      return "bg-orange-100 text-orange-700 ring-orange-200";
+    case "out-of-service":
+      return "bg-neutral-200 text-neutral-700 ring-neutral-300";
+    default:
+      return "bg-neutral-200 text-neutral-700 ring-neutral-300";
+  }
 }
 
-// Lightweight HTTP helpers (kept local for this page)
-async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    credentials: 'include',
-    signal: opts.signal,
-  });
-  const text = await res.text();
-  let data: any = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data as T;
-}
+export default function TablesView(props: Props) {
+  const {
+    tables,
+    zones,
+    filtered,
+    loading,
+    error,
+    search,
+    setSearch,
+    zoneFilter,
+    setZoneFilter,
+    statusFilter,
+    setStatusFilter,
+    onSeat,
+    onToggleLock,
+    onClean,
+    onReady,
+    onDelete,
+    showAdd,
+    setShowAdd,
+    newCode,
+    setNewCode,
+    newSeats,
+    setNewSeats,
+    newZone,
+    setNewZone,
+    saving,
+    onCreateTable,
+  } = props;
 
-async function postJSON<T>(path: string, body: any, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
-  const text = await res.text();
-  let data: any = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data as T;
-}
-
-export default function Tables() {
-  const [tables, setTables] = useState<Table[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-
-  useEffect(() => {
-    loadTables();
-
-    // Subscribe to real-time updates (tenant-aware)
-    const tenantId = localStorage.getItem('tenant_id') || undefined;
-    let subscription: { unsubscribe: () => void } | null = null;
-    let sessionSub: { unsubscribe: () => void } | null = null;
-
-    try {
-      if (tenantId && typeof subscribeTables === 'function') {
-        subscription = subscribeTables(tenantId, () => {
-          // Minimal debounce via microtask to avoid rapid re-render storms
-          Promise.resolve().then(loadTables);
-        });
-      }
-      if (tenantId && typeof subscribeTableSessions === 'function') {
-        sessionSub = subscribeTableSessions(tenantId, () => {
-          // microtask to debounce rapid events
-          Promise.resolve().then(loadTables);
-        });
-      }
-    } catch (e) {
-      console.warn('Tables realtime subscription not available:', e);
-    }
-
-    return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
-      if (sessionSub && typeof sessionSub.unsubscribe === 'function') {
-        sessionSub.unsubscribe();
-      }
-    };
-  }, []);
-
-  const loadTables = async () => {
-    try {
-      setLoading(true);
-      const data: any = await getJSON<any>('/tables');
-      const list: Table[] = Array.isArray(data) ? data : (data?.tables ?? []);
-      setTables(list);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to load tables:', err);
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleLock = async (tableId: string, currentLocked: boolean) => {
-    try {
-      await postJSON(`/tables/${tableId}/lock`, { locked: !currentLocked });
-      loadTables(); // Refresh after update
-    } catch (err: any) {
-      alert('Failed to update table lock: ' + getErrorMessage(err));
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'available': return 'bg-green-500';
-      case 'occupied': return 'bg-blue-500';
-      case 'locked': return 'bg-red-500';
-      case 'reserved': return 'bg-yellow-500';
-      case 'maintenance': return 'bg-gray-500';
-      default: return 'bg-gray-400';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'available': return <CheckCircle className="w-4 h-4" />;
-      case 'occupied': return <Users className="w-4 h-4" />;
-      case 'locked': return <Lock className="w-4 h-4" />;
-      case 'reserved': return <Clock className="w-4 h-4" />;
-      case 'maintenance': return <AlertTriangle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
-
-  const filteredTables = tables.filter((table) => {
-    const q = searchTerm.toLowerCase();
-    const matchesSearch = table.table_number.toLowerCase().includes(q) ||
-      (table.location ? table.location.toLowerCase().includes(q) : false);
-    const matchesStatus = statusFilter === 'all' || table.computed_status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <DashboardHeader title="Table Management" subtitle="Manage table status and occupancy" />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading tables...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const zoneCards = React.useMemo(() => {
+    const m: Record<
+      string,
+      { occupied: number; available: number; held: number; cleaning: number; total: number }
+    > = {};
+    tables.forEach((t: any) => {
+      const z = t.zone || "Main Hall";
+      m[z] ??= { occupied: 0, available: 0, held: 0, cleaning: 0, total: 0 };
+      m[z].total += 1;
+      if (t.status === "occupied") m[z].occupied += 1;
+      else if (t.status === "held") m[z].held += 1;
+      else if (t.status === "cleaning") m[z].cleaning += 1;
+      else m[z].available += 1;
+    });
+    return Object.entries(m)
+      .map(([zone, v]) => ({ zone, ...v }))
+      .sort((a, b) => a.zone.localeCompare(b.zone));
+  }, [tables]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Table Management" subtitle="Manage table status and occupancy" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          <div className="flex space-x-8">
-            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 pb-2">
-              Dashboard
-            </Link>
-            <Link to="/orders" className="text-gray-500 hover:text-gray-700 pb-2">
-              Orders
-            </Link>
-            <Link to="/menu" className="text-gray-500 hover:text-gray-700 pb-2">
-              Menu
-            </Link>
-            <Link to="/tables" className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
-              Tables
-            </Link>
-            <Link to="/staff" className="text-gray-500 hover:text-gray-700 pb-2">
-              Staff
-            </Link>
-            <Link to="/kds" className="text-gray-500 hover:text-gray-700 pb-2">
-              Kitchen
-            </Link>
-            <Link to="/branding" className="text-gray-500 hover:text-gray-700 pb-2">
-              Branding
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Grid3X3 className="h-6 w-6 text-gray-800" />
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Table Management</h1>
+                <p className="text-sm text-gray-500">Manage tables, sessions, and availability in real-time</p>
+              </div>
+            </div>
+            <Link
+              to="/"
+              className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-black"
+            >
+              Home
             </Link>
           </div>
-        </nav>
 
-        {/* Controls */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search tables..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+          <div className="mt-4 flex gap-6 text-sm">
+            <span className="font-semibold text-gray-900 border-b-2 border-gray-900 pb-2">
+              Table Management
+            </span>
+            <span className="text-gray-500">Floor Management</span>
+            <span className="text-gray-500">Active Sessions</span>
+            <span className="text-gray-500">Analytics</span>
+            <span className="text-gray-500">Settings</span>
+          </div>
+        </div>
+      </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="locked">Locked</option>
-                <option value="reserved">Reserved</option>
-              </select>
-            </div>
+      <div className="mx-auto max-w-7xl px-4 py-6">
+        {/* Controls row */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-sm">
+            <SearchIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            <input
+              className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+              placeholder="Search tables or customer"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-1 bg-green-100 px-3 py-1 rounded-full">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-800">Live Updates</span>
-              </div>
-            </div>
+          <select
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            value={zoneFilter}
+            onChange={(e) => setZoneFilter(e.target.value)}
+          >
+            <option value="all">All Zones</option>
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="available">Available</option>
+            <option value="held">Held</option>
+            <option value="occupied">Occupied</option>
+            <option value="cleaning">Cleaning</option>
+            <option value="out-of-service">Out of Service</option>
+          </select>
+
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              onClick={() => setShowAdd(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-black"
+            >
+              <Plus className="h-4 w-4" />
+              Add Table
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50">
+              <QrCode className="h-4 w-4" />
+              Export QR
+            </button>
           </div>
         </div>
 
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
-            <div className="text-red-800">Error loading tables: {error}</div>
-          </div>
-        )}
-
-        {/* Tables Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-          {filteredTables.map((table) => (
-            <div
-              key={table.id}
-              className={`relative p-4 rounded-xl border-2 transition-all hover:shadow-lg ${
-                table.computed_status === 'available' ? 'border-green-500 bg-green-50' :
-                table.computed_status === 'occupied' ? 'border-blue-500 bg-blue-50' :
-                table.computed_status === 'locked' ? 'border-red-500 bg-red-50' :
-                'border-gray-300 bg-gray-50'
-              }`}
-            >
-              <div className="text-center">
-                <div className={`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-white ${getStatusColor(table.computed_status)}`}>
-                  {getStatusIcon(table.computed_status)}
+        {/* Zone cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {zoneCards.map((z) => {
+            const occupiedPct = z.total ? (z.occupied / z.total) * 100 : 0;
+            return (
+              <div key={z.zone} className="rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-base font-semibold text-gray-900">{z.zone}</div>
+                  <div className="h-2 w-2 rounded-full bg-gray-400" />
                 </div>
-                
-                <h3 className="font-semibold text-gray-900">{table.table_number}</h3>
-                <p className="text-sm text-gray-600">{table.capacity} seats</p>
-                {table.location && (
-                  <p className="text-xs text-gray-500">{table.location}</p>
-                )}
-                
-                <div className="mt-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
-                    table.computed_status === 'available' ? 'bg-green-100 text-green-800' :
-                    table.computed_status === 'occupied' ? 'bg-blue-100 text-blue-800' :
-                    table.computed_status === 'locked' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {table.computed_status}
+                <div className="mt-2 text-xs text-gray-500">
+                  Occupied {z.occupied}/{z.total}
+                </div>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="h-2 rounded-full bg-gray-900"
+                    style={{ width: `${occupiedPct}%` }}
+                  />
+                </div>
+                <div className="mt-3 flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {z.available} Available
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+                    {z.held} Held
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-blue-600" />
+                    {z.occupied} Occupied
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-orange-500" />
+                    {z.cleaning} Cleaning
                   </span>
                 </div>
+              </div>
+            );
+          })}
+        </div>
 
-                <div className="mt-3 flex justify-center">
-                  <button
-                    onClick={() => handleToggleLock(table.id, table.is_locked)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      table.is_locked 
-                        ? 'text-red-600 hover:bg-red-100' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                    title={table.is_locked ? 'Unlock table' : 'Lock table'}
+        {/* Floor layout */}
+        <div className="mt-8">
+          <h3 className="mb-3 text-sm font-medium text-gray-900">Floor Layout</h3>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {filtered.map((t) => (
+              <div key={t.id} className="min-w-[200px] rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-md border border-gray-200 p-1">
+                      <Grid3X3 className="h-4 w-4 text-gray-700" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">T {t.number}</div>
+                      <div className="text-xs text-gray-500">{t.capacity}p</div>
+                    </div>
+                  </div>
+                  <div
+                    className={`rounded-full px-2 py-0.5 text-xs ring ${statusBadgeColor(
+                      t.status
+                    )}`}
                   >
-                    {table.is_locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    {t.status[0].toUpperCase() + t.status.slice(1)}
+                  </div>
+                </div>
+
+                <div className="mt-3 text-xs text-gray-600">
+                  {t.session?.customerName ? (
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>
+                        {t.session.customerName} · {t.session.partySize || 0} guests
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>No active session</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  {t.status === "available" && (
+                    <>
+                      <button
+                        onClick={() => onSeat(t)}
+                        className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs hover:bg-gray-50"
+                      >
+                        Seat
+                      </button>
+                      {!t.locked ? (
+                        <button
+                          onClick={() => onToggleLock(t, true)}
+                          className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 hover:bg-amber-100"
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                          Hold
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onToggleLock(t, false)}
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+                        >
+                          <Unlock className="h-3.5 w-3.5" />
+                          Release
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {t.status === "occupied" && (
+                    <button
+                      onClick={() => onReady(t)}
+                      className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+                    >
+                      Close &amp; Ready
+                    </button>
+                  )}
+
+                  {t.status === "cleaning" && (
+                    <button
+                      onClick={() => onReady(t)}
+                      className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Ready
+                    </button>
+                  )}
+
+                  {!["cleaning", "occupied", "available"].includes(t.status) && (
+                    <button
+                      onClick={() => onClean(t)}
+                      className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-700 hover:bg-orange-100"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Clean
+                    </button>
+                  )}
+
+                  <button className="ml-auto rounded-md border border-gray-200 bg-white p-1 hover:bg-gray-50">
+                    <Eye className="h-3.5 w-3.5 text-gray-600" />
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {filteredTables.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <Grid3X3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No tables found</h3>
-            <p className="text-gray-600">No tables match your current filters.</p>
+        {/* Details table */}
+        <div className="mt-8 rounded-xl border border-gray-200 bg-white">
+          <div className="border-b px-4 py-3">
+            <h3 className="text-sm font-semibold text-gray-900">Table Details</h3>
           </div>
-        )}
+
+          {loading ? (
+            <div className="p-6 text-sm text-gray-600">Loading…</div>
+          ) : error ? (
+            <div className="p-6 text-sm text-red-600">{error}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3">Table</th>
+                    <th className="px-4 py-3">Zone</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Session</th>
+                    <th className="px-4 py-3">Elapsed</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((t) => {
+                    const started =
+                      t.session?.startTime &&
+                      new Date(t.session.startTime as any).getTime();
+                    let elapsed = "-";
+                    if (started && Number.isFinite(started)) {
+                      const mins = Math.floor((Date.now() - started) / 60000);
+                      elapsed = `${mins}m`;
+                    }
+
+                    return (
+                      <tr key={t.id} className="border-t">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                t.status === "available"
+                                  ? "bg-emerald-500"
+                                  : t.status === "held"
+                                  ? "bg-amber-500"
+                                  : t.status === "occupied"
+                                  ? "bg-blue-600"
+                                  : t.status === "cleaning"
+                                  ? "bg-orange-500"
+                                  : "bg-gray-400"
+                              }`}
+                            />
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {t.number}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {t.capacity} seats
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">{t.zone}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs ring ${statusBadgeColor(
+                              t.status
+                            )}`}
+                          >
+                            {t.status[0].toUpperCase() + t.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {t.session ? (
+                            <div className="text-sm text-gray-700">
+                              {t.session.customerName || "—"} ·{" "}
+                              {t.session.partySize || 0} guests · $
+                              {t.session.totalAmount ?? "—"}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">
+                              No active session
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{elapsed}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            {t.status === "available" && (
+                              <>
+                                <button
+                                  onClick={() => onSeat(t)}
+                                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs hover:bg-gray-50"
+                                >
+                                  Seat
+                                </button>
+                                {!t.locked ? (
+                                  <button
+                                    onClick={() => onToggleLock(t, true)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 hover:bg-amber-100"
+                                  >
+                                    <Lock className="h-3.5 w-3.5" />
+                                    Hold
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => onToggleLock(t, false)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+                                  >
+                                    <Unlock className="h-3.5 w-3.5" />
+                                    Release
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {t.status === "occupied" && (
+                              <button
+                                onClick={() => onReady(t)}
+                                className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+                              >
+                                Close &amp; Ready
+                              </button>
+                            )}
+
+                            {t.status === "cleaning" && (
+                              <button
+                                onClick={() => onReady(t)}
+                                className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+                              >
+                                Ready
+                              </button>
+                            )}
+
+                            {!["cleaning", "occupied", "available"].includes(
+                              t.status
+                            ) && (
+                              <button
+                                onClick={() => onClean(t)}
+                                className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-700 hover:bg-orange-100"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Clean
+                              </button>
+                            )}
+
+                            <button className="rounded-md border border-gray-200 bg-white p-1 hover:bg-gray-50">
+                              <Eye className="h-3.5 w-3.5 text-gray-600" />
+                            </button>
+
+                            <button
+                              onClick={() => onDelete(t)}
+                              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-700 hover:bg-red-100"
+                              title="Delete table"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Add Table modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">Add Table</h3>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs text-gray-600">Table Code / Number</label>
+                <input
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                  placeholder="e.g., T01"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600">Seats</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                  value={newSeats}
+                  onChange={(e) => setNewSeats(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600">Zone</label>
+                <input
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                  placeholder="e.g., Main Hall"
+                  value={newZone}
+                  onChange={(e) => setNewZone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowAdd(false)}
+                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onCreateTable}
+                disabled={saving || !newCode.trim()}
+                className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

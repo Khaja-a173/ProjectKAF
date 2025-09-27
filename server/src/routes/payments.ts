@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { PaymentsService } from '../services/payments.service';
+import type { Redis } from 'ioredis';
+import { getRedisClient, buildRedisKey } from '../plugins/redis';
 
 const PaymentConfigSchema = z.object({
   provider: z.enum(['stripe', 'razorpay', 'mock']),
@@ -68,6 +70,8 @@ const EmitEventSchema = z.object({
 
 export default async function paymentsRoutes(app: FastifyInstance) {
   const service = new PaymentsService(app);
+  const redis: Redis | undefined = (app as any).redis;
+  const rkey = (...parts: string[]) => buildRedisKey('payments', ...parts);
 
   // GET /config
   app.get('/config', { preHandler: [app.requireAuth] }, async (req, reply) => {
@@ -75,7 +79,19 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     if (!tenantId) return reply.code(401).send({ error: 'tenant_context_missing' });
 
     try {
+      if (redis) {
+        const cached = await redis.get(rkey('config', tenantId));
+        if (cached) {
+          reply.header('x-cache', 'HIT');
+          return reply.send(JSON.parse(cached));
+        }
+      }
+
       const result = await service.getConfig(tenantId);
+      if (redis) {
+        await redis.set(rkey('config', tenantId), JSON.stringify(result), 'EX', 300);
+        reply.header('x-cache', 'MISS');
+      }
       return reply.send(result);
     } catch (err: any) {
       app.log.error(err, 'Failed to get payment config');
@@ -91,6 +107,9 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     try {
       const body = PaymentConfigSchema.parse(req.body);
       const config = await service.upsertConfig(tenantId, body);
+      if (redis) {
+        await redis.del(rkey('config', tenantId));
+      }
       return reply.send({ configured: true, config });
     } catch (err: any) {
       app.log.error(err, 'Failed to update payment config');
@@ -179,6 +198,13 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     const tenantId = req.auth?.primaryTenantId;
     if (!tenantId) return reply.code(401).send({ error: 'tenant_context_missing' });
     try {
+      if (redis) {
+        const cached = await redis.get(rkey('providers', tenantId));
+        if (cached) {
+          reply.header('x-cache', 'HIT');
+          return reply.send(JSON.parse(cached));
+        }
+      }
       const db = (req as any).supabaseUser || (app as any).supabase;
       const { data, error } = await db
         .from('payment_providers')
@@ -186,6 +212,10 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         .eq('tenant_id', tenantId)
         .order('provider');
       if (error) throw error;
+      if (redis) {
+        await redis.set(rkey('providers', tenantId), JSON.stringify(data || []), 'EX', 300);
+        reply.header('x-cache', 'MISS');
+      }
       return reply.send(data || []);
     } catch (err: any) {
       app.log.warn({ err }, '[payments] list providers failed');
@@ -214,6 +244,9 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         .select('*')
         .single();
       if (error) throw error;
+      if (redis) {
+        await redis.del(rkey('providers', tenantId));
+      }
       return reply.code(201).send(data);
     } catch (err: any) {
       app.log.error({ err }, '[payments] create provider failed');
@@ -241,6 +274,9 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         .select('*')
         .single();
       if (error) throw error;
+      if (redis) {
+        await redis.del(rkey('providers', tenantId));
+      }
       return reply.send(data);
     } catch (err: any) {
       app.log.warn({ err }, '[payments] update provider failed');

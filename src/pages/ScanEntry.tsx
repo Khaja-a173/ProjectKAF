@@ -7,11 +7,13 @@ import { QrCode, Camera, AlertTriangle, CheckCircle, Loader } from 'lucide-react
 
 // Local helpers aligned to our API contract
 async function postJSON<T>(path: string, body: any, opts: { signal?: AbortSignal } = {}): Promise<T> {
+  const tenantId = localStorage.getItem('tenant_id') || '';
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
     },
     credentials: 'include',
     body: JSON.stringify(body),
@@ -28,11 +30,44 @@ async function postJSON<T>(path: string, body: any, opts: { signal?: AbortSignal
   return data as T;
 }
 
-// Expected shapes from backend
+async function getJSON<T>(path: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
+  const tenantId = localStorage.getItem('tenant_id') || '';
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
+    },
+    credentials: 'include',
+    signal: opts.signal,
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+interface TenantMeta { id: string; name: string }
+interface TableMeta { id: string; table_number: string; capacity?: number }
+
 interface QRResolveResponse {
-  tenant: { id: string; name: string };
-  table: { id: string; table_number: string; capacity?: number };
+  tenant: TenantMeta;
+  table: TableMeta;
   menu_bootstrap?: { items: Array<any> };
+}
+
+// Shape returned by GET /qr/verify
+interface QrVerifyResponse {
+  ok: boolean;
+  tenant_id: string;
+  table_id: string;
+  table_number: string;
+  tenant?: TenantMeta;
+  table?: TableMeta;
 }
 
 interface StartCartResponse { cart_id: string }
@@ -45,15 +80,65 @@ export default function ScanEntry() {
   const [qrData, setQrData] = useState<QRResolveResponse | null>(null);
 
   // Extract QR parameters from URL
+  const token = searchParams.get('token');
   const code = searchParams.get('code');
   const table = searchParams.get('table');
 
   useEffect(() => {
-    if (code && table) {
+    if (token) {
+      handleQRVerify();
+    } else if (code && table) {
       handleQRResolve();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, table]);
+  }, [token, code, table]);
+
+  const handleQRVerify = async () => {
+    if (!token) {
+      setError('Missing QR token');
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      // 1) Verify signed token
+      const verify = await getJSON<QrVerifyResponse>(`/qr/verify?token=${encodeURIComponent(token)}`);
+      if (!verify.ok) throw new Error('Invalid or expired QR token');
+
+      const tenantId = verify.tenant_id;
+      const tableId = verify.table_id;
+      const tableNumber = verify.table_number;
+
+      // 2) Persist context locally
+      localStorage.setItem('tenant_id', tenantId);
+      localStorage.setItem('table_id', tableId);
+      localStorage.setItem('table_number', tableNumber);
+      setTenantId(tenantId);
+
+      // 3) Populate qrData for the success UI state
+      setQrData({
+        tenant: verify.tenant || { id: tenantId, name: 'Restaurant' },
+        table: verify.table || { id: tableId, table_number: tableNumber },
+      });
+
+      // 4) Start a dine-in cart bound to this table
+      const cartResponse = await postJSON<StartCartResponse>('/cart/start', {
+        mode: 'dine_in',
+        table_id: tableId,
+      });
+      localStorage.setItem('cart_id', cartResponse.cart_id);
+
+      // 5) Redirect to menu
+      setTimeout(() => {
+        navigate(`/menu?cart=${cartResponse.cart_id}&table=${tableNumber}`);
+      }, 800);
+    } catch (err: any) {
+      console.error('QR verify failed:', err);
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleQRResolve = async () => {
     if (!code || !table) {
@@ -190,9 +275,7 @@ export default function ScanEntry() {
             <QrCode className="w-8 h-8 text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">QR Code Scanner</h2>
-          <p className="text-gray-600 mb-6">
-            Scan the QR code on your table to start ordering
-          </p>
+          <p className="text-gray-600 mb-6">Scan the QR code or use manual entry to start ordering</p>
           <button
             onClick={handleManualEntry}
             className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"

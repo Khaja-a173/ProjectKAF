@@ -17,6 +17,8 @@ import {
   Trash2
 } from 'lucide-react';
 
+type OrderSub = { unsubscribe: () => void } | (() => void) | void;
+
 interface OrderItem {
   id: string;
   quantity: number;
@@ -122,21 +124,25 @@ export default function Orders() {
     
     // Subscribe to real-time updates (tenant-aware)
     const tenantId = localStorage.getItem('tenant_id') || undefined;
-    let subscription: { unsubscribe: () => void } | null = null;
+    let subscription: OrderSub = undefined;
 
     try {
       if (tenantId && typeof subscribeOrders === 'function') {
-        subscription = subscribeOrders(tenantId, () => {
+        const sub = subscribeOrders(tenantId, () => {
           Promise.resolve().then(loadOrders);
         });
+        subscription = sub as OrderSub;
       }
     } catch (e) {
       console.warn('Orders realtime subscription not available:', e);
     }
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
+      if (typeof subscription === 'function') {
+        // simple function unsubscriber
+        (subscription as () => void)();
+      } else if (subscription && typeof (subscription as any).unsubscribe === 'function') {
+        (subscription as { unsubscribe: () => void }).unsubscribe();
       }
     };
   }, []);

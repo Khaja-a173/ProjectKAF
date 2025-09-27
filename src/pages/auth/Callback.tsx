@@ -1,4 +1,4 @@
-// src/pages/auth/Callback.tsx
+// src/pages/AuthCallback.tsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -21,9 +21,9 @@ function getSafeNext(): string | null {
   return null;
 }
 
-export default function Callback() {
+export default function AuthCallback() {
   const nav = useNavigate();
-  const [msg, setMsg] = useState('Finalizing sign-in…');
+  const [msg, setMsg] = useState('Signing you in…');
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
@@ -31,56 +31,69 @@ export default function Callback() {
 
     (async () => {
       try {
+        // Basic hint to the user immediately
+        setMsg('Signing you in…');
+
         const url = new URL(window.location.href);
         const code = url.searchParams.get('code');
         const err = url.searchParams.get('error');
         const errCode = url.searchParams.get('error_code');
         const errDesc = url.searchParams.get('error_description');
 
-        // If Supabase returned an auth code (PKCE/magic link), exchange it for a session first
+        // If Supabase returned an auth code (PKCE/magic link), exchange for a session first
         if (code) {
           const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
           if (exchErr) {
             setIsError(true);
-            setMsg(exchErr.message || 'Failed to complete sign-in.');
-            return;
+            setMsg(exchErr.message || 'Failed to complete sign-in. Your link may have expired.');
+            return; // stay on page and show guidance
           }
         }
 
-        // If Supabase sent an error (e.g., otp_expired)
+        // If Supabase sent an error in the URL
         if (err || errCode) {
           setIsError(true);
           setMsg(errDesc || `${err}${errCode ? ` (${errCode})` : ''}` || 'Sign-in link invalid or expired.');
           return; // stay on page, show message + link back to login
         }
 
-        // Handle implicit flow via token hash only
+        // Handle implicit flow via token hash only (older link style)
         const hp = getHashParams();
         const access_token = hp['access_token'];
         const refresh_token = hp['refresh_token'];
         if (access_token && refresh_token) {
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (error) throw error;
+          if (error) {
+            setIsError(true);
+            setMsg(error.message || 'Failed to set session from link.');
+            return;
+          }
         }
 
-        // Confirm we have a session
+        // Confirm we have a session now
         const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        if (error) {
+          setIsError(true);
+          setMsg(error.message || 'Failed to read session.');
+          return;
+        }
         if (!data.session) {
-          // No session data; go back to login gracefully
           setIsError(true);
           setMsg('No active session. Please request a new sign-in link.');
           return;
         }
 
+        // Success → redirect
         const nextTarget = getSafeNext() || '/dashboard';
+
         // Clear any stored redirect once consumed
         sessionStorage.removeItem('kaf_next');
         localStorage.removeItem('kaf_next');
 
-        // Clean the URL (remove code/error params) without leaving the current SPA context
+        // Clean the URL (remove code/error params) without leaving the SPA context
         const cleanUrl = `${window.location.origin}${window.location.pathname}`;
         window.history.replaceState({}, document.title, cleanUrl);
+
         if (!cancelled) nav(nextTarget, { replace: true });
       } catch (err: any) {
         if (!cancelled) {
@@ -95,11 +108,19 @@ export default function Callback() {
 
   return (
     <div className="min-h-screen grid place-items-center p-6">
-      <div className={`rounded-xl border p-6 shadow-sm max-w-md w-full ${isError ? 'border-red-300 bg-red-50' : ''}`}>
+      <div className={`rounded-xl border p-6 shadow-sm max-w-md w-full ${isError ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
         <p className={`text-sm ${isError ? 'text-red-700' : 'text-gray-700'}`}>{msg}</p>
+        {!isError && (
+          <p className="mt-3 text-xs text-gray-500">You’ll be redirected automatically once we finish signing you in…</p>
+        )}
         {isError && (
           <div className="mt-4 text-sm">
-            <Link to={getSafeNext() ? `/login?next=${encodeURIComponent(getSafeNext()!)}` : '/login'} className="underline text-blue-700 hover:text-blue-800">Return to login</Link>
+            <Link
+              to={getSafeNext() ? `/login?next=${encodeURIComponent(getSafeNext()!)}` : '/login'}
+              className="underline text-blue-700 hover:text-blue-800"
+            >
+              Return to login
+            </Link>
           </div>
         )}
       </div>

@@ -24,6 +24,8 @@ export interface TableSession {
 
 export interface SessionCart {
   id: string;
+  /** Some APIs return cart_id instead of id */
+  cart_id?: string;
   sessionId: string;
   tenantId: string;
   locationId: string;
@@ -39,12 +41,36 @@ export interface SessionCart {
 }
 
 export interface CartItem {
+  // --- Identifiers ---
+  /** UI/useMemo key; may mirror menu_item_id or a server line id */
   id: string;
-  cartId: string;
-  menuItemId: string;
+  /** Server cart id (camelCase, legacy) */
+  cartId?: string;
+  /** Server cart id (snake_case) */
+  cart_id?: string;
+  /** Stable product reference (camelCase, legacy) */
+  menuItemId?: string;
+  /** Stable product reference (snake_case, normalized) */
+  menu_item_id?: string;
+
+  // --- Display ---
   name: string;
+  /** UI price (display) — kept for backwards compatibility */
   price: number;
-  quantity: number;
+  /** Snapshot unit price at time of add (camelCase) */
+  unitPrice?: number;
+  /** Snapshot unit price at time of add (snake_case, normalized) */
+  unit_price?: number;
+  /** Currency code (e.g., INR, USD) if present on line */
+  currency?: string;
+
+  // --- Quantity (both shapes supported) ---
+  /** UI quantity (camelCase, legacy) */
+  quantity?: number;
+  /** Normalized quantity used in API + UI mapping */
+  qty?: number;
+
+  // --- Extras ---
   customizations?: Record<string, any>;
   specialInstructions?: string;
   allergens: string[];
@@ -92,6 +118,10 @@ export interface DineInOrder {
   placedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ArchivedOrder extends DineInOrder {
+  archivedAt: Date;
 }
 
 export interface OrderItem {

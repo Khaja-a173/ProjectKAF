@@ -11,9 +11,13 @@ interface MenuFiltersProps {
 export default function MenuFilters({
   filters,
   onFiltersChange,
-  availableTags,
-  availableAllergens,
+  availableTags = [],
+  availableAllergens = [],
 }: MenuFiltersProps) {
+  const tagsFilters = Array.isArray(filters.tags) ? (filters.tags as string[]) : [];
+  const allergensFilters = Array.isArray(filters.allergens) ? (filters.allergens as string[]) : [];
+  const dietaryFilters = Array.isArray(filters.dietary) ? (filters.dietary as string[]) : [];
+
   const updateFilter = (key: keyof MenuFiltersType, value: any) => {
     onFiltersChange({ ...filters, [key]: value });
   };
@@ -22,7 +26,8 @@ export default function MenuFilters({
     key: "tags" | "allergens" | "dietary",
     value: string,
   ) => {
-    const currentArray = filters[key];
+    const raw = (filters as any)[key];
+    const currentArray = Array.isArray(raw) ? (raw as string[]) : [];
     const newArray = currentArray.includes(value)
       ? currentArray.filter((item) => item !== value)
       : [...currentArray, value];
@@ -42,12 +47,12 @@ export default function MenuFilters({
   };
 
   const hasActiveFilters =
-    filters.search ||
+    !!filters.search ||
     filters.section !== "all" ||
     filters.availability !== "all" ||
-    filters.tags.length > 0 ||
-    filters.allergens.length > 0 ||
-    filters.dietary.length > 0;
+    (filters.tags?.length ?? 0) > 0 ||
+    (filters.allergens?.length ?? 0) > 0 ||
+    (filters.dietary?.length ?? 0) > 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -92,8 +97,7 @@ export default function MenuFilters({
           >
             <option value="all">All Items</option>
             <option value="available">Available</option>
-            <option value="out-of-stock">Out of Stock</option>
-            <option value="archived">Archived</option>
+            <option value="unavailable">Unavailable</option>
           </select>
         </div>
 
@@ -108,7 +112,7 @@ export default function MenuFilters({
                 key={diet}
                 onClick={() => toggleArrayFilter("dietary", diet)}
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                  filters.dietary.includes(diet)
+                  dietaryFilters.includes(diet)
                     ? "bg-green-100 text-green-800 border border-green-300"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
@@ -120,18 +124,18 @@ export default function MenuFilters({
         </div>
 
         {/* Tags Filter */}
-        {availableTags.length > 0 && (
+        {(availableTags ?? []).length > 0 && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tags
             </label>
             <div className="flex flex-wrap gap-2">
-              {availableTags.slice(0, 8).map((tag) => (
+              {(availableTags ?? []).slice(0, 8).map((tag) => (
                 <button
                   key={tag}
                   onClick={() => toggleArrayFilter("tags", tag)}
                   className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                    filters.tags.includes(tag)
+                    tagsFilters.includes(tag)
                       ? "bg-blue-100 text-blue-800 border border-blue-300"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
@@ -144,18 +148,18 @@ export default function MenuFilters({
         )}
 
         {/* Allergens Filter */}
-        {availableAllergens.length > 0 && (
+        {(availableAllergens ?? []).length > 0 && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Allergens
             </label>
             <div className="flex flex-wrap gap-2">
-              {availableAllergens.slice(0, 6).map((allergen) => (
+              {(availableAllergens ?? []).slice(0, 6).map((allergen) => (
                 <button
                   key={allergen}
                   onClick={() => toggleArrayFilter("allergens", allergen)}
                   className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                    filters.allergens.includes(allergen)
+                    allergensFilters.includes(allergen)
                       ? "bg-red-100 text-red-800 border border-red-300"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}

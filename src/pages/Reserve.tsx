@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import {
@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 
 import { useTenant } from "@/contexts/TenantContext";
+import api from "@/lib/api";
+import { subscribeReservations, subscribeTables } from "@/lib/realtime";
+import { subscribeZones } from "@/lib/realtime";
+import { useZones } from "@/contexts/ZonesContext";
+import { useNavigate } from "react-router-dom";
 
 type TableInfo = {
   id: string;
@@ -39,6 +44,12 @@ function getSpecialtyMessage(table: TableInfo): string {
 }
 
 export default function Reserve() {
+  // Strict tenant filter: accept rows only when tenant_id matches current tenant
+  const belongsToTenant = (row: any, id?: string) => {
+    if (!id) return false;
+    const rid = row?.tenant_id ?? row?.tenantId ?? row?.tenant;
+    return String(rid) === String(id);
+  };
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedGuests, setSelectedGuests] = useState(2);
@@ -50,12 +61,93 @@ export default function Reserve() {
   const [error, setError] = useState<string | null>(null);
 
   const { tenantId } = useTenant();
+  const { zones, reloadZones } = useZones();
+  const navigate = useNavigate();
+
+  function proceedToMenu(table: { id?: string; code?: string; name?: string; label?: string; seats?: number }) {
+    const id = table.id || table.code || table.label || table.name || "";
+    const name = table.name || table.label || table.code || id;
+    try {
+      const payload = {
+        id,
+        code: id,
+        name,
+        seats: typeof table.seats === 'number' ? table.seats : null,
+        tenantId: tenantId || null,
+        source: 'reserve'
+      };
+      sessionStorage.setItem('pkaf:currentTable', JSON.stringify(payload));
+    } catch {}
+    navigate('/menu');
+  }
+  // 🔄 Live refresh when zones change (add/rename/delete)
+  useEffect(() => {
+    if (!tenantId) return;
+    const unsubscribe = subscribeZones(tenantId, async (_evt?: any) => {
+      await reloadZones();
+      // If a search is active, refresh availability to reflect any zone-driven constraints or labels
+      if (selectedDate) {
+        void loadTables();
+      }
+    });
+    return () => {
+      try { unsubscribe(); } catch {}
+    };
+  }, [tenantId, selectedDate, reloadZones]);
 
   const [suggestionTimes, setSuggestionTimes] = useState<string[]>([]);
+
+  // Clear availability state on tenant change to prevent leakage
+  useEffect(() => {
+    setAvailableTables(null);
+    setSuggestionTimes([]);
+    setError(null);
+    setSelectedTable("");
+    setSelectedTime("");
+  }, [tenantId]);
 
   // Modal state
   const [showTableModal, setShowTableModal] = useState(false);
   const [activeTable, setActiveTable] = useState<TableInfo | null>(null);
+
+  // 🔄 Live refresh when reservations are created/updated elsewhere
+  useEffect(() => {
+    // Only subscribe when we know the tenant
+    if (!tenantId) return;
+
+    const unsubscribe = subscribeReservations(tenantId, (_evt?: any) => {
+      // Only refresh when the user has started a search (has a date)
+      if (selectedDate) {
+        void loadTables();
+      }
+    });
+
+    return () => {
+      try {
+        unsubscribe();
+      } catch {
+        // no-op
+      }
+    };
+    // Re-subscribe if tenant or the selected date changes (time/guests affect loadTables itself)
+  }, [tenantId, selectedDate]);
+
+  // 🔄 Live refresh when tables are added/updated/deleted in Table Management
+  useEffect(() => {
+    if (!tenantId) return;
+    const unsubscribe = subscribeTables(tenantId, (_evt?: any) => {
+      if (selectedDate) {
+        void loadTables();
+      }
+    });
+    return () => {
+      try {
+        unsubscribe();
+      } catch {
+        // no-op
+      }
+    };
+  }, [tenantId, selectedDate]);
 
   // Submit handler to ensure button triggers search reliably
   async function handleFindTables(e: React.FormEvent) {
@@ -76,32 +168,6 @@ export default function Reserve() {
     { time: "9:30 PM", available: true },
   ];
 
-  const tableOptions = [
-    {
-      id: "window",
-      name: "Window Table",
-      description: "Perfect for romantic dinners",
-      premium: true,
-    },
-    {
-      id: "private",
-      name: "Private Booth",
-      description: "Intimate dining experience",
-      premium: true,
-    },
-    {
-      id: "main",
-      name: "Main Dining",
-      description: "Central restaurant atmosphere",
-      premium: false,
-    },
-    {
-      id: "patio",
-      name: "Patio Seating",
-      description: "Outdoor dining experience",
-      premium: false,
-    },
-  ];
 
   type SpecialPackage = {
     id: string;
@@ -187,74 +253,110 @@ export default function Reserve() {
     setLoadingTables(true);
     setSuggestionTimes([]);
     try {
-      // Try to use the real API if available
-      let apiFetch: undefined | ((path: string, init?: RequestInit) => Promise<any>);
-      try {
-        const mod: any = await import('@/lib/api');
-        apiFetch = mod.apiFetch || mod.default?.apiFetch;
-      } catch {
-        apiFetch = undefined;
-      }
+      // Build a payload compatible with api.searchAvailableTables
+      // It accepts either:
+      //  - { at: ISOString, durationMins?: number, party_size?: number }
+      //  - or { starts_at: ISOString, ends_at: string, party_size?: number }
+      // We'll use the simpler `{ at, durationMins }` variant when time is present,
+      // otherwise default to a 90-minute window starting at 18:00 local.
+      const toIso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 
-      let tables: TableInfo[] | null = null;
-      if (apiFetch) {
-        const pref = selectedTable || undefined;
-        const body = {
-          date: selectedDate,
-          time: selectedTime || undefined,
-          guests: selectedGuests,
-          preference: pref,
-        };
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (tenantId) headers['X-Tenant-Id'] = tenantId;
+      let payload:
+        | { at: string; durationMins?: number; party_size?: number }
+        | { starts_at: string; ends_at: string; party_size?: number };
 
-        let res: any;
-        try {
-          res = await apiFetch('/tables/available', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-          });
-        } catch (err: any) {
-          // If backend uses HTTP 404/409 to signal no availability, surface nicer UX
-          if (err?.status === 404 || err?.code === 'not_found') {
-            res = { tables: [] };
+      if (selectedDate) {
+        // If user picked an explicit time like "6:30 PM", parse it
+        if (selectedTime) {
+          const m = selectedTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          let atDate = new Date(selectedDate + "T00:00:00");
+          if (m) {
+            let hour = parseInt(m[1], 10) % 12;
+            const min = parseInt(m[2], 10);
+            const isPm = m[3].toUpperCase() === "PM";
+            if (isPm) hour += 12;
+            atDate.setHours(hour, min, 0, 0);
           } else {
-            throw err;
+            // Fallback: 18:00 if time parsing fails
+            atDate.setHours(18, 0, 0, 0);
           }
+          payload = {
+            at: toIso(atDate),
+            durationMins: 90,
+            party_size: selectedGuests,
+          };
+        } else {
+          // No explicit time: search within a default 90-minute window starting 18:00
+          const start = new Date(selectedDate + "T18:00:00");
+          const end = new Date(start.getTime() + 90 * 60000);
+          payload = {
+            starts_at: toIso(start),
+            ends_at: toIso(end),
+            party_size: selectedGuests,
+          };
         }
-        tables = Array.isArray(res) ? res : res?.tables ?? null;
+      } else {
+        // Shouldn't reach here due to earlier guard, but keep a safe fallback
+        const now = new Date();
+        payload = { at: toIso(now), durationMins: 90, party_size: selectedGuests };
+      }
 
-        // If API returns no tables, attempt a suggestions endpoint; otherwise build local suggestions
-        if (tables && tables.length === 0) {
-          try {
-            const s = await apiFetch('/tables/suggest', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ date: selectedDate, time: selectedTime || undefined, guests: selectedGuests, preference: pref }),
-            });
-            const times: string[] = (s?.times && Array.isArray(s.times)) ? s.times : [];
-            setSuggestionTimes(times.length ? times : buildSuggestionTimes(selectedTime));
-          } catch {
-            setSuggestionTimes(buildSuggestionTimes(selectedTime));
+      // Always refresh zones before loading tables for correct labels/order
+      await reloadZones();
+      // Call the API helper with new signature
+      const res = await api.searchAvailableTables(tenantId, payload as any);
+
+      // Normalize response and map into our UI shape
+      let rawList: any[] = [];
+      if (Array.isArray(res)) {
+        rawList = res;
+      } else if (res && typeof res === "object") {
+        if ("available" in res) {
+          rawList = (res as any).available || [];
+          // If nothing available, propose the server-suggested time if present
+          const nextAt = (res as any).nextAvailableAt;
+          if ((!rawList || rawList.length === 0) && nextAt) {
+            setSuggestionTimes(buildSuggestionTimes(new Date(nextAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
           }
+        } else if ("tables" in res) {
+          rawList = (res as any).tables || [];
         }
       }
 
-      // Fallback: synthesize from local `tableOptions`
-      if (!tables) {
-        const fallbackMap: Record<string, number> = { window: 2, private: 4, main: 6, patio: 4 };
-        tables = tableOptions
-          .map(t => ({ id: t.id, name: t.name, description: t.description, premium: t.premium, seats: fallbackMap[t.id] ?? 4, type: t.id }))
-          .filter(t => t.seats! >= selectedGuests)
-          .filter(t => !selectedTable || t.id === selectedTable);
-        if (tables.length === 0) setSuggestionTimes(buildSuggestionTimes(selectedTime));
+      const mapped: (TableInfo & { _tenant?: any })[] = rawList.map((r: any) => {
+        const code = String(r.code ?? r.table_number ?? r.label ?? r.id ?? "");
+        const label = String(r.label ?? r.code ?? r.name ?? code);
+        const zoneRaw = (r.zone_id ?? r.zone ?? r.location ?? "") as string;
+        const statusRaw = String(r.computed_status ?? r.status ?? (r.is_occupied ? "occupied" : "available"));
+        // We only present *available* choices in Reserve browse UI; status is informational
+        const normType = zoneRaw ? zoneRaw.toLowerCase() : undefined;
+        return {
+          id: code,
+          name: label,
+          seats: Number(r.seats ?? r.capacity ?? 2),
+          type: normType,
+          _tenant: r.tenant_id ?? r.tenantId ?? r.tenant
+        };
+      });
+
+      // Strict tenant filter (belt & suspenders)
+      const own = mapped
+        .filter(t => (t._tenant == null ? true : String(t._tenant) === String(tenantId)))
+        .map(({ _tenant, ...t }) => t);
+
+      let tables: TableInfo[] | null = own;
+
+      // Safe fallback when backend returns no tables
+      if (!tables || tables.length === 0) {
+        console.warn("No tables returned, falling back to previous availableTables");
+        setAvailableTables(prev => (prev && prev.length ? prev : []));
+        return;
       }
 
       setAvailableTables(tables);
     } catch (e: any) {
-      console.error('Failed to load tables', e);
-      setError(e?.message || 'Failed to load tables');
+      console.error("Failed to load tables", e);
+      setError(e?.message || "Failed to load tables");
       setAvailableTables([]);
       setSuggestionTimes(buildSuggestionTimes(selectedTime));
     } finally {
@@ -290,7 +392,7 @@ export default function Reserve() {
           </h2>
 
           <form onSubmit={handleFindTables} className="space-y-0">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -327,23 +429,6 @@ export default function Reserve() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Table Preference
-                </label>
-                <select
-                  value={selectedTable}
-                  onChange={(e) => setSelectedTable(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="">Any table</option>
-                  {tableOptions.map((table) => (
-                    <option key={table.id} value={table.id}>
-                      {table.name} {table.premium ? "(Premium)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div className="flex items-end">
                 <button
@@ -505,7 +590,7 @@ export default function Reserve() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {tableOptions.map((table) => (
+            {[{id:"window",name:"Window Table",description:"Perfect for romantic dinners",premium:true},{id:"private",name:"Private Booth",description:"Intimate dining experience",premium:true},{id:"main",name:"Main Dining",description:"Central restaurant atmosphere",premium:false},{id:"patio",name:"Patio Seating",description:"Outdoor dining experience",premium:false}].map((table) => (
               <div
                 key={table.id}
                 className={`p-6 rounded-xl border-2 cursor-pointer transition-colors ${
@@ -616,8 +701,11 @@ export default function Reserve() {
               <button
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700"
                 onClick={() => {
-                  // In a future step we can navigate to a reservation confirmation flow
-                  setShowTableModal(false);
+                  if (activeTable) {
+                    proceedToMenu(activeTable as any);
+                  } else {
+                    setShowTableModal(false);
+                  }
                 }}
               >
                 Continue
@@ -629,5 +717,4 @@ export default function Reserve() {
 
       <Footer />
     </div>
-  );
-}
+  )};

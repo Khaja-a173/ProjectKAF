@@ -64,6 +64,75 @@ export class TenantService {
         }
         return data ?? null;
     }
+    async getTenantBySlug(slug) {
+        const { data, error } = await this.app.supabase
+            .from("tenants")
+            .select("id, name, code, slug")
+            .eq("slug", slug)
+            .maybeSingle();
+        if (error && error.code !== "PGRST116") {
+            this.throwHttp500(`Failed to fetch tenant by slug: ${error.message}`);
+        }
+        return data ?? null;
+    }
+    async getTenantById(id) {
+        const { data, error } = await this.app.supabase
+            .from("tenants")
+            .select("id, name, code, slug")
+            .eq("id", id)
+            .maybeSingle();
+        if (error && error.code !== "PGRST116") {
+            this.throwHttp500(`Failed to fetch tenant by id: ${error.message}`);
+        }
+        return data ?? null;
+    }
+    /**
+     * Resolve tenant from the request. Priority:
+     * 1) X-Tenant-Id header (uuid)
+     * 2) X-Tenant or X-Tenant-Slug header (slug)
+     * 3) Subdomain from Host header (foo.example.com → foo)
+     * Returns the tenant row or null. Use in middleware to 401/400 as needed.
+     */
+    async resolveFromRequest(req) {
+        const headers = (req.headers || {});
+        const asString = (v) => Array.isArray(v) ? v[0] : v;
+        const hTenantId = asString(headers["x-tenant-id"])?.toString().trim();
+        const hTenantSlug = (asString(headers["x-tenant"]) || asString(headers["x-tenant-slug"]))?.toString().trim();
+        if (hTenantId) {
+            const row = await this.getTenantById(hTenantId);
+            if (row)
+                return row;
+            return null; // header provided but not found
+        }
+        if (hTenantSlug) {
+            const row = await this.getTenantBySlug(hTenantSlug);
+            if (row)
+                return row;
+        }
+        // Try subdomain from host
+        const host = asString(headers["host"])?.toString().toLowerCase();
+        if (host && host.includes(".")) {
+            const sub = host.split(":")[0].split(".")[0]; // strip port then take first label
+            if (sub && sub !== "www") {
+                const row = await this.getTenantBySlug(sub);
+                if (row)
+                    return row;
+            }
+        }
+        return null;
+    }
+    /** Read per-tenant settings (currency/tax) with safe defaults */
+    async getSettings(tenantId) {
+        const { data, error } = await this.app.supabase
+            .from("tenant_settings")
+            .select("tenant_id, currency, tax_rate")
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+        if (error && error.code !== "PGRST116") {
+            this.throwHttp500(`Failed to fetch tenant settings: ${error.message}`);
+        }
+        return data ?? { tenant_id: tenantId, currency: "INR", tax_rate: 0 };
+    }
     // ---- helpers ----
     async ensureUniqueSlug(base) {
         let candidate = base;

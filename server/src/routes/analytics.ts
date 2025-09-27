@@ -61,17 +61,17 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   const resolveTenantId = (req: any): string | null => {
     const h = req?.headers?.['x-tenant-id'];
     const fromHeader = (typeof h === 'string' && h.length > 0) ? h : null;
-    const fromAuth = req?.auth?.primaryTenantId || null;
-    return fromHeader || fromAuth;
+    return fromHeader;
   };
+  const authGuard = (app as any).kafRequireAuth || (app as any).requireAuth;
   // Backward-compat: some UIs call /analytics without a subpath. Redirect to summary.
-  app.get('/analytics', { preHandler: [app.requireAuth] }, async (_req, reply) => {
+  app.get('/analytics', { preHandler: [authGuard] }, async (_req, reply) => {
     return reply.redirect('/analytics/summary');
   });
   // -----------------------------
   // GET /analytics/summary
   // -----------------------------
-  app.get('/analytics/summary', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/summary', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) {
       return reply.code(403).send({ error: 'no tenant context' });
@@ -111,7 +111,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         .eq('tenant_id', tenantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
-      if (ordersError) throw app.httpErrors.internalServerError(ordersError.message);
+      if (ordersError) return reply.code(500).send({ error: 'db_error' });
 
       const { data: payments, error: paymentsError } = await db
         .from('payments')
@@ -119,7 +119,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         .eq('tenant_id', tenantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
-      if (paymentsError) throw app.httpErrors.internalServerError(paymentsError.message);
+      if (paymentsError) return reply.code(500).send({ error: 'db_error' });
 
       const totalOrders = orders?.length || 0;
       const dineIn = orders?.filter((o: any) => o.order_type === 'dine_in').length || 0;
@@ -141,14 +141,14 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       });
     } catch (err: any) {
       app.log.error(err, 'Analytics summary failed');
-      throw app.httpErrors.internalServerError(err.message);
+      return reply.code(500).send({ error: 'server_error' });
     }
   });
 
   // -----------------------------
   // GET /analytics/revenue (simple series derived from payments)
   // -----------------------------
-  app.get('/analytics/revenue', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/revenue', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) {
       return reply.code(403).send({ error: 'no tenant context' });
@@ -170,7 +170,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .order('created_at');
-      if (error) throw app.httpErrors.internalServerError(error.message);
+      if (error) return reply.code(500).send({ error: 'db_error' });
 
       const buckets = new Map<string, number>();
       (payments || []).forEach((payment: any) => {
@@ -197,14 +197,14 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       });
     } catch (err: any) {
       app.log.error(err, 'Analytics revenue failed');
-      throw app.httpErrors.internalServerError(err.message);
+      return reply.code(500).send({ error: 'server_error' });
     }
   });
 
   // -----------------------------
   // GET /analytics/top-items
   // -----------------------------
-  app.get('/analytics/top-items', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/top-items', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) {
       return reply.code(403).send({ error: 'no tenant context' });
@@ -233,7 +233,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         .eq('orders.tenant_id', tenantId)
         .gte('orders.created_at', start.toISOString())
         .lte('orders.created_at', end.toISOString());
-      if (error) throw app.httpErrors.internalServerError(error.message);
+      if (error) return reply.code(500).send({ error: 'db_error' });
 
       const itemMap = new Map<string, { name: string; qty: number; revenue: number }>();
       (items || []).forEach((item: any) => {
@@ -268,7 +268,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       });
     } catch (err: any) {
       app.log.error(err, 'Analytics top-items failed');
-      throw app.httpErrors.internalServerError(err.message);
+      return reply.code(500).send({ error: 'server_error' });
     }
   });
 
@@ -277,7 +277,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // -----------------------------
 
   // GET /analytics/payment-funnel
-  app.get('/analytics/payment-funnel', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/payment-funnel', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -303,7 +303,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/peak-hours
-  app.get('/analytics/peak-hours', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/peak-hours', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -329,7 +329,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/revenue-series (DB‑driven buckets)
-  app.get('/analytics/revenue-series', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/revenue-series', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -370,7 +370,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/revenue-breakdown
-  app.get('/analytics/revenue-breakdown', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/revenue-breakdown', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -415,7 +415,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
           .eq('tenant_id', tenantId)
           .gte('created_at', startTime.toISOString())
           .lt('created_at', endTime.toISOString());
-        if (error) throw app.httpErrors.internalServerError(error.message);
+        if (error) return reply.code(500).send({ error: 'db_error' });
 
         const map = new Map<string, { qty: number; revenue: number }>();
         (orders || []).forEach((o: any) => {
@@ -450,7 +450,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         .eq('orders.tenant_id', tenantId)
         .gte('orders.created_at', startTime.toISOString())
         .lt('orders.created_at', endTime.toISOString());
-      if (error) throw app.httpErrors.internalServerError(error.message);
+      if (error) return reply.code(500).send({ error: 'db_error' });
 
       type Agg = { label: string; qty: number; revenue: number };
       const map = new Map<string, Agg>();
@@ -493,7 +493,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/fulfillment-timeline
-  app.get('/analytics/fulfillment-timeline', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/fulfillment-timeline', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -530,7 +530,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // -----------------------------
 
   // GET /analytics/payment_conversion_funnel  (alias for /analytics/payment-funnel)
-  app.get('/analytics/payment_conversion_funnel', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/payment_conversion_funnel', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -556,7 +556,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/peak_hours_heatmap  (alias for /analytics/peak-hours)
-  app.get('/analytics/peak_hours_heatmap', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/peak_hours_heatmap', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -582,7 +582,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/revenue_timeseries  (alias for /analytics/revenue-series)
-  app.get('/analytics/revenue_timeseries', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/revenue_timeseries', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -623,7 +623,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/order_fulfillment_timeline  (alias for /analytics/fulfillment-timeline)
-  app.get('/analytics/order_fulfillment_timeline', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/order_fulfillment_timeline', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
@@ -657,7 +657,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/revenue_breakdown  (alias for /analytics/revenue-breakdown, accepts `interval`)
-  app.get('/analytics/revenue_breakdown', { preHandler: [app.requireAuth] }, async (req, reply) => {
+  app.get('/analytics/revenue_breakdown', { preHandler: [authGuard] }, async (req, reply) => {
     const tenantId = resolveTenantId(req);
     if (!tenantId) return reply.code(400).send({ error: 'tenant_missing' });
     const db = (req as any).supabaseUser || (app as any).supabase;
