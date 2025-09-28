@@ -1,4 +1,4 @@
-  import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAccessControl } from "@/contexts/AccessControlContext";
 import { useState, useEffect } from "react";
 import { apiFetch, getErrorMessage } from "@/lib/api";
@@ -26,32 +26,32 @@ import {
 // Quick Links config (uses existing lucide-react imports only)
 const QUICK_LINKS: Array<{ to: string; label: string; icon: any; desc?: string }> = [
   { to: '/dashboard', label: 'Overview', icon: TrendingUp, desc: 'KPIs & trends' },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3, desc: 'Revenue & funnel' },
-  { to: '/orders', label: 'Orders', icon: ShoppingCart, desc: 'All orders' },
-  { to: '/menu-management', label: 'Menu', icon: MenuIcon, desc: 'Items & categories' },
-  { to: '/table-management', label: 'Tables', icon: Grid3X3, desc: 'Seating & sessions' },
-  { to: '/kds', label: 'KDS', icon: ChefHat, desc: 'Kitchen display' },
-  { to: '/payments', label: 'Payments', icon: DollarSign, desc: 'Providers & intents' },
-  { to: '/receipts', label: 'Receipts', icon: Bell, desc: 'Delivery history' },
-  { to: '/staff', label: 'Staff', icon: Users, desc: 'Team & invites' },
-  { to: '/branding', label: 'Branding', icon: Settings, desc: 'Theme & assets' },
-  { to: '/qr', label: 'QR Codes', icon: Search, desc: 'Scan & entry' },
-  { to: '/checkout', label: 'Checkout', icon: ShoppingCart, desc: 'POS flow' },
+  { to: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, desc: 'Revenue & funnel' },
+  { to: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, desc: 'All orders' },
+  { to: '/dashboard/menu-management', label: 'Menu', icon: MenuIcon, desc: 'Items & categories' },
+  { to: '/dashboard/table-management', label: 'Tables', icon: Grid3X3, desc: 'Seating & sessions' },
+  { to: '/dashboard/kds', label: 'KDS', icon: ChefHat, desc: 'Kitchen display' },
+  { to: '/dashboard/payments', label: 'Payments', icon: DollarSign, desc: 'Providers & intents' },
+  { to: '/dashboard/receipts', label: 'Receipts', icon: Bell, desc: 'Delivery history' },
+  { to: '/dashboard/staff', label: 'Staff', icon: Users, desc: 'Team & invites' },
+  { to: '/dashboard/branding', label: 'Branding', icon: Settings, desc: 'Theme & assets' },
+  { to: '/dashboard/qr', label: 'QR Codes', icon: Search, desc: 'Scan & entry' },
+  { to: '/dashboard/checkout', label: 'Checkout', icon: ShoppingCart, desc: 'POS flow' },
 ];
 
 // Map routes to access-control keys (only guarded ones listed)
 const LINK_GUARDS: Record<string, string> = {
-  '/analytics': 'REPORTS_VIEW',
-  '/orders': 'LIVE_ORDERS_VIEW',
-  '/menu-management': 'MENU_VIEW',
-  '/table-management': 'TABLES_VIEW',
-  '/kds': 'KITCHEN_VIEW',
-  '/payments': 'PAYMENTS_VIEW',
-  '/receipts': 'RECEIPTS_VIEW',
-  '/staff': 'STAFF_VIEW',
-  '/branding': 'CUSTOMIZATION_VIEW',
-  '/qr': 'QR_VIEW',
-  '/checkout': 'CHECKOUT_VIEW',
+  '/dashboard/analytics': 'REPORTS_VIEW',
+  '/dashboard/orders': 'LIVE_ORDERS_VIEW',
+  '/dashboard/menu-management': 'MENU_VIEW',
+  '/dashboard/table-management': 'TABLES_VIEW',
+  '/dashboard/kds': 'KITCHEN_VIEW',
+  '/dashboard/payments': 'PAYMENTS_VIEW',
+  '/dashboard/receipts': 'RECEIPTS_VIEW',
+  '/dashboard/staff': 'STAFF_VIEW',
+  '/dashboard/branding': 'CUSTOMIZATION_VIEW',
+  '/dashboard/qr': 'QR_VIEW',
+  '/dashboard/checkout': 'CHECKOUT_VIEW',
 };
 
 const __DEV_BYPASS_PROTECTED__ = false;
@@ -530,7 +530,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {canAccessDashboard?.("MENU_VIEW") && (
                   <Link
-                    to="/menu-management"
+                    to="/dashboard/menu-management"
                     className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <MenuIcon className="w-5 h-5 text-blue-600 mr-3" />
@@ -541,7 +541,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("LIVE_ORDERS_VIEW") && (
                   <Link
-                    to="/orders"
+                    to="/dashboard/orders"
                     className="flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                   >
                     <ShoppingCart className="w-5 h-5 text-green-600 mr-3" />
@@ -552,7 +552,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("TABLES_VIEW") && (
                   <Link
-                    to="/table-management"
+                    to="/dashboard/table-management"
                     className="flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
                   >
                     <Grid3X3 className="w-5 h-5 text-indigo-600 mr-3" />
@@ -563,7 +563,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("STAFF_VIEW") && (
                   <Link
-                    to="/staff"
+                    to="/dashboard/staff"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
                   >
                     <Users className="w-5 h-5 text-purple-600 mr-3" />
@@ -574,7 +574,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("KITCHEN_VIEW") && (
                   <Link
-                    to="/kds"
+                    to="/dashboard/kds"
                     className="flex items-center p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                   >
                     <ChefHat className="w-5 h-5 text-red-600 mr-3" />
@@ -585,7 +585,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("CUSTOMIZATION_VIEW") && (
                   <Link
-                    to="/branding"
+                    to="/dashboard/branding"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
                   >
                     <Settings className="w-5 h-5 text-purple-600 mr-3" />
@@ -596,7 +596,7 @@ export default function Dashboard() {
                 )}
                 {canAccessDashboard?.("REPORTS_VIEW") && (
                   <Link
-                    to="/analytics"
+                    to="/dashboard/analytics"
                     className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
                   >
                     <BarChart3 className="w-5 h-5 text-purple-600 mr-3" />

@@ -57,7 +57,12 @@ export default function Header() {
     ? (currentUser as any).roles.map((r: any) => String(r))
     : ((currentUser as any)?.role ? [String((currentUser as any).role)] : []);
 
-  const publicNavigation = [
+  const isAdmin = rolesList.includes('admin') || rolesList.includes('tenant_admin'); // adjust this check if your app uses roles differently
+  const adminNavigation = isAdmin
+    ? [{ name: "Billing & Plan", href: "/billing" }]
+    : [];
+
+  const navigation = [
     { name: "Home", href: "/" },
     { name: "Menu", href: "/menu" },
     { name: "Events", href: "/events" },
@@ -65,24 +70,10 @@ export default function Header() {
     { name: "Live Orders", href: "/live-orders" },
     { name: "Contact", href: "/contact" },
     { name: "Book Table", href: "/book-table" },
-  ];
-
-  const isAdmin = rolesList.includes('admin') || rolesList.includes('tenant_admin'); // adjust this check if your app uses roles differently
-  const adminNavigation = isAdmin
-    ? [{ name: "Billing & Plan", href: "/billing" }]
-    : [];
-
-  const dashboardNavigation = [
-    { name: "Dashboard", href: "/dashboard" },
     ...adminNavigation,
   ];
 
   const isActive = (href: string) => location.pathname === href;
-
-  // Determine if current path is /dashboard or its sub-routes
-  const isDashboardRoute = location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
-
-  const navigation = isDashboardRoute ? dashboardNavigation : publicNavigation;
 
   const handleAdminClick = () => {
     if (session) {
@@ -158,7 +149,7 @@ export default function Header() {
               <ShoppingCart className="w-5 h-5" />
               <CartBadge />
             </button>
-            {isDashboardRoute && session ? (
+            {session ? (
               <button
                 onClick={handleLogout}
                 className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-4 py-2 rounded-lg hover:from-gray-600 hover:to-gray-800 transition-colors"
@@ -223,7 +214,7 @@ export default function Header() {
                   <ShoppingCart className="w-5 h-5" />
                   <CartBadge />
                 </button>
-                {isDashboardRoute && session ? (
+                {session ? (
                   <button
                     onClick={async () => {
                       await handleLogout();

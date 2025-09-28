@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCustomization } from "../hooks/useCustomization";
 import DynamicPageRenderer from "../components/DynamicPageRenderer";
-import Header from "../components/Header";
 import Footer from "../components/Footer";
 import {
   Star,
@@ -37,7 +36,6 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen">
-        <Header />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
@@ -53,7 +51,6 @@ export default function Home() {
   if (hasCustomContent) {
     return (
       <div className="min-h-screen">
-        <Header />
         <DynamicPageRenderer page={homePage} theme={theme} />
         <Footer />
       </div>
@@ -117,7 +114,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <Header />
 
       {/* Hero Section - Original Beautiful Design */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">

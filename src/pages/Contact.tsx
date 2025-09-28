@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useCustomization } from "../hooks/useCustomization";
 import DynamicPageRenderer from "../components/DynamicPageRenderer";
@@ -49,7 +48,6 @@ export default function Contact() {
   if (loading) {
     return (
       <div className="min-h-screen">
-        <Header />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
@@ -65,7 +63,6 @@ export default function Contact() {
   if (hasCustomContent) {
     return (
       <div className="min-h-screen">
-        <Header />
         <DynamicPageRenderer page={contactPage} theme={theme} />
         <Footer />
       </div>
@@ -131,7 +128,6 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen">
-      <Header />
 
       {/* Section 1: Hero Banner */}
       <section className="relative h-80 flex items-center justify-center">

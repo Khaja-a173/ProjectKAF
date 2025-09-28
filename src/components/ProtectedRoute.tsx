@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Public routes where we never force redirect to login
-  const publicPaths = ['/', '/menu', '/events', '/gallery', '/live-orders', '/contact', '/login', '/auth/callback', '/book-table'];
+  const publicPaths = ['/menu', '/events', '/gallery', '/live-orders', '/contact', '/login', '/auth/callback', '/book-table'];
 
   useEffect(() => {
     let unsub = () => {};
@@ -56,11 +56,16 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // If there's no session and we're NOT on a public page, redirect to login
-  if (!hasSession && !publicPaths.includes(loc.pathname)) {
+  const isPublicPath = publicPaths.some(path => loc.pathname.startsWith(path));
+  if (!hasSession && !isPublicPath) {
     const next = encodeURIComponent(loc.pathname + loc.search);
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 
-  // For authenticated users, always render Outlet to support nested routes like dashboard
+  // For authenticated users, always render children or <Outlet /> to support all routes
+  if (hasSession) {
+    return <>{children ?? <Outlet />}</>;
+  }
+
   return <>{children ?? <Outlet />}</>;
 }

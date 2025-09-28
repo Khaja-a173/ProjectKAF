@@ -1,4 +1,3 @@
-import Header from "@/components/Header";
 import HealthBanner from "@/health/HealthBanner";
 //import DashboardHeader from "@/components/DashboardHeader";
 import { Outlet } from "react-router-dom";
@@ -6,9 +5,6 @@ import { Outlet } from "react-router-dom";
 export default function DashboardLayout() {
   return (
     <div className="flex flex-col min-h-screen">
-      {/* ✅ Main site header applied globally */}
-      <Header />
-
       {/* Health status banner */}
       <HealthBanner />
 

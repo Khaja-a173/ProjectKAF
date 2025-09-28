@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -529,7 +528,6 @@ export default function BookTable() {
   if (isSubmitted) {
     return (
       <div className="min-h-screen">
-        <Header />
         <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center px-4">
           <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -574,7 +572,6 @@ export default function BookTable() {
   return (
     <div className="min-h-screen">
       <Toaster />
-      <Header />
 
       {/* Hero Section */}
       <section className="relative h-64 flex items-center justify-center">
