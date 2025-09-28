@@ -59,7 +59,10 @@ export default function ItemEditor({
         price: 0,
         cost: 0,
         currency: "USD",
-        sectionId: sections[0]?.id || "",
+        sectionId:
+          sections.find((s) => s.isActive)?.id ||
+          (sections.length > 0 ? sections[0].id : "") ||
+          "",
         imageUrl: "",
         isAvailable: true,
         tags: [],
@@ -75,8 +78,54 @@ export default function ItemEditor({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    onClose();
+
+    // Coerce price and validate
+    const priceNum = Number(formData.price);
+    // Only include MenuItem fields, do not add categoryId or any extra
+    const ensuredData: Partial<MenuItem> = {
+      name: formData.name,
+      description: formData.description,
+      price: priceNum,
+      cost: formData.cost,
+      currency: formData.currency,
+      sectionId:
+        formData.sectionId ||
+        sections.find((s) => s.isActive)?.id ||
+        (sections.length > 0 ? sections[0].id : "") ||
+        "",
+      imageUrl: formData.imageUrl,
+      isAvailable: formData.isAvailable,
+      tags: formData.tags,
+      allergens: formData.allergens,
+      isVegetarian: formData.isVegetarian,
+      isVegan: formData.isVegan,
+      spicyLevel: formData.spicyLevel,
+      preparationTime: formData.preparationTime,
+      calories: formData.calories,
+    };
+    // Stricter validation
+    if (
+      !ensuredData.name ||
+      typeof ensuredData.name !== "string" ||
+      ensuredData.name.trim().length === 0
+    ) {
+      alert("Item name is required.");
+      return;
+    }
+    if (!ensuredData.sectionId) {
+      alert("Please select a valid section before saving the item.");
+      return;
+    }
+    if (
+      typeof ensuredData.price !== "number" ||
+      !isFinite(ensuredData.price) ||
+      ensuredData.price <= 0
+    ) {
+      alert("Valid numeric price greater than 0 is required.");
+      return;
+    }
+    onSave(ensuredData);
+    // do not close here, parent will close on success
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,12 +271,13 @@ export default function ItemEditor({
                   step="0.01"
                   min="0"
                   value={formData.price}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
                     setFormData((prev) => ({
                       ...prev,
-                      price: parseFloat(e.target.value) || 0,
-                    }))
-                  }
+                      price: isNaN(val) ? 0 : val,
+                    }));
+                  }}
                   className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00"
                   required
@@ -586,6 +636,7 @@ export default function ItemEditor({
             <button
               type="submit"
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              disabled={!formData.sectionId}
             >
               <Save className="w-4 h-4" />
               <span>{item ? "Update Item" : "Create Item"}</span>

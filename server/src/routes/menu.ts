@@ -97,31 +97,45 @@ const SectionsUpdateSchema = z.object({
 
 const ItemRowBase = z.object({
   id: z.string().uuid().optional(),
-  section_id: z.string().uuid().nullable().optional(),
+  section_id: z.preprocess((val) => {
+    if (val === "" || val === null) return undefined;
+    return val;
+  }, z.string().uuid().optional()),
   category_id: z.string().uuid().nullable().optional(),
-  name: z.string().min(1).optional(),
-  price: z.number().nonnegative().optional(),
-  ord: z.number().int().nonnegative().optional(),
+  name: z.string().trim().min(1).optional(),
+  price: z.preprocess((val) => {
+    if (val === "" || val === null || val === undefined) return 0;
+    const num = Number(val);
+    return isFinite(num) ? num : 0;
+  }, z.number().nonnegative()).optional(),
+  ord: z.preprocess((v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : v;
+  }, z.number().int().nonnegative().optional()),
   is_available: z.boolean().optional(),
   image_url: z.string().url().nullable().optional(),
   description: z.string().nullable().optional(),
   tags: z.union([z.array(z.string()), z.string()]).optional(),
-  calories: z.number().int().nonnegative().nullable().optional(),
-  spicy_level: z.number().int().min(0).max(5).nullable().optional(),
-  preparation_time: z.number().int().nonnegative().nullable().optional(),
+  calories: z.preprocess((v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : v;
+  }, z.number().int().nonnegative().nullable().optional()),
+  spicy_level: z.preprocess((v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    const n = Number(v);
+    return Number.isInteger(n) ? n : v;
+  }, z.number().int().min(0).max(5).nullable().optional()),
+  preparation_time: z.preprocess((v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : v;
+  }, z.number().int().nonnegative().nullable().optional()),
 });
 
 const ItemsUpsertSchema = z.object({
-  rows: z.array(
-    ItemRowBase.refine((r) => {
-      // allow partial update if id is present
-      if (r.id) return true;
-      // otherwise require minimum fields for create
-      return !!(r.name && typeof r.price === "number");
-    }, {
-      message: "Each row must include id for partial update, or include both name and price for create.",
-    })
-  ).min(1),
+  rows: z.array(ItemRowBase).min(1),
 });
 
 const ItemsDeleteSchema = z.object({
@@ -146,7 +160,12 @@ const ResolveRefsSchema = z.object({
 });
 
 const ToggleItemsParamsSchema = z.object({ id: z.string().uuid() });
-const ToggleItemsBodySchema = z.object({ available: z.boolean() });
+const ToggleItemsBodySchema = z.object({
+  is_available: z.boolean().optional(),
+  available: z.boolean().optional()
+}).refine((data) => typeof data.is_available === "boolean" || typeof data.available === "boolean", {
+  message: "Either is_available or available must be provided"
+});
 
 // PATCH Item Toggle Schema
 const ItemToggleParamsSchema = z.object({ id: z.string().uuid() });
@@ -956,7 +975,10 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
     }
 
     const sectionId = paramsParsed.data.id;
-    const available = bodyParsed.data.available;
+    const available =
+      typeof bodyParsed.data.is_available === "boolean"
+        ? bodyParsed.data.is_available
+        : bodyParsed.data.available;
 
     // Ensure section belongs to tenant (and exists)
     const { data: secRow, error: secErr } = await supabase
@@ -984,10 +1006,25 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
   });
 
   fastify.post("/items/bulk", { preHandler: [fastify.requireTenant] }, async (req, rep) => {
+    // --- Payload validation for { rows: [...] } ---
+    const { rows = [] } = (req.body ?? {}) as any;
+    if (!Array.isArray(rows)) {
+      return rep.status(400).send({
+        error: "Invalid payload",
+        message: "Expected { rows: [...] } in request body",
+      });
+    }
+    // Normalize camelCase keys before validation
+    const normalizedItemsRows = rows.map((r: any) => ({
+      ...r,
+      section_id: r.section_id ?? r.sectionId,
+      is_available: r.is_available ?? r.isAvailable,
+    }));
     const start = Date.now();
     const reqId = randomUUID();
     const tenantId = (req as any).tenantId as string;
-    const parsed = ItemsUpsertSchema.safeParse(req.body);
+    // Validate using ItemsUpsertSchema
+    const parsed = ItemsUpsertSchema.safeParse({ rows: normalizedItemsRows });
     if (!parsed.success) {
       return rep.code(400).send({ error: "invalid items payload", issues: parsed.error.flatten() });
     }
@@ -1033,7 +1070,7 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
     }
 
     // Build normalized rows (invalidate cross-tenant FKs, normalize tags/numbers)
-    const rows: any[] = incomingRows.map((r) => {
+    const normalizedInputItemsRows: any[] = incomingRows.map((r) => {
       // normalize tags
       let tags: string[] | undefined;
       if (Array.isArray(r.tags)) {
@@ -1070,7 +1107,7 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
     });
 
     // If any rows are updates (have id), prefetch current values to merge
-    const rowsWithId = rows.filter((r: any) => !!r.id);
+    const rowsWithId = incomingRows.filter((r: any) => !!r.id);
     let existingMap = new Map<string, any>();
     if (rowsWithId.length > 0) {
       const { data: existing, error: existingErr } = await supabase
@@ -1126,7 +1163,7 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
     }
 
     // 3) Normalize rows: merge with existing DB row for updates, preserve required columns, apply default category if needed
-    const normalizedRows = rows.map((item: any) => {
+    const normalizedFinalItemsRows = normalizedInputItemsRows.map((item: any) => {
       // If updating, merge with existing DB row so required columns (e.g., name) are preserved
       const base = item.id ? (existingMap.get(item.id) || {}) : {};
 
@@ -1159,8 +1196,8 @@ const menuRoutes: FastifyPluginCallback = (fastify, _opts, done) => {
     });
 
     // Split rows: creates (no id) vs updates (with id)
-    const createRows = normalizedRows.filter((r: any) => !r.id);
-    const updateRows = normalizedRows.filter((r: any) => !!r.id);
+    const createRows = normalizedFinalItemsRows.filter((r: any) => !r.id);
+    const updateRows = normalizedFinalItemsRows.filter((r: any) => !!r.id);
     // Ensure DB NOT NULL id constraint is satisfied for inserts (when table has no default)
     const createRowsWithIds = createRows.map((r: any) => ({
       ...r,

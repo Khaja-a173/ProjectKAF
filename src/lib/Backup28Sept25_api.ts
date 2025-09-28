@@ -957,6 +957,420 @@ export interface TableSession {
   updated_at?: string;
 }
 
+export interface MenuSection {
+  id: UUID;
+  tenant_id?: UUID;
+  name: string;
+  ord?: number | null;
+  description?: string | null;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MenuCategory {
+  id: UUID;
+  name: string;
+  sort_order?: number;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MenuItem {
+  id: UUID;
+  name: string;
+  description?: string | null;
+  price: number; // cents or the smallest currency unit your API uses
+  currency?: string;
+  image_url?: string | null;
+  category_id?: UUID | null;
+  sort_order?: number | null;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type MenuItemUpsert = {
+  id?: UUID;
+  name: string;
+  price: number;
+  currency?: string;
+  description?: string | null;
+  image_url?: string | null;
+  section_id?: UUID | null;
+  sort_order?: number | null;
+  is_active?: boolean;
+};
+
+/** Resolve section/category names to IDs (tenant-scoped, idempotent). */
+export async function resolveMenuRefs(
+  tenantId: string,
+  payload: {
+    sections?: string[];
+    categories?: string[];
+    options?: { autoCreateMissing?: boolean };
+  }
+): Promise<{
+  sections: Array<{ name: string; id: string; created: boolean }>;
+  categories: Array<{ name: string; id: string; created: boolean }>;
+}> {
+  const id = requireTenantId(tenantId);
+  const body = {
+    sections: Array.isArray(payload.sections) ? payload.sections.filter(Boolean) : [],
+    categories: Array.isArray(payload.categories) ? payload.categories.filter(Boolean) : [],
+    options: { autoCreateMissing: payload.options?.autoCreateMissing !== false },
+  };
+  return request(
+    "/api/menu/resolve",
+    { method: "POST", body, headers: tenantHeaders(id) }
+  );
+}
+
+/** Sessions — get active by table code (client expects human code like T01) */
+export async function getActiveSessionByTable(tenantId: string, tableCode: string): Promise<TableSession | null> {
+  const id = requireTenantId(tenantId);
+  try {
+    // primary: REST endpoint
+    const data = await requestWithFallback<TableSession | { session: TableSession } | null>(
+      ["/api/sessions/by-table"],
+      { method: "GET", query: { table: tableCode }, headers: tenantHeaders(id) }
+    );
+    if (!data) return null;
+    // Support both raw and wrapped responses
+    return (data as any).session ? (data as any).session as TableSession : (data as TableSession);
+  } catch (e) {
+    if (e instanceof HttpError && (e.status === 404 || e.status === 405)) {
+      // Endpoint not available; let caller treat as no active session
+      return null;
+    }
+    throw e;
+  }
+}
+
+/** Sessions — create or reuse for a table code (idempotent on server) */
+export async function createOrReuseSession(
+  tenantId: string,
+  tableCode: string,
+  init?: {
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    partySize?: number;
+    mode?: "dine-in" | "take-away";
+  }
+): Promise<TableSession> {
+  const id = requireTenantId(tenantId);
+  const body = { table: tableCode, ...(init || {}) };
+  const data = await requestWithFallback<TableSession | { session: TableSession }>(
+    ["/api/sessions/create-or-reuse"],
+    { method: "POST", headers: tenantHeaders(id), body }
+  );
+  return (data as any).session ? (data as any).session as TableSession : (data as TableSession);
+}
+
+export function getMenuCategories(tenantId?: string) {
+  const id = requireTenantId(tenantId);
+  return request<MenuCategory[]>("/api/menu/categories", { headers: tenantHeaders(id) });
+}
+
+export function getMenuItems(tenantId: string, params?: { section_id?: UUID; active_only?: boolean }) {
+  const id = requireTenantId(tenantId);
+
+  // accept both section_id and sectionId from callers, normalize to sectionId (server expects camelCase)
+  const rawSection = (params as any)?.sectionId ?? params?.section_id;
+
+  // UUID v4 check (keep local and minimal)
+  const UUID_RE = UUID_V4_RE;
+  const hasSection = typeof rawSection === 'string' && rawSection.trim().length > 0;
+  const isValid = hasSection && UUID_RE.test(rawSection);
+
+  // If no section specified, or invalid id, avoid hitting the API (non-visual no-op)
+  if (!hasSection) {
+    return Promise.resolve([] as MenuItem[]);
+  }
+  if (!isValid) {
+    console.warn('[menuApi] Skipping /api/menu/items fetch — invalid sectionId:', rawSection);
+    return Promise.resolve([] as MenuItem[]);
+  }
+
+  const query = {
+    sectionId: rawSection as string,
+    ...(typeof (params as any)?.active_only === 'boolean' ? { active_only: !!(params as any).active_only } : {}),
+  };
+
+  return request<MenuItem[]>("/api/menu/items", { query, headers: tenantHeaders(id) });
+}
+
+/** Items — list for a specific section */
+export function getMenuItemsBySection(
+  tenantId: string,
+  sectionId: UUID,
+  activeOnly?: boolean
+) {
+  const id = requireTenantId(tenantId);
+
+  // UUID v4 check
+  const UUID_RE = UUID_V4_RE;
+  if (!sectionId || typeof sectionId !== 'string') {
+    return Promise.resolve([] as MenuItem[]);
+  }
+  if (!UUID_RE.test(sectionId)) {
+    console.warn('[menuApi] Skipping /api/menu/items fetch — invalid sectionId:', sectionId);
+    return Promise.resolve([] as MenuItem[]);
+  }
+
+  return request<MenuItem[]>(
+    "/api/menu/items",
+    { query: { sectionId, active_only: !!activeOnly }, headers: tenantHeaders(id) }
+  );
+}
+
+export function createMenuCategory(tenantId: string, input: {
+  name: string;
+  sort_order?: number;
+  description?: string | null;
+}) {
+  const id = requireTenantId(tenantId);
+  return request<MenuCategory>("/api/menu/categories", {
+    method: "POST",
+    body: input,
+    headers: tenantHeaders(id),
+  });
+}
+
+export function createMenuItem(tenantId: string, input: MenuItemUpsert) {
+  const id = requireTenantId(tenantId);
+  return request<MenuItem>("/api/menu/items", {
+    method: "POST",
+    body: input,
+    headers: tenantHeaders(id),
+  });
+}
+
+export function updateMenuItem(tenantId: string, id: UUID, patch: Partial<Omit<MenuItem, "id">>) {
+  const t = requireTenantId(tenantId);
+  return request<MenuItem>(`/api/menu/items/${id}`, {
+    method: "PATCH",
+    body: patch,
+    headers: tenantHeaders(t),
+  });
+}
+
+// --- Bulk menu item upload helper ---
+export type MenuItemBulkUpsert = {
+  id?: UUID;
+  sectionId: UUID;
+  name: string;
+  price: number;
+  description?: string | null;
+  imageUrl?: string | null;
+  isAvailable?: boolean;
+  tags?: string[];
+  allergens?: string[];
+  dietary?: string[];
+  sort_order?: number | null;
+  spicyLevel?: number | null;
+  calories?: number | null;
+  preparationTime?: number | null;
+};
+
+function mapMenuItemForApi(item: MenuItemBulkUpsert) {
+  return {
+    id: item.id ?? undefined,
+    section_id: item.sectionId,
+    name: item.name,
+    price: Number(item.price),                     // server expects numeric price (not cents)
+    ord: item.sort_order ?? 0,                     // server uses 'ord'
+    is_available: item.isAvailable ?? true,
+    image_url: item.imageUrl?.startsWith("blob:") ? undefined : item.imageUrl ?? undefined,
+    description: item.description ?? undefined,
+    tags: item.tags ?? [],
+    allergens: item.allergens ?? [],
+    dietary: item.dietary ?? [],
+    spicy_level: item.spicyLevel ?? undefined,
+    calories: item.calories ?? undefined,
+    preparation_time: item.preparationTime ?? undefined,
+  };
+}
+
+export async function bulkUploadMenuItems(tenantId: string, items: MenuItemBulkUpsert[]) {
+  const id = requireTenantId(tenantId);
+  if (!items?.length) throw new Error("No items provided for bulk upload");
+
+  // Validate required fields early to avoid 400 Bad Request
+  const invalid = items.find(i => !i.sectionId || !i.name || typeof i.price !== "number");
+  if (invalid) throw new Error("Each item requires sectionId, name, and numeric price");
+
+  const body = { rows: items.map(mapMenuItemForApi) };
+
+  return request<{ imported?: number; upserted?: number; errors?: Array<{ row: number; message: string }> }>(
+    "/api/menu/items/bulk",
+    { method: "POST", body, headers: tenantHeaders(id) }
+  );
+}
+
+export function upsertMenuItemsBulk(tenantId: string, payload:
+  | { items: Array<MenuItemUpsert> }
+  | { csv: string }) {
+  const id = requireTenantId(tenantId);
+  return request<{ imported?: number; upserted?: number; errors?: Array<{ row: number; message: string }> }>(
+    "/api/menu/items/bulk",
+    { method: "POST", body: payload, headers: tenantHeaders(id) }
+  );
+}
+
+// ----- Menu Sections (client helpers) -----
+export type MenuSectionUpsert = {
+  id?: UUID;
+  name: string;
+  ord?: number;
+  is_active?: boolean;
+  description?: string | null;
+};
+
+/**
+ * Create a single section by delegating to the bulk endpoint.
+ * Non-breaking: returns the first row when the server responds with an array,
+ * otherwise returns the raw response.
+ */
+export async function createMenuSection(
+  tenantId: string,
+  section: MenuSectionUpsert
+): Promise<MenuSection | any> {
+  const id = requireTenantId(tenantId);
+  const resp = await request<any>("/api/menu/sections/bulk", {
+    method: "POST",
+    headers: tenantHeaders(id),
+    body: { rows: [section] },
+  });
+  if (Array.isArray(resp)) return resp[0];
+  if (resp && Array.isArray(resp?.rows)) return resp.rows[0];
+  return resp;
+}
+
+/**
+ * Bulk upsert sections.
+ * Non-breaking: returns server response verbatim (array or object), so callers can adapt.
+ */
+export async function bulkUpsertMenuSections(
+  tenantId: string,
+  sections: MenuSectionUpsert[]
+): Promise<any> {
+  const id = requireTenantId(tenantId);
+  return request<any>("/api/menu/sections/bulk", {
+    method: "POST",
+    headers: tenantHeaders(id),
+    body: { rows: sections },
+  });
+}
+
+/** Sections — list */
+export function listMenuSections(tenantId: string) {
+  const id = requireTenantId(tenantId);
+  return request<MenuSection[]>("/api/menu/sections", { headers: tenantHeaders(id) });
+}
+
+/** Sections — bulk upsert */
+export function upsertMenuSections(tenantId: string, rows: Array<Pick<MenuSection, "id" | "name" | "ord" | "description" | "is_active">>) {
+  const id = requireTenantId(tenantId);
+  return request<{ upserted: number }>("/api/menu/sections/bulk", {
+    method: "POST",
+    body: { rows },
+    headers: tenantHeaders(id),
+  });
+}
+
+/** Sections — bulk visibility toggle (hide / re-enable) */
+export function bulkUpdateMenuSections(
+  tenantId: string,
+  rows: Array<{ id: UUID; is_active: boolean }>
+): Promise<{ updated: number; sections: MenuSection[] }> {
+  const id = requireTenantId(tenantId);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return Promise.resolve({ updated: 0, sections: [] });
+  }
+  return request<{ updated: number; sections: MenuSection[] }>(
+    "/api/menu/sections/update-bulk",
+    {
+      method: "POST",
+      body: { rows },
+      headers: tenantHeaders(id),
+    }
+  );
+}
+
+/** Sections — set active (single-section convenience) */
+export async function setSectionActive(
+  tenantId: string,
+  sectionId: UUID,
+  isActive: boolean
+): Promise<{ updated: number; sections?: MenuSection[] }> {
+  const id = requireTenantId(tenantId);
+  return request<{ updated: number; sections?: MenuSection[] }>(
+    "/api/menu/sections/update-bulk",
+    {
+      method: "POST",
+      body: { rows: [{ id: sectionId, is_active: isActive }] },
+      headers: tenantHeaders(id),
+    }
+  );
+}
+
+/** Sections — bulk delete */
+export function deleteMenuSections(tenantId: string, ids: UUID[]) {
+  const id = requireTenantId(tenantId);
+  return request<{ deleted: number }>("/api/menu/sections/delete-bulk", {
+    method: "POST",
+    body: { ids },
+    headers: tenantHeaders(id),
+  });
+}
+
+/** Sections — toggle availability of ALL items in a section */
+export function toggleSectionItems(
+  tenantId: string,
+  sectionId: UUID,
+  available: boolean
+): Promise<{ sectionId: UUID; available: boolean; updated: number }> {
+  const id = requireTenantId(tenantId);
+  return request<{ sectionId: UUID; available: boolean; updated: number }>(
+    `/api/menu/sections/${sectionId}/toggle-items`,
+    {
+      method: "POST",
+      body: { available },
+      headers: tenantHeaders(id),
+    }
+  );
+}
+
+/** Items — bulk delete */
+export function deleteMenuItems(tenantId: string, ids: UUID[]) {
+  const id = requireTenantId(tenantId);
+  return request<{ deleted: number }>("/api/menu/items/delete-bulk", {
+    method: "POST",
+    body: { ids },
+    headers: tenantHeaders(id),
+  });
+}
+
+/**
+ * Subscribe to live menu changes (sections & items) for a tenant.
+ * Returns an unsubscribe function.
+ */
+export function subscribeMenu(tenantId: string, onChange: (payload: { table: "menu_sections" | "menu_items"; type: "INSERT" | "UPDATE" | "DELETE"; new?: any; old?: any; }) => void) {
+  const id = requireTenantId(tenantId);
+  const ch = supabase
+    .channel(`menu:${id}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_sections', filter: `tenant_id=eq.${id}` }, (p: any) => {
+      onChange({ table: 'menu_sections', type: p.eventType, new: p.new, old: p.old });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `tenant_id=eq.${id}` }, (p: any) => {
+      onChange({ table: 'menu_items', type: p.eventType, new: p.new, old: p.old });
+    })
+    .subscribe();
+  return () => { try { supabase.removeChannel(ch); } catch {} };
+}
 
 /* ======================
    Helpers (Concurrency, Chunking)
@@ -1058,6 +1472,29 @@ export const cartApi = {
    Use this in Menu/ MenuManagement pages to avoid accidental coupling.
    Nothing is removed from the file; this is a curated surface area.
    ======================================================================== */
+export const menuApi = {
+  // Sessions (table-aware menu flows)
+  getActiveSessionByTable,
+  createOrReuseSession,
+  // Sections & Items
+  getMenuCategories,
+  getMenuItems,
+  getMenuItemsBySection,
+  // Single + bulk sections
+  createMenuSection,
+  bulkUpsertMenuSections,
+  listMenuSections,
+  upsertMenuSections,
+  bulkUpdateMenuSections,
+  setSectionActive,
+  deleteMenuSections,
+  toggleSectionItems,
+  deleteMenuItems,
+  bulkUploadMenuItems,
+  resolveMenuRefs,
+  // Realtime
+  subscribeMenu,
+};
 
 /* ========================================================================
    NON-MENU (RETAINED) — Tables, Reservations, and TM Settings
@@ -1582,6 +2019,27 @@ const api = {
   getUserId,
   // Cart (scoped helpers)
   cart: cartApi,
+  getMenuCategories,
+  getMenuItems,
+  getActiveSessionByTable,
+  createOrReuseSession,
+  createMenuCategory,
+  createMenuItem,
+  updateMenuItem,
+  upsertMenuItemsBulk,
+  // Single + bulk sections
+  createMenuSection,
+  bulkUpsertMenuSections,
+  listMenuSections,
+  upsertMenuSections,
+  bulkUpdateMenuSections,
+  setSectionActive,
+  deleteMenuSections,
+  toggleSectionItems,
+  deleteMenuItems,
+  getMenuItemsBySection,
+  subscribeMenu,
+  resolveMenuRefs,
   getPaymentProviders,
   createPaymentProvider,
   updatePaymentProvider,
@@ -1688,8 +2146,6 @@ export async function getJSON<T = any>(url: string, options: RequestInit = {}): 
 }
 
 export default api;
-
-export { menuApi } from "@/lib/api/menuApi";
 
 // (Debug helpers already exposed above)
 export async function getBillingPortalUrl(tenantId: string): Promise<{ url: string }> {

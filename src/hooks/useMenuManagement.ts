@@ -1,3 +1,4 @@
+import { menuApi } from "@/lib/api/menuApi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { MenuSection, MenuItem } from "../types/menu";
@@ -33,53 +34,6 @@ export type BulkUploadResult = {
   warnings: string[];
 };
 
-const API_BASE = "/api/menu";
-
-async function apiFetch<T = any>(
-  tenantId: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> {
-  // Pull the latest Supabase session token and attach it to headers (Authorization and x-supabase-auth)
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token || null;
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...(init || {}),
-    headers: {
-      "Content-Type": "application/json",
-      "X-Tenant-Id": tenantId,
-      ...(token ? { Authorization: `Bearer ${token}`, "x-supabase-auth": token } : {}),
-      ...(init?.headers || {}),
-    },
-    credentials: "include",
-  });
-
-  // Fast path: 204 No Content
-  if (res.status === 204) {
-    return undefined as unknown as T;
-  }
-
-  // Try to parse JSON once for both success and error cases
-  let payload: any = null;
-  try {
-    payload = await res.json();
-  } catch {
-    // ignore JSON parse errors (could be empty body for 2xx)
-  }
-
-  if (!res.ok) {
-    const msg =
-      (payload && (payload.error || payload.message || payload.details)) ||
-      `${res.status} ${res.statusText}`;
-    const err = new Error(msg);
-    (err as any).status = res.status;
-    (err as any).details = payload || null;
-    throw err;
-  }
-
-  return (payload ?? (undefined as any)) as T;
-}
 
 function sectionCacheKey(tenantId: string) {
   return `pkaf:menu:sections:${tenantId}`;
@@ -221,9 +175,7 @@ export function useMenuManagement({ tenantId }: UseMenuManagementProps) {
           } catch {}
         }
 
-        const secsRaw = await apiFetch<any[]>(tenantId, "/sections", {
-          method: "GET",
-        });
+        const secsRaw = await menuApi.listMenuSections(tenantId);
         // Strict tenant isolation: ignore any rows not belonging to this tenant
         const secs = (secsRaw || [])
           .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId)
@@ -236,11 +188,7 @@ export function useMenuManagement({ tenantId }: UseMenuManagementProps) {
               itemsBySection[s.id] = [];
               return;
             }
-            const listRaw = await apiFetch<any[]>(
-              tenantId,
-              `/items?sectionId=${encodeURIComponent(s.id)}`,
-              { method: "GET" }
-            );
+            const listRaw = await menuApi.getMenuItemsBySection(tenantId, s.id);
             itemsBySection[s.id] = (listRaw || [])
               .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId && (r?.section_id ?? s.id) === s.id)
               .map(apiToItem);
@@ -377,10 +325,7 @@ const getSectionOrd = (s: MenuSection) =>
           }),
         ];
 
-        const saved = await apiFetch<any[]>(tenantId, "/sections/bulk", {
-          method: "POST",
-          body: JSON.stringify({ rows }),
-        });
+        const saved = await menuApi.bulkUpsertMenuSections(tenantId, rows);
 
         const created = apiToSection(saved[0]);
         const next = [...sections, { ...created, items: [] }];
@@ -393,23 +338,22 @@ const getSectionOrd = (s: MenuSection) =>
   const updateSection = useCallback(
     async (id: string, patch: Partial<MenuSection>) => {
       const rows = [sectionToApi({ id, ...patch })];
-      const saved = await apiFetch<any[]>(tenantId, "/sections/bulk", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      });
+      const saved = await menuApi.bulkUpsertMenuSections(tenantId, rows);
       const savedById = new Map(saved.map((s: any) => [s.id, apiToSection(s)]));
-      const next = sections.map((s) =>
-        savedById.has(s.id)
-          ? { ...s, ...savedById.get(s.id)!, items: s.items }
-          : s
-      );
+      const next = sections.map((s) => {
+        if (savedById.has(s.id)) {
+          const savedSection = savedById.get(s.id) as any;
+          return { ...(s as any), ...(savedSection || {}), items: s.items };
+        }
+        return s;
+      });
       persist(next);
     },
     [sections, tenantId]
   );
 
   const refreshMenu = useCallback(async () => {
-    const secsRaw = await apiFetch<any[]>(tenantId, "/sections", { method: "GET" });
+    const secsRaw = await menuApi.listMenuSections(tenantId);
     const secs = (secsRaw || [])
       .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId)
       .map(apiToSection);
@@ -420,11 +364,7 @@ const getSectionOrd = (s: MenuSection) =>
           itemsBySection[s.id] = [];
           return;
         }
-        const listRaw = await apiFetch<any[]>(
-          tenantId,
-          `/items?sectionId=${encodeURIComponent(s.id)}`,
-          { method: "GET" }
-        );
+        const listRaw = await menuApi.getMenuItemsBySection(tenantId, s.id);
         // Strict tenant & section isolation on client mapping
         itemsBySection[s.id] = (listRaw || [])
           .filter((r: any) => (r?.tenant_id ?? tenantId) === tenantId && (r?.section_id ?? s.id) === s.id)
@@ -443,11 +383,16 @@ const getSectionOrd = (s: MenuSection) =>
 
   const reorderSections = useCallback(
     async (orderedIds: string[]) => {
-      // Server: persist order (expects { order: string[] })
-      await apiFetch<any[]>(tenantId, "/sections/reorder", {
-        method: "POST",
-        body: JSON.stringify({ order: orderedIds }),
-      });
+      // Server: persist order and is_active
+      await menuApi.upsertMenuSections(
+        tenantId,
+        orderedIds.map((id, idx) => ({
+          id,
+          ord: idx + 1,
+          isActive: sections.find(s => s.id === id)?.isActive ?? true,
+          name: sections.find(s => s.id === id)?.name || "",
+        }))
+      );
 
       // Optimistic local update: reorder sections to match orderedIds and update ord/sortIndex (1-based)
       const indexOf = new Map(orderedIds.map((id, idx) => [id, idx]));
@@ -456,7 +401,7 @@ const getSectionOrd = (s: MenuSection) =>
         .sort((a, b) => (indexOf.get(a.id) ?? 0) - (indexOf.get(b.id) ?? 0))
         .map((s) => {
           const idx = indexOf.get(s.id) ?? 0;
-          return { ...s, ord: idx + 1, sortIndex: idx + 1 } as any;
+          return { ...(s as any), ord: idx + 1, sortIndex: idx + 1 };
         });
       persist(next);
 
@@ -471,10 +416,7 @@ const getSectionOrd = (s: MenuSection) =>
       if (!sections.some(s => s.id === id)) {
         throw new Error("Section does not belong to this tenant");
       }
-      await apiFetch<{ deleted: number }>(tenantId, "/sections/delete-bulk", {
-        method: "POST",
-        body: JSON.stringify({ ids: [id] }),
-      });
+      await menuApi.deleteMenuSections(tenantId, [id]);
       persist(sections.filter((s) => s.id !== id));
     },
     [sections, tenantId]
@@ -484,31 +426,36 @@ const getSectionOrd = (s: MenuSection) =>
 
   const createItem = useCallback(
     async (data: Partial<MenuItem>): Promise<MenuItem> => {
-            // Strict tenant validation: provided section must exist in this tenant snapshot
-      const providedSectionId = (data as any).sectionId ?? null;
-      if (providedSectionId && !sections.some(s => s.id === providedSectionId)) {
+      // Strict tenant validation: provided section must exist in this tenant snapshot
+      let providedSectionId = (data as any).sectionId ?? null;
+      if (!providedSectionId) {
+        const firstActive = sections.find(s => s.isActive) || sections[0];
+        if (!firstActive) {
+          throw new Error("Cannot create item without a valid section");
+        }
+        providedSectionId = firstActive.id;
+      }
+
+      if (!sections.some(s => s.id === providedSectionId)) {
         throw new Error("Invalid section for this tenant");
       }
-      const rows = [
-        itemToApi({
-          id: (data as any).id,
-          sectionId: (data as any).sectionId ?? null,
-          name: data.name || "Unnamed",
-          price: (data as any).price ?? 0,
-          ord: typeof (data as any).ord === "number" ? (data as any).ord : 0,
-          isAvailable: (data as any).isAvailable !== false,
-          imageUrl: (data as any).imageUrl ?? null,
-          description: (data as any).description ?? null,
-          tags: (data as any).tags ?? [],
-          calories: (data as any).calories ?? null,
-          spicyLevel: (data as any).spicyLevel ?? null,
-          preparationTime: (data as any).preparationTime ?? null,
-        }),
-      ];
-      const saved = await apiFetch<any[]>(tenantId, "/items/bulk", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      });
+
+      const itemRow = {
+        id: (data as any).id,
+        sectionId: providedSectionId,
+        name: (data.name || "Unnamed").trim(),
+        price: Number((data as any).price ?? 0),
+        ord: typeof (data as any).ord === "number" ? (data as any).ord : 0,
+        isAvailable: (data as any).isAvailable !== false,
+        imageUrl: (data as any).imageUrl ?? null,
+        description: (data as any).description ?? null,
+        tags: (data as any).tags ?? [],
+        calories: (data as any).calories ?? null,
+        spicyLevel: (data as any).spicyLevel ?? null,
+        preparationTime: (data as any).preparationTime ?? null,
+      };
+
+      const saved = await menuApi.bulkUploadMenuItems(tenantId, [itemRow]);
       const created = apiToItem(saved[0]);
       const next = sections.map((s) =>
         s.id === (created as any).sectionId
@@ -523,50 +470,52 @@ const getSectionOrd = (s: MenuSection) =>
 
   const updateItem = useCallback(
     async (id: string, patch: Partial<MenuItem>) => {
-            // Ensure the item belongs to this tenant snapshot before updating
-      if (!sections.flatMap(s => s.items || []).some(it => it.id === id)) {
-        throw new Error("Item does not belong to this tenant");
+      const cur = sections.flatMap(s => s.items || []).find(it => it.id === id);
+      if (!cur) throw new Error("Item does not belong to this tenant");
+      try {
+        const camelPatch: any = {
+          ...patch,
+          sectionId: cur.sectionId,
+          // Ensure name/price present to satisfy API validation for updates
+          name: patch.name ?? cur.name,
+          price: patch.price ?? cur.price,
+        };
+        const saved = await menuApi.updateMenuItem(tenantId, id, camelPatch);
+        const updatedApi: any = Array.isArray(saved) ? saved[0] : saved;
+        const updated = apiToItem(updatedApi);
+        const next = sections.map((s) => ({
+          ...s,
+          items: (s.items || []).map((it) => (it.id === id ? updated : it)),
+        }));
+        persist(next);
+      } catch (e) {
+        console.error("updateItem failed:", e);
+        await refreshMenu();
+        throw e;
       }
-      const rows = [itemToApi({ id, ...patch })];
-      const saved = await apiFetch<any[]>(tenantId, "/items/bulk", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      });
-      const savedById = new Map(saved.map((i: any) => [i.id, apiToItem(i)]));
-      const next = sections.map((s) => ({
-        ...s,
-        items: (s.items || []).map((it) =>
-          savedById.get(it.id) ? savedById.get(it.id)! : it
-        ),
-      }));
-      persist(next);
     },
-    [sections, tenantId]
+    [sections, tenantId, refreshMenu]
   );
 
   const toggleItemAvailability = useCallback(
     async (id: string) => {
-      const cur = sections
-        .flatMap((s) => s.items || [])
-        .find((i: any) => i.id === id);
+      const cur = sections.flatMap(s => s.items || []).find(i => i.id === id);
       if (!cur) return;
-
-      const updated = await apiFetch<any>(
-        tenantId,
-        `/items/${encodeURIComponent(id)}/toggle`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ is_available: !cur.isAvailable }),
-        }
-      );
-      const updatedItem = apiToItem(updated);
-      const next = sections.map((s) => ({
-        ...s,
-        items: (s.items || []).map((it) => (it.id === id ? updatedItem : it)),
-      }));
-      persist(next);
+      try {
+        const saved = await menuApi.toggleItemAvailability(tenantId, id, !cur.isAvailable);
+        const updated = saved as MenuItem;
+        const next = sections.map((s) => ({
+          ...s,
+          items: (s.items || []).map((it) => (it.id === id ? updated : it)),
+        }));
+        persist(next);
+      } catch (e) {
+        console.error("toggleItemAvailability failed:", e);
+        await refreshMenu();
+        throw e;
+      }
     },
-    [sections, tenantId]
+    [sections, tenantId, refreshMenu]
   );
 
   const archiveItem = useCallback(
@@ -575,10 +524,7 @@ const getSectionOrd = (s: MenuSection) =>
       if (!sections.flatMap(s => s.items || []).some(it => it.id === id)) {
         throw new Error("Item does not belong to this tenant");
       }
-      await apiFetch<{ deleted: number }>(tenantId, "/items/delete-bulk", {
-        method: "POST",
-        body: JSON.stringify({ ids: [id] }),
-      });
+      await menuApi.deleteMenuItems(tenantId, [id]);
       const next = sections.map((s) => ({
         ...s,
         items: (s.items || []).filter((i) => i.id !== id),
@@ -590,11 +536,18 @@ const getSectionOrd = (s: MenuSection) =>
 
   const reorderItems = useCallback(
     async (sectionId: string, orderedIds: string[]) => {
-      const rows = orderedIds.map((id, idx) => itemToApi({ id, ord: idx }));
-      await apiFetch<any[]>(tenantId, "/items/bulk", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
+      const rows = orderedIds.map((id, idx) => {
+        const cur = sections.find(s => s.id === sectionId)?.items?.find(i => i.id === id);
+        return {
+          id,
+          sectionId,
+          ord: idx,
+          name: cur?.name ?? "",
+          price: Number(cur?.price ?? 0),
+          isAvailable: cur?.isAvailable ?? true,
+        };
       });
+      await menuApi.bulkUploadMenuItems(tenantId, rows);
       const mapOrd = new Map(rows.map((r: any) => [r.id, r.ord!]));
       const next = sections.map((s) =>
         s.id === sectionId
@@ -616,19 +569,22 @@ const getSectionOrd = (s: MenuSection) =>
 
   const moveItem = useCallback(
     async (itemId: string, toSectionId: string, toIndex = 0) => {
-            // Ensure destination section exists in this tenant snapshot
       if (!sections.some(s => s.id === toSectionId)) {
         throw new Error("Destination section does not belong to this tenant");
       }
-      const rows = [itemToApi({ id: itemId, sectionId: toSectionId, ord: toIndex })];
-      await apiFetch<any[]>(tenantId, "/items/bulk", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      });
+      const cur = sections.flatMap((s) => s.items || []).find((i) => i.id === itemId);
 
-      const cur = sections
-        .flatMap((s) => s.items || [])
-        .find((i) => i.id === itemId);
+      const rows = [
+        {
+          id: itemId,
+          sectionId: toSectionId,
+          ord: toIndex,
+          name: cur?.name ?? "",
+          price: Number(cur?.price ?? 0),
+          isAvailable: cur?.isAvailable ?? true,
+        },
+      ];
+      await menuApi.bulkUploadMenuItems(tenantId, rows);
 
       const next = sections.map((s) => {
         let items = s.items || [];
@@ -650,31 +606,26 @@ const getSectionOrd = (s: MenuSection) =>
     async (items: BulkUploadItem[]): Promise<BulkUploadResult> => {
       let sectionsUpserted = 0;
       const rowsToSave: any[] = [];
-      // Start from current sections snapshot we can mutate
-      let nextSections: MenuSection[] = JSON.parse(JSON.stringify(sections));
+      let nextSections: MenuSection[] = JSON.parse(JSON.stringify(sections)) as MenuSection[];
 
       for (const row of items) {
         let sectionId = row.sectionId ?? null;
-
-        // create/find section by name if necessary
         if (!sectionId && row.sectionName) {
           const found = nextSections.find(
             (s) => (s.name || '').trim().toLowerCase() === row.sectionName!.trim().toLowerCase()
           );
           if (found) sectionId = found.id;
           else {
-            const createdRaw = await apiFetch<any[]>(tenantId, '/sections/bulk', {
-              method: 'POST',
-              body: JSON.stringify({
-                rows: [
-                  sectionToApi({
-                    name: row.sectionName,
-                    isActive: true,
-                    ord: nextSections.length + sectionsUpserted,
-                  }),
-                ],
-              }),
-            });
+            const createdRaw = await menuApi.bulkUpsertMenuSections(
+              tenantId,
+              [
+                sectionToApi({
+                  name: row.sectionName,
+                  isActive: true,
+                  ord: nextSections.length + sectionsUpserted,
+                }),
+              ]
+            );
             const created = apiToSection(createdRaw[0]);
             sectionId = created.id;
             sectionsUpserted += 1;
@@ -682,29 +633,23 @@ const getSectionOrd = (s: MenuSection) =>
           }
         }
 
-        rowsToSave.push(
-          itemToApi({
-            sectionId,
-            name: row.name,
-            price: Number(row.price) || 0,
-            ord: typeof row.ord === 'number' ? row.ord : 0,
-            isAvailable: row.isAvailable !== false,
-            imageUrl: row.imageUrl ?? null,
-            description: row.description ?? null,
-            tags: row.tags ?? [],
-            calories: row.calories ?? null,
-            spicyLevel: row.spicyLevel ?? null,
-            preparationTime: row.preparationTime ?? null,
-          })
-        );
+        rowsToSave.push({
+          sectionId,
+          name: row.name,
+          price: Number(row.price) || 0,
+          ord: typeof row.ord === 'number' ? row.ord : 0,
+          isAvailable: row.isAvailable !== false,
+          imageUrl: row.imageUrl ?? null,
+          description: row.description ?? null,
+          tags: row.tags ?? [],
+          calories: row.calories ?? null,
+          spicyLevel: row.spicyLevel ?? null,
+          preparationTime: row.preparationTime ?? null,
+        });
       }
 
-      const saved = await apiFetch<any[]>(tenantId, '/items/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ rows: rowsToSave }),
-      });
+      const saved = await menuApi.bulkUploadMenuItems(tenantId, rowsToSave);
 
-      // Merge returned items into local state (upsert per section)
       const savedItems = saved.map(apiToItem);
       for (const it of savedItems) {
         nextSections = nextSections.map((s) => {
@@ -756,25 +701,10 @@ const getSectionOrd = (s: MenuSection) =>
 
       try {
         // 2) Server: toggle items availability for the section (scoped by tenant)
-        await apiFetch<{ updated: number }>(
-          tenantId,
-          `/sections/${encodeURIComponent(sectionId)}/toggle-items`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ available: !!nextAvailable }),
-          }
-        );
-
+        await menuApi.toggleSectionItems(tenantId, sectionId, nextAvailable);
         // 3) Best-effort: keep section's is_active in sync (do not fail UX if this errors)
         try {
-          await apiFetch<any>(
-            tenantId,
-            `/sections/${encodeURIComponent(sectionId)}/toggle`,
-            {
-              method: 'PATCH',
-              body: JSON.stringify({ is_active: !!nextAvailable }),
-            }
-          );
+          await menuApi.setSectionActive(tenantId, sectionId, nextAvailable);
         } catch (syncErr) {
           console.warn('Section is_active sync failed (non-fatal):', syncErr);
         }

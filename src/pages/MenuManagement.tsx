@@ -27,7 +27,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { MenuSection, MenuItem } from "../types/menu";
-import { menuApi } from "../lib/api";
+import { menuApi } from "../lib/api/menuApi";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isUuidV4 = (v?: string | null) => !!v && typeof v === 'string' && UUID_RE.test(v);
@@ -312,39 +312,77 @@ export default function MenuManagement() {
 
 
   const handleSaveItem = async (itemData: Partial<MenuItem>) => {
+    // Always require name and price to be present and valid
+    if (!itemData.name || !String(itemData.name).trim()) {
+      toast.warning("Item name is required.");
+      return;
+    }
+    let numericPrice = Number(itemData.price);
+    if (isNaN(numericPrice) || numericPrice <= 0) {
+      toast.warning("Valid numeric item price is required.");
+      return;
+    }
+    itemData.price = numericPrice;
+
     try {
       if (editingItem) {
+        // For edit: ensure name and numeric price are present (API expects both), fill from editingItem if missing
+        if (!itemData.name) {
+          itemData.name = editingItem.name;
+        }
+        if (
+          itemData.price === undefined ||
+          itemData.price === null ||
+          isNaN(Number(itemData.price))
+        ) {
+          itemData.price = Number(editingItem.price);
+        }
+        if (!itemData.sectionId) {
+          itemData.sectionId = editingItem.sectionId;
+        }
+        if (!itemData.sectionId || !isUuidV4(itemData.sectionId)) {
+          toast.warning("Valid section is required.");
+          return;
+        }
+        if (!(itemData as any).categoryId) {
+          delete (itemData as any).categoryId;
+        }
         await updateItem(editingItem.id, itemData);
-        await refreshSections();
       } else {
-        // If no section selected, use the currently selected or first active section
+        // For create: require name, sectionId, and numeric price
+        if (!itemData.name || !String(itemData.name).trim()) {
+          toast.warning("Item name is required.");
+          return;
+        }
         if (!itemData.sectionId) {
           if (selectedSection && sections.some(s => s.id === selectedSection)) {
             itemData.sectionId = selectedSection;
           } else {
-            const firstActive = sections.find(s => s.isActive) || sections[0];
-            if (firstActive) itemData.sectionId = firstActive.id;
+            const fallback = sections.find(s => s.isActive) || sections[0];
+            if (fallback) {
+              itemData.sectionId = fallback.id;
+            }
           }
         }
-
-        if (!itemData.sectionId) {
-          console.warn("Please select a section first or create a section.");
-          toast.warning("Please select a section first or create a section.");
+        if (!itemData.sectionId || !isUuidV4(itemData.sectionId)) {
+          toast.warning("Please select or create a valid section before adding an item.");
           return;
         }
-
-        // Let the server assign a valid category (tenant default) when not provided
+        // Coerce price to number again (defensive)
+        itemData.price = Number(itemData.price);
+        if (isNaN(itemData.price) || itemData.price <= 0) {
+          toast.warning("Valid numeric item price is required.");
+          return;
+        }
         if (!(itemData as any).categoryId) {
           delete (itemData as any).categoryId;
         }
-
         await createItem(itemData);
-        await refreshSections();
       }
-      setShowItemEditor(false);
+      await refreshSections();
+      setShowItemEditor(false); // close only on success
     } catch (err) {
       console.error("Failed to save item:", err);
-      console.warn("Failed to save item. Please try again.");
       toast.error("Failed to save item. Please try again.");
     }
   };
@@ -870,6 +908,11 @@ export default function MenuManagement() {
               // Ensure every item carries a valid sectionId and let server assign category if missing
               const enrichedItems = (items as any)
                 .map((item: any) => {
+                  // Skip if name is missing or blank
+                  if (!item.name || !String(item.name).trim()) return null;
+                  // Coerce price to number
+                  item.price = Number(item.price);
+                  if (isNaN(item.price) || item.price <= 0) return null;
                   if (!item.sectionId) {
                     let fallback: string | undefined;
                     if (selectedSection && sections.some(s => s.id === selectedSection)) {

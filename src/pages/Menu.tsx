@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useCartStore, ContextRequiredError } from "../state/cartStore";
 import { Search, Star, Clock, Leaf, Flame } from "lucide-react";
 import { useMenuManagement } from "../hooks/useMenuManagement";
 import { getTenantId, cartApi, taxApi, getUserId, syncUserId } from "@/lib/api";
+import { menuApi } from "@/lib/api/menuApi";
 // Local helper to call cartApi.get with optional userId without TS arity issues
 const cartGet = (tenantId: string, cartId: string, userId?: string) => (cartApi as any).get(tenantId, cartId, userId);
 import FloatingCart from '../components/cart/FloatingCart';
@@ -589,6 +591,7 @@ export default function Menu() {
   // --------- RENDER (single return to keep hook order stable across hot reloads) ----------
   return (
     <div className="min-h-screen">
+      <Header />
 
       {/* TENANT NOT SET BANNER */}
       {!hasValidTenant && (
